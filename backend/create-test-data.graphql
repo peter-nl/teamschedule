@@ -1,0 +1,57 @@
+# Create test teams
+mutation CreateTeams {
+  engineering: createTeam(name: "Engineering Team") {
+    id
+    name
+  }
+  design: createTeam(name: "Design Team") {
+    id
+    name
+  }
+  marketing: createTeam(name: "Marketing Team") {
+    id
+    name
+  }
+}
+
+# Create test workers
+mutation CreateWorkers {
+  john: createWorker(tn: "EMP001", firstName: "John", lastName: "Doe") {
+    id
+    tn
+    firstName
+    lastName
+  }
+  jane: createWorker(tn: "EMP002", firstName: "Jane", lastName: "Smith") {
+    id
+    tn
+    firstName
+    lastName
+  }
+  bob: createWorker(tn: "EMP003", firstName: "Bob", lastName: "Johnson") {
+    id
+    tn
+    firstName
+    lastName
+  }
+  alice: createWorker(tn: "EMP004", firstName: "Alice", lastName: "Williams") {
+    id
+    tn
+    firstName
+    lastName
+  }
+}
+
+# Assign workers to teams
+mutation AssignWorkersToTeams {
+  # John and Jane to Engineering
+  a1: addWorkerToTeam(teamId: 1, workerId: 1) { id }
+  a2: addWorkerToTeam(teamId: 1, workerId: 2) { id }
+
+  # Jane and Bob to Design (Jane is on both Engineering and Design)
+  a3: addWorkerToTeam(teamId: 2, workerId: 2) { id }
+  a4: addWorkerToTeam(teamId: 2, workerId: 3) { id }
+
+  # Alice to Marketing
+  a5: addWorkerToTeam(teamId: 3, workerId: 4) { id }
+}

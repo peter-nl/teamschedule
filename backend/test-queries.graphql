@@ -1,0 +1,84 @@
+# Test queries for the new schema
+
+# Create a team
+mutation CreateTeam {
+  createTeam(name: "Engineering Team") {
+    id
+    name
+  }
+}
+
+# Create workers
+mutation CreateWorker1 {
+  createWorker(tn: "EMP001", firstName: "John", lastName: "Doe") {
+    id
+    tn
+    firstName
+    lastName
+  }
+}
+
+mutation CreateWorker2 {
+  createWorker(tn: "EMP002", firstName: "Jane", lastName: "Smith") {
+    id
+    tn
+    firstName
+    lastName
+  }
+}
+
+# Add worker to team
+mutation AddWorkerToTeam {
+  addWorkerToTeam(teamId: 1, workerId: 1) {
+    id
+    name
+    workers {
+      id
+      tn
+      firstName
+      lastName
+    }
+  }
+}
+
+# Query all teams with their workers
+query GetTeams {
+  teams {
+    id
+    name
+    workers {
+      id
+      tn
+      firstName
+      lastName
+    }
+  }
+}
+
+# Query all workers with their teams
+query GetWorkers {
+  workers {
+    id
+    tn
+    firstName
+    lastName
+    teams {
+      id
+      name
+    }
+  }
+}
+
+# Query specific worker by TN
+query GetWorkerByTn {
+  workerByTn(tn: "EMP001") {
+    id
+    tn
+    firstName
+    lastName
+    teams {
+      id
+      name
+    }
+  }
+}
