@@ -11,7 +11,9 @@
       "Bash(find:*)",
       "Bash(docker-compose restart:*)",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nInitial commit: Teamschedule full-stack application\n\n- Angular 19 frontend with Material Design 3\n- Apollo GraphQL backend with Node.js\n- PostgreSQL database\n- Docker compose setup for all services\n- Direct Apollo Client v4 integration \\(no apollo-angular\\)\n\nTech Stack:\n- Frontend: Angular 19.2, Material Design 3, Apollo Client v4\n- Backend: Node.js, Apollo Server, TypeScript\n- Database: PostgreSQL 16\n- Infrastructure: Docker, Docker Compose\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit:*)"
     ]
   }
 }
