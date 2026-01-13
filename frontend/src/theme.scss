@@ -1,0 +1,42 @@
+@use '@angular/material' as mat;
+
+// Include the common styles for Angular Material. We include this here so that you only
+// have to load a single css file for Angular Material in your app.
+@include mat.core();
+
+// Define a Material 3 theme with primary, secondary, and tertiary colors
+$teamschedule-theme: mat.define-theme((
+  color: (
+    theme-type: light,
+    primary: mat.$azure-palette,
+    tertiary: mat.$blue-palette,
+  ),
+  typography: (
+    brand-family: 'Roboto, sans-serif',
+    plain-family: 'Roboto, sans-serif',
+  ),
+  density: (
+    scale: 0,
+  )
+));
+
+// Apply the theme to all Material components
+:root {
+  @include mat.all-component-themes($teamschedule-theme);
+}
+
+// You can also create dark theme
+$teamschedule-dark-theme: mat.define-theme((
+  color: (
+    theme-type: dark,
+    primary: mat.$azure-palette,
+    tertiary: mat.$blue-palette,
+  ),
+));
+
+// Apply dark theme when prefers-color-scheme is dark
+@media (prefers-color-scheme: dark) {
+  :root {
+    @include mat.all-component-colors($teamschedule-dark-theme);
+  }
+}

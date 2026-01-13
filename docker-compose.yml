@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: teamschedule-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: teamschedule
+      POSTGRES_USER: teamschedule_user
+      POSTGRES_PASSWORD: teamschedule_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - teamschedule-network
+
+  # pgAdmin
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: teamschedule-pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@teamschedule.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - teamschedule-network
+
+  # Apollo Server Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: teamschedule-backend
+    restart: always
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://teamschedule_user:teamschedule_pass@postgres:5432/teamschedule
+      PORT: 4000
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    depends_on:
+      - postgres
+    networks:
+      - teamschedule-network
+
+  # Angular Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: teamschedule-frontend
+    restart: always
+    environment:
+      - NODE_ENV=development
+    ports:
+      - "4200:4200"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - teamschedule-network
+
+volumes:
+  postgres_data:
+
+networks:
+  teamschedule-network:
+    driver: bridge
