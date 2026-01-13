@@ -29,7 +29,7 @@ const GET_HELLO = gql`
 
         <mat-card-content>
           <div *ngIf="loading" class="loading-container">
-            <mat-spinner diameter="40"></mat-spinner>
+            <mat-progress-spinner diameter="40"></mat-progress-spinner>
             <p>Loading...</p>
           </div>
 
