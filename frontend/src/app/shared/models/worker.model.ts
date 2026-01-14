@@ -1,8 +1,8 @@
 export interface Worker {
   id: string;
-  tn: string;
   firstName: string;
   lastName: string;
+  particles?: string | null;
   teams?: TeamBasic[];
 }
 

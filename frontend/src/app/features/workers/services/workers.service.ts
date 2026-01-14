@@ -9,9 +9,9 @@ const GET_WORKERS = gql`
   query GetWorkers {
     workers {
       id
-      tn
       firstName
       lastName
+      particles
       teams {
         id
         name

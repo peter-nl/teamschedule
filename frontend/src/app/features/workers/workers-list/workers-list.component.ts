@@ -33,7 +33,7 @@ import { Worker } from '../../../shared/models/worker.model';
         <h1>Workers</h1>
         <mat-form-field class="search-field" appearance="outline">
           <mat-label>Search workers</mat-label>
-          <input matInput (keyup)="applyFilter($event)" placeholder="Search by name or TN" #input>
+          <input matInput (keyup)="applyFilter($event)" placeholder="Search by ID, name, or particles" #input>
           <mat-icon matSuffix>search</mat-icon>
         </mat-form-field>
       </div>
@@ -57,14 +57,14 @@ import { Worker } from '../../../shared/models/worker.model';
             <td mat-cell *matCellDef="let worker">{{ worker.id }}</td>
           </ng-container>
 
-          <ng-container matColumnDef="tn">
-            <th mat-header-cell *matHeaderCellDef mat-sort-header>TN</th>
-            <td mat-cell *matCellDef="let worker">{{ worker.tn }}</td>
-          </ng-container>
-
           <ng-container matColumnDef="firstName">
             <th mat-header-cell *matHeaderCellDef mat-sort-header>First Name</th>
             <td mat-cell *matCellDef="let worker">{{ worker.firstName }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="particles">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Particles</th>
+            <td mat-cell *matCellDef="let worker">{{ worker.particles || '-' }}</td>
           </ng-container>
 
           <ng-container matColumnDef="lastName">
@@ -168,10 +168,9 @@ import { Worker } from '../../../shared/models/worker.model';
     }
 
     .table-container {
-      background: var(--mat-sys-surface);
       border-radius: 12px;
       overflow: hidden;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      border: 1px solid var(--mat-sys-outline-variant);
     }
 
     .workers-table {
@@ -248,7 +247,7 @@ import { Worker } from '../../../shared/models/worker.model';
   `]
 })
 export class WorkersListComponent implements OnInit {
-  displayedColumns: string[] = ['id', 'tn', 'firstName', 'lastName', 'teams', 'actions'];
+  displayedColumns: string[] = ['id', 'firstName', 'particles', 'lastName', 'teams', 'actions'];
   dataSource = new MatTableDataSource<Worker>();
   loading = true;
   error: string | null = null;
@@ -270,9 +269,11 @@ export class WorkersListComponent implements OnInit {
     this.dataSource.filterPredicate = (data: Worker, filter: string) => {
       const searchStr = filter.toLowerCase();
       const teamNames = data.teams?.map(t => t.name.toLowerCase()).join(' ') || '';
-      return data.tn.toLowerCase().includes(searchStr) ||
+      const particles = (data.particles || '').toLowerCase();
+      return data.id.toLowerCase().includes(searchStr) ||
              data.firstName.toLowerCase().includes(searchStr) ||
              data.lastName.toLowerCase().includes(searchStr) ||
+             particles.includes(searchStr) ||
              teamNames.includes(searchStr);
     };
   }

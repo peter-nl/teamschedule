@@ -1,0 +1,23 @@
+# Insert initial teams
+mutation InsertTeams {
+  team1: createTeam(name: "Medewerkerportaal") {
+    id
+    name
+  }
+  team2: createTeam(name: "ZW-Arbo") {
+    id
+    name
+  }
+  team3: createTeam(name: "Team SIO") {
+    id
+    name
+  }
+  team4: createTeam(name: "SMZ") {
+    id
+    name
+  }
+  team5: createTeam(name: "UWV") {
+    id
+    name
+  }
+}

@@ -51,14 +51,12 @@ import { MatTabsModule } from '@angular/material/tabs';
 
     .tab-group {
       flex-shrink: 0;
-      background: var(--mat-sys-surface);
       border-bottom: 1px solid var(--mat-sys-outline-variant);
     }
 
     .content {
       flex: 1;
       overflow: auto;
-      background: var(--mat-sys-surface-container-lowest);
       padding: 24px;
     }
 

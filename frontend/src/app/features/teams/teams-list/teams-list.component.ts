@@ -147,10 +147,9 @@ import { Team } from '../../../shared/models/team.model';
     }
 
     .table-container {
-      background: var(--mat-sys-surface);
       border-radius: 12px;
       overflow: hidden;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      border: 1px solid var(--mat-sys-outline-variant);
     }
 
     .teams-table {

@@ -12,9 +12,9 @@ const GET_TEAMS = gql`
       name
       workers {
         id
-        tn
         firstName
         lastName
+        particles
       }
     }
   }

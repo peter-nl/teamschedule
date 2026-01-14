@@ -10,33 +10,33 @@ mutation CreateTeam {
 
 # Create workers
 mutation CreateWorker1 {
-  createWorker(tn: "EMP001", firstName: "John", lastName: "Doe") {
+  createWorker(id: "jdo001", firstName: "John", lastName: "Doe") {
     id
-    tn
     firstName
     lastName
+    particles
   }
 }
 
 mutation CreateWorker2 {
-  createWorker(tn: "EMP002", firstName: "Jane", lastName: "Smith") {
+  createWorker(id: "jsm002", firstName: "Jane", lastName: "Smith") {
     id
-    tn
     firstName
     lastName
+    particles
   }
 }
 
 # Add worker to team
 mutation AddWorkerToTeam {
-  addWorkerToTeam(teamId: 1, workerId: 1) {
+  addWorkerToTeam(teamId: 1, workerId: "jdo001") {
     id
     name
     workers {
       id
-      tn
       firstName
       lastName
+      particles
     }
   }
 }
@@ -48,9 +48,9 @@ query GetTeams {
     name
     workers {
       id
-      tn
       firstName
       lastName
+      particles
     }
   }
 }
@@ -59,9 +59,9 @@ query GetTeams {
 query GetWorkers {
   workers {
     id
-    tn
     firstName
     lastName
+    particles
     teams {
       id
       name
@@ -69,13 +69,13 @@ query GetWorkers {
   }
 }
 
-# Query specific worker by TN
-query GetWorkerByTn {
-  workerByTn(tn: "EMP001") {
+# Query specific worker
+query GetWorker {
+  worker(id: "jdo001") {
     id
-    tn
     firstName
     lastName
+    particles
     teams {
       id
       name

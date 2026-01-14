@@ -38,9 +38,9 @@ const typeDefs = `#graphql
 
   type Worker {
     id: ID!
-    tn: String!
     firstName: String!
     lastName: String!
+    particles: String
     teams: [Team!]!
   }
 
@@ -51,13 +51,12 @@ const typeDefs = `#graphql
     team(id: ID!): Team
     workers: [Worker!]!
     worker(id: ID!): Worker
-    workerByTn(tn: String!): Worker
   }
 
   type Mutation {
     ping: String
     createTeam(name: String!): Team!
-    createWorker(tn: String!, firstName: String!, lastName: String!): Worker!
+    createWorker(id: String!, firstName: String!, lastName: String!, particles: String): Worker!
     addWorkerToTeam(teamId: ID!, workerId: ID!): Team!
     removeWorkerFromTeam(teamId: ID!, workerId: ID!): Team!
     deleteTeam(id: ID!): Boolean!
@@ -89,31 +88,20 @@ const resolvers = {
       const result = await pool.query('SELECT * FROM worker ORDER BY last_name, first_name');
       return result.rows.map(row => ({
         id: row.id,
-        tn: row.tn,
         firstName: row.first_name,
         lastName: row.last_name,
+        particles: row.particles,
       }));
     },
-    worker: async (_: any, { id }: { id: number }) => {
+    worker: async (_: any, { id }: { id: string }) => {
       const result = await pool.query('SELECT * FROM worker WHERE id = $1', [id]);
       if (result.rows.length === 0) return null;
       const row = result.rows[0];
       return {
         id: row.id,
-        tn: row.tn,
         firstName: row.first_name,
         lastName: row.last_name,
-      };
-    },
-    workerByTn: async (_: any, { tn }: { tn: string }) => {
-      const result = await pool.query('SELECT * FROM worker WHERE tn = $1', [tn]);
-      if (result.rows.length === 0) return null;
-      const row = result.rows[0];
-      return {
-        id: row.id,
-        tn: row.tn,
-        firstName: row.first_name,
-        lastName: row.last_name,
+        particles: row.particles,
       };
     },
   },
@@ -126,17 +114,17 @@ const resolvers = {
       );
       return result.rows[0];
     },
-    createWorker: async (_: any, { tn, firstName, lastName }: { tn: string; firstName: string; lastName: string }) => {
+    createWorker: async (_: any, { id, firstName, lastName, particles }: { id: string; firstName: string; lastName: string; particles?: string }) => {
       const result = await pool.query(
-        'INSERT INTO worker (tn, first_name, last_name) VALUES ($1, $2, $3) RETURNING *',
-        [tn, firstName, lastName]
+        'INSERT INTO worker (id, first_name, last_name, particles) VALUES ($1, $2, $3, $4) RETURNING *',
+        [id, firstName, lastName, particles || null]
       );
       const row = result.rows[0];
       return {
         id: row.id,
-        tn: row.tn,
         firstName: row.first_name,
         lastName: row.last_name,
+        particles: row.particles,
       };
     },
     addWorkerToTeam: async (_: any, { teamId, workerId }: { teamId: number; workerId: number }) => {
@@ -175,9 +163,9 @@ const resolvers = {
       );
       return result.rows.map(row => ({
         id: row.id,
-        tn: row.tn,
         firstName: row.first_name,
         lastName: row.last_name,
+        particles: row.particles,
       }));
     },
   },

@@ -1,0 +1,29 @@
+# Assign workers to teams
+# pbo124 (Peter Bouwmeester) to all teams 1-5
+# ske058 (Shiela Keizer) to all teams 1-5
+# jve001 (Jan van Ven) to teams 4 and 5
+# rmo010 (Rogier de Mol) to teams 3 and 4
+
+mutation AssignWorkersToTeams {
+  # Peter Bouwmeester to all 5 teams
+  p1: addWorkerToTeam(teamId: 1, workerId: "pbo124") { id name }
+  p2: addWorkerToTeam(teamId: 2, workerId: "pbo124") { id name }
+  p3: addWorkerToTeam(teamId: 3, workerId: "pbo124") { id name }
+  p4: addWorkerToTeam(teamId: 4, workerId: "pbo124") { id name }
+  p5: addWorkerToTeam(teamId: 5, workerId: "pbo124") { id name }
+
+  # Shiela Keizer to all 5 teams
+  s1: addWorkerToTeam(teamId: 1, workerId: "ske058") { id name }
+  s2: addWorkerToTeam(teamId: 2, workerId: "ske058") { id name }
+  s3: addWorkerToTeam(teamId: 3, workerId: "ske058") { id name }
+  s4: addWorkerToTeam(teamId: 4, workerId: "ske058") { id name }
+  s5: addWorkerToTeam(teamId: 5, workerId: "ske058") { id name }
+
+  # Jan van Ven to teams 4 and 5
+  j4: addWorkerToTeam(teamId: 4, workerId: "jve001") { id name }
+  j5: addWorkerToTeam(teamId: 5, workerId: "jve001") { id name }
+
+  # Rogier de Mol to teams 3 and 4
+  r3: addWorkerToTeam(teamId: 3, workerId: "rmo010") { id name }
+  r4: addWorkerToTeam(teamId: 4, workerId: "rmo010") { id name }
+}
