@@ -11,7 +11,7 @@ services:
       POSTGRES_USER: teamschedule_user
       POSTGRES_PASSWORD: teamschedule_pass
     ports:
-      - "5432:5432"
+      - "1232:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -26,7 +26,9 @@ services:
       PGADMIN_DEFAULT_EMAIL: admin@teamschedule.com
       PGADMIN_DEFAULT_PASSWORD: admin
     ports:
-      - "5050:80"
+      - "1250:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
     depends_on:
       - postgres
     networks:
@@ -44,7 +46,7 @@ services:
       DATABASE_URL: postgresql://teamschedule_user:teamschedule_pass@postgres:5432/teamschedule
       PORT: 4000
     ports:
-      - "4000:4000"
+      - "1200:4000"
     volumes:
       - ./backend:/app
       - /app/node_modules
@@ -63,7 +65,7 @@ services:
     environment:
       - NODE_ENV=development
     ports:
-      - "4200:4200"
+      - "1220:4200"
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -74,6 +76,7 @@ services:
 
 volumes:
   postgres_data:
+  pgadmin_data:
 
 networks:
   teamschedule-network:

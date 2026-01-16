@@ -7,7 +7,7 @@ import { ApolloClient, InMemoryCache, HttpLink } from '@apollo/client';
 
 // Create HttpLink for GraphQL endpoint
 const httpLink = new HttpLink({
-  uri: 'http://localhost:4000/graphql'
+  uri: 'http://localhost:1200/graphql'
 });
 
 // Create and export Apollo Client instance
