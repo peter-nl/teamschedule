@@ -351,7 +351,7 @@ interface DateColumn {
 
     .year-cell.weekend,
     .month-cell.weekend {
-      background: rgba(0, 0, 0, 0.05);
+      background: var(--mat-sys-surface-container);
     }
 
     .day-cell {
@@ -368,7 +368,7 @@ interface DateColumn {
     }
 
     .day-cell.weekend {
-      background: rgba(0, 0, 0, 0.05);
+      background: var(--mat-sys-surface-container);
     }
 
     .day-cell.today {
@@ -405,7 +405,7 @@ interface DateColumn {
     }
 
     .schedule-cell.weekend {
-      background: rgba(0, 0, 0, 0.03);
+      background: var(--mat-sys-surface-container-low);
     }
 
     .schedule-cell.today {
