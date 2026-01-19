@@ -23,6 +23,7 @@ import { MatTabsModule } from '@angular/material/tabs';
       <mat-tab-group class="tab-group" (selectedIndexChange)="onTabChange($event)" [selectedIndex]="selectedTabIndex">
         <mat-tab label="Teams"></mat-tab>
         <mat-tab label="Workers"></mat-tab>
+        <mat-tab label="Schedule"></mat-tab>
       </mat-tab-group>
 
       <div class="content">
@@ -73,7 +74,13 @@ export class ShellComponent {
   constructor(private router: Router) {
     // Set initial tab based on current route
     const path = this.router.url.split('/')[1];
-    this.selectedTabIndex = path === 'workers' ? 1 : 0;
+    if (path === 'workers') {
+      this.selectedTabIndex = 1;
+    } else if (path === 'schedule') {
+      this.selectedTabIndex = 2;
+    } else {
+      this.selectedTabIndex = 0;
+    }
   }
 
   onTabChange(index: number) {
@@ -81,6 +88,8 @@ export class ShellComponent {
       this.router.navigate(['/teams']);
     } else if (index === 1) {
       this.router.navigate(['/workers']);
+    } else if (index === 2) {
+      this.router.navigate(['/schedule']);
     }
   }
 }
