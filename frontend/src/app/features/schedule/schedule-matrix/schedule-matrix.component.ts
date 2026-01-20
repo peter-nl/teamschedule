@@ -8,6 +8,7 @@ import { forkJoin } from 'rxjs';
 import { ScheduleService } from '../services/schedule.service';
 import { Worker } from '../../../shared/models/worker.model';
 import { Team } from '../../../shared/models/team.model';
+import { SettingsService } from '../../../shared/services/settings.service';
 
 interface DateColumn {
   date: Date;
@@ -439,7 +440,15 @@ export class ScheduleMatrixComponent implements OnInit {
   loading = true;
   error: string | null = null;
 
-  constructor(private scheduleService: ScheduleService) {}
+  constructor(
+    private scheduleService: ScheduleService,
+    private settingsService: SettingsService
+  ) {
+    const settings = this.settingsService.getScheduleSettings();
+    if (settings?.selectedTeamIds) {
+      this.selectedTeamIds = new Set(settings.selectedTeamIds);
+    }
+  }
 
   ngOnInit(): void {
     this.generateDateColumns();
@@ -539,7 +548,7 @@ export class ScheduleMatrixComponent implements OnInit {
       next: (result) => {
         this.workers = result.workers;
         this.teams = result.teams;
-        this.filteredWorkers = this.workers;
+        this.filterWorkers();
         this.loading = false;
         this.scrollToToday();
       },
@@ -561,6 +570,13 @@ export class ScheduleMatrixComponent implements OnInit {
       this.selectedTeamIds.add(teamId);
     }
     this.filterWorkers();
+    this.saveSettings();
+  }
+
+  private saveSettings(): void {
+    this.settingsService.setScheduleSettings({
+      selectedTeamIds: Array.from(this.selectedTeamIds)
+    });
   }
 
   filterWorkers(): void {

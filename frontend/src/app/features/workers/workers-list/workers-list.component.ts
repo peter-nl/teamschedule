@@ -1,8 +1,8 @@
 import { Component, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatTableModule, MatTableDataSource } from '@angular/material/table';
-import { MatPaginatorModule, MatPaginator } from '@angular/material/paginator';
-import { MatSortModule, MatSort } from '@angular/material/sort';
+import { MatPaginatorModule, MatPaginator, PageEvent } from '@angular/material/paginator';
+import { MatSortModule, MatSort, Sort } from '@angular/material/sort';
 import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -11,6 +11,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
 import { WorkersService } from '../services/workers.service';
 import { Worker } from '../../../shared/models/worker.model';
+import { SettingsService } from '../../../shared/services/settings.service';
 
 @Component({
   selector: 'app-workers-list',
@@ -50,7 +51,7 @@ import { Worker } from '../../../shared/models/worker.model';
       </div>
 
       <div *ngIf="!loading && !error" class="table-container">
-        <table mat-table [dataSource]="dataSource" matSort class="workers-table">
+        <table mat-table [dataSource]="dataSource" matSort (matSortChange)="onSortChange($event)" class="workers-table">
 
           <ng-container matColumnDef="id">
             <th mat-header-cell *matHeaderCellDef mat-sort-header>ID</th>
@@ -114,7 +115,8 @@ import { Worker } from '../../../shared/models/worker.model';
 
         <mat-paginator
           [pageSizeOptions]="[10, 25, 50]"
-          [pageSize]="10"
+          [pageSize]="pageSize"
+          (page)="onPageChange($event)"
           showFirstLastButtons
           aria-label="Select page of workers">
         </mat-paginator>
@@ -251,19 +253,32 @@ export class WorkersListComponent implements OnInit {
   dataSource = new MatTableDataSource<Worker>();
   loading = true;
   error: string | null = null;
+  pageSize = 10;
 
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-  @ViewChild(MatSort) sort!: MatSort;
+  private sortRef: MatSort | null = null;
 
-  constructor(private workersService: WorkersService) {}
-
-  ngOnInit() {
-    this.loadWorkers();
+  @ViewChild(MatPaginator) set paginator(paginator: MatPaginator) {
+    if (paginator) {
+      this.dataSource.paginator = paginator;
+    }
   }
 
-  ngAfterViewInit() {
-    this.dataSource.paginator = this.paginator;
-    this.dataSource.sort = this.sort;
+  @ViewChild(MatSort) set sort(sort: MatSort) {
+    if (sort) {
+      this.sortRef = sort;
+      this.dataSource.sort = sort;
+      this.applySavedSort();
+    }
+  }
+
+  constructor(
+    private workersService: WorkersService,
+    private settingsService: SettingsService
+  ) {
+    const settings = this.settingsService.getWorkersTableSettings();
+    if (settings) {
+      this.pageSize = settings.pageSize;
+    }
 
     // Custom filter for searching across multiple fields including teams
     this.dataSource.filterPredicate = (data: Worker, filter: string) => {
@@ -276,6 +291,19 @@ export class WorkersListComponent implements OnInit {
              particles.includes(searchStr) ||
              teamNames.includes(searchStr);
     };
+  }
+
+  ngOnInit() {
+    this.loadWorkers();
+  }
+
+  private applySavedSort(): void {
+    const settings = this.settingsService.getWorkersTableSettings();
+    if (settings && settings.sortColumn && this.sortRef) {
+      this.sortRef.active = settings.sortColumn;
+      this.sortRef.direction = settings.sortDirection;
+      this.dataSource.sort = this.sortRef;
+    }
   }
 
   loadWorkers() {
@@ -301,5 +329,22 @@ export class WorkersListComponent implements OnInit {
     if (this.dataSource.paginator) {
       this.dataSource.paginator.firstPage();
     }
+  }
+
+  onSortChange(sort: Sort): void {
+    this.settingsService.setWorkersTableSettings({
+      sortColumn: sort.active,
+      sortDirection: sort.direction,
+      pageSize: this.pageSize
+    });
+  }
+
+  onPageChange(event: PageEvent): void {
+    this.pageSize = event.pageSize;
+    this.settingsService.setWorkersTableSettings({
+      sortColumn: this.sortRef?.active || '',
+      sortDirection: this.sortRef?.direction || '',
+      pageSize: this.pageSize
+    });
   }
 }

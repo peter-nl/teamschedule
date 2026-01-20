@@ -1,8 +1,8 @@
 import { Component, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatTableModule, MatTableDataSource } from '@angular/material/table';
-import { MatPaginatorModule, MatPaginator } from '@angular/material/paginator';
-import { MatSortModule, MatSort } from '@angular/material/sort';
+import { MatPaginatorModule, MatPaginator, PageEvent } from '@angular/material/paginator';
+import { MatSortModule, MatSort, Sort } from '@angular/material/sort';
 import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -10,6 +10,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { TeamsService } from '../services/teams.service';
 import { Team } from '../../../shared/models/team.model';
+import { SettingsService } from '../../../shared/services/settings.service';
 
 @Component({
   selector: 'app-teams-list',
@@ -48,7 +49,7 @@ import { Team } from '../../../shared/models/team.model';
       </div>
 
       <div *ngIf="!loading && !error" class="table-container">
-        <table mat-table [dataSource]="dataSource" matSort class="teams-table">
+        <table mat-table [dataSource]="dataSource" matSort (matSortChange)="onSortChange($event)" class="teams-table">
 
           <ng-container matColumnDef="id">
             <th mat-header-cell *matHeaderCellDef mat-sort-header>ID</th>
@@ -93,7 +94,8 @@ import { Team } from '../../../shared/models/team.model';
 
         <mat-paginator
           [pageSizeOptions]="[10, 25, 50]"
-          [pageSize]="10"
+          [pageSize]="pageSize"
+          (page)="onPageChange($event)"
           showFirstLastButtons
           aria-label="Select page of teams">
         </mat-paginator>
@@ -211,19 +213,45 @@ export class TeamsListComponent implements OnInit {
   dataSource = new MatTableDataSource<Team>();
   loading = true;
   error: string | null = null;
+  pageSize = 10;
 
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-  @ViewChild(MatSort) sort!: MatSort;
+  private sortRef: MatSort | null = null;
 
-  constructor(private teamsService: TeamsService) {}
+  @ViewChild(MatPaginator) set paginator(paginator: MatPaginator) {
+    if (paginator) {
+      this.dataSource.paginator = paginator;
+    }
+  }
+
+  @ViewChild(MatSort) set sort(sort: MatSort) {
+    if (sort) {
+      this.sortRef = sort;
+      this.dataSource.sort = sort;
+      this.applySavedSort();
+    }
+  }
+
+  constructor(
+    private teamsService: TeamsService,
+    private settingsService: SettingsService
+  ) {
+    const settings = this.settingsService.getTeamsTableSettings();
+    if (settings) {
+      this.pageSize = settings.pageSize;
+    }
+  }
 
   ngOnInit() {
     this.loadTeams();
   }
 
-  ngAfterViewInit() {
-    this.dataSource.paginator = this.paginator;
-    this.dataSource.sort = this.sort;
+  private applySavedSort(): void {
+    const settings = this.settingsService.getTeamsTableSettings();
+    if (settings && settings.sortColumn && this.sortRef) {
+      this.sortRef.active = settings.sortColumn;
+      this.sortRef.direction = settings.sortDirection;
+      this.dataSource.sort = this.sortRef;
+    }
   }
 
   loadTeams() {
@@ -249,5 +277,22 @@ export class TeamsListComponent implements OnInit {
     if (this.dataSource.paginator) {
       this.dataSource.paginator.firstPage();
     }
+  }
+
+  onSortChange(sort: Sort): void {
+    this.settingsService.setTeamsTableSettings({
+      sortColumn: sort.active,
+      sortDirection: sort.direction,
+      pageSize: this.pageSize
+    });
+  }
+
+  onPageChange(event: PageEvent): void {
+    this.pageSize = event.pageSize;
+    this.settingsService.setTeamsTableSettings({
+      sortColumn: this.sortRef?.active || '',
+      sortDirection: this.sortRef?.direction || '',
+      pageSize: this.pageSize
+    });
   }
 }
