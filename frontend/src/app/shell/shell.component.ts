@@ -25,11 +25,12 @@ interface NavItem {
   template: `
     <div class="app-layout">
       <!-- Navigation Rail -->
-      <nav class="nav-rail">
+      <nav class="nav-rail" [class.expanded]="isExpanded">
         <div class="nav-header">
-          <div class="app-logo">
-            <mat-icon>calendar_month</mat-icon>
-          </div>
+          <button class="menu-button" (click)="toggleExpanded()" matTooltip="Menu" matTooltipPosition="right">
+            <mat-icon>{{ isExpanded ? 'menu_open' : 'menu' }}</mat-icon>
+          </button>
+          <span *ngIf="isExpanded" class="app-title">TeamSchedule</span>
         </div>
 
         <div class="nav-items">
@@ -37,10 +38,32 @@ interface NavItem {
              class="nav-item"
              [class.active]="isActive(item.path)"
              [routerLink]="item.path"
-             [matTooltip]="item.label"
+             [matTooltip]="isExpanded ? '' : item.label"
              matTooltipPosition="right">
             <mat-icon>{{ item.icon }}</mat-icon>
             <span class="nav-label">{{ item.label }}</span>
+          </a>
+        </div>
+
+        <!-- Management Section (managers only) -->
+        <div *ngIf="authService.isManager" class="nav-section">
+          <div class="section-header" *ngIf="isExpanded">Management</div>
+          <div class="section-divider" *ngIf="!isExpanded"></div>
+          <a class="nav-item"
+             [class.active]="isActive('/manage/workers')"
+             routerLink="/manage/workers"
+             [matTooltip]="isExpanded ? '' : 'Workers'"
+             matTooltipPosition="right">
+            <mat-icon>manage_accounts</mat-icon>
+            <span class="nav-label">Workers</span>
+          </a>
+          <a class="nav-item"
+             [class.active]="isActive('/manage/teams')"
+             routerLink="/manage/teams"
+             [matTooltip]="isExpanded ? '' : 'Teams'"
+             matTooltipPosition="right">
+            <mat-icon>group_work</mat-icon>
+            <span class="nav-label">Teams</span>
           </a>
         </div>
 
@@ -51,7 +74,7 @@ interface NavItem {
           <a class="nav-item"
              [class.active]="isActive('/account')"
              routerLink="/account"
-             [matTooltip]="authService.isLoggedIn ? 'Account' : 'Login'"
+             [matTooltip]="isExpanded ? '' : (authService.isLoggedIn ? 'Account' : 'Login')"
              matTooltipPosition="right">
             <mat-icon>{{ authService.isLoggedIn ? 'account_circle' : 'login' }}</mat-icon>
             <span class="nav-label">{{ authService.isLoggedIn ? 'Account' : 'Login' }}</span>
@@ -86,36 +109,88 @@ interface NavItem {
       position: sticky;
       top: 0;
       z-index: 100;
+      transition: width 0.2s ease, min-width 0.2s ease;
+    }
+
+    .nav-rail.expanded {
+      width: 220px;
+      min-width: 220px;
+      align-items: flex-start;
     }
 
     .nav-header {
       padding: 12px;
       margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      box-sizing: border-box;
     }
 
-    .app-logo {
+    .nav-rail.expanded .nav-header {
+      padding: 12px 16px;
+    }
+
+    .menu-button {
       width: 56px;
       height: 56px;
+      min-width: 56px;
       border-radius: 16px;
-      background: var(--mat-sys-primary-container);
-      color: var(--mat-sys-on-primary-container);
+      border: none;
+      background: transparent;
+      color: var(--mat-sys-on-surface-variant);
       display: flex;
       align-items: center;
       justify-content: center;
+      cursor: pointer;
+      transition: background 0.2s ease;
     }
 
-    .app-logo mat-icon {
-      font-size: 32px;
-      width: 32px;
-      height: 32px;
+    .menu-button:hover {
+      background: var(--mat-sys-surface-container-highest);
     }
 
-    .nav-items {
+    .menu-button mat-icon {
+      font-size: 24px;
+      width: 24px;
+      height: 24px;
+    }
+
+    .app-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--mat-sys-on-surface);
+      white-space: nowrap;
+    }
+
+    .nav-items,
+    .nav-section {
       display: flex;
       flex-direction: column;
       gap: 4px;
       width: 100%;
       padding: 0 12px;
+      box-sizing: border-box;
+    }
+
+    .nav-section {
+      margin-top: 16px;
+    }
+
+    .section-header {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--mat-sys-on-surface-variant);
+      padding: 8px 16px 4px;
+    }
+
+    .section-divider {
+      height: 1px;
+      background: var(--mat-sys-outline-variant);
+      margin: 8px 12px;
     }
 
     .nav-spacer {
@@ -125,6 +200,7 @@ interface NavItem {
     .nav-account {
       width: 100%;
       padding: 0 12px 12px;
+      box-sizing: border-box;
     }
 
     .nav-item {
@@ -139,6 +215,13 @@ interface NavItem {
       cursor: pointer;
       transition: all 0.2s ease;
       gap: 4px;
+    }
+
+    .nav-rail.expanded .nav-item {
+      flex-direction: row;
+      justify-content: flex-start;
+      padding: 12px 16px;
+      gap: 12px;
     }
 
     .nav-item:hover {
@@ -161,6 +244,11 @@ interface NavItem {
       font-weight: 500;
       text-align: center;
       line-height: 1.2;
+    }
+
+    .nav-rail.expanded .nav-label {
+      font-size: 14px;
+      text-align: left;
     }
 
     /* Main Content */
@@ -190,7 +278,13 @@ interface NavItem {
         right: 0;
       }
 
-      .nav-header {
+      .nav-rail.expanded {
+        width: 100%;
+        min-width: unset;
+      }
+
+      .nav-header,
+      .nav-section {
         display: none;
       }
 
@@ -213,6 +307,12 @@ interface NavItem {
       .nav-item {
         padding: 8px 16px;
         border-radius: 12px;
+        flex-direction: column;
+      }
+
+      .nav-label {
+        font-size: 12px;
+        text-align: center;
       }
 
       .main-content {
@@ -223,12 +323,13 @@ interface NavItem {
 })
 export class ShellComponent {
   navItems: NavItem[] = [
+    { path: '/schedule', icon: 'calendar_month', label: 'Schedule' },
     { path: '/teams', icon: 'groups', label: 'Teams' },
-    { path: '/workers', icon: 'person', label: 'Workers' },
-    { path: '/schedule', icon: 'calendar_month', label: 'Schedule' }
+    { path: '/workers', icon: 'person', label: 'Workers' }
   ];
 
   currentPath = '';
+  isExpanded = false;
 
   constructor(
     private router: Router,
@@ -244,5 +345,9 @@ export class ShellComponent {
 
   isActive(path: string): boolean {
     return this.currentPath.startsWith(path);
+  }
+
+  toggleExpanded(): void {
+    this.isExpanded = !this.isExpanded;
   }
 }

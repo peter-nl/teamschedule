@@ -4,16 +4,20 @@ import { TeamsListComponent } from './features/teams/teams-list/teams-list.compo
 import { WorkersListComponent } from './features/workers/workers-list/workers-list.component';
 import { ScheduleMatrixComponent } from './features/schedule/schedule-matrix/schedule-matrix.component';
 import { AccountComponent } from './features/account/account.component';
+import { ManageWorkersComponent } from './features/manage/manage-workers.component';
+import { ManageTeamsComponent } from './features/manage/manage-teams.component';
 
 export const routes: Routes = [
   {
     path: '',
     component: ShellComponent,
     children: [
-      { path: '', redirectTo: 'teams', pathMatch: 'full' },
+      { path: '', redirectTo: 'schedule', pathMatch: 'full' },
+      { path: 'schedule', component: ScheduleMatrixComponent },
       { path: 'teams', component: TeamsListComponent },
       { path: 'workers', component: WorkersListComponent },
-      { path: 'schedule', component: ScheduleMatrixComponent },
+      { path: 'manage/workers', component: ManageWorkersComponent },
+      { path: 'manage/teams', component: ManageTeamsComponent },
       { path: 'account', component: AccountComponent }
     ]
   }
