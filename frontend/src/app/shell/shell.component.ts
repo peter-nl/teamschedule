@@ -4,6 +4,7 @@ import { RouterModule, RouterOutlet, Router, NavigationEnd } from '@angular/rout
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { filter } from 'rxjs/operators';
+import { AuthService } from '../shared/services/auth.service';
 
 interface NavItem {
   path: string;
@@ -40,6 +41,20 @@ interface NavItem {
              matTooltipPosition="right">
             <mat-icon>{{ item.icon }}</mat-icon>
             <span class="nav-label">{{ item.label }}</span>
+          </a>
+        </div>
+
+        <div class="nav-spacer"></div>
+
+        <!-- Account Menu Item at Bottom -->
+        <div class="nav-account">
+          <a class="nav-item"
+             [class.active]="isActive('/account')"
+             routerLink="/account"
+             [matTooltip]="authService.isLoggedIn ? 'Account' : 'Login'"
+             matTooltipPosition="right">
+            <mat-icon>{{ authService.isLoggedIn ? 'account_circle' : 'login' }}</mat-icon>
+            <span class="nav-label">{{ authService.isLoggedIn ? 'Account' : 'Login' }}</span>
           </a>
         </div>
       </nav>
@@ -101,6 +116,15 @@ interface NavItem {
       gap: 4px;
       width: 100%;
       padding: 0 12px;
+    }
+
+    .nav-spacer {
+      flex: 1;
+    }
+
+    .nav-account {
+      width: 100%;
+      padding: 0 12px 12px;
     }
 
     .nav-item {
@@ -175,6 +199,15 @@ interface NavItem {
         justify-content: space-around;
         padding: 8px 0;
         gap: 0;
+        flex: 1;
+      }
+
+      .nav-spacer {
+        display: none;
+      }
+
+      .nav-account {
+        padding: 8px 0;
       }
 
       .nav-item {
@@ -197,7 +230,10 @@ export class ShellComponent {
 
   currentPath = '';
 
-  constructor(private router: Router) {
+  constructor(
+    private router: Router,
+    public authService: AuthService
+  ) {
     this.currentPath = this.router.url;
     this.router.events.pipe(
       filter(event => event instanceof NavigationEnd)

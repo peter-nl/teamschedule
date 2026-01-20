@@ -1,6 +1,7 @@
 import { ApolloServer } from '@apollo/server';
 import { startStandaloneServer } from '@apollo/server/standalone';
 import { Pool } from 'pg';
+import bcrypt from 'bcrypt';
 import dotenv from 'dotenv';
 import { runMigrations } from './db/migrate';
 
@@ -41,7 +42,14 @@ const typeDefs = `#graphql
     firstName: String!
     lastName: String!
     particles: String
+    role: String!
     teams: [Team!]!
+  }
+
+  type AuthPayload {
+    success: Boolean!
+    message: String
+    worker: Worker
   }
 
   type Query {
@@ -61,6 +69,10 @@ const typeDefs = `#graphql
     removeWorkerFromTeam(teamId: ID!, workerId: ID!): Team!
     deleteTeam(id: ID!): Boolean!
     deleteWorker(id: ID!): Boolean!
+    login(workerId: String!, password: String!): AuthPayload!
+    updateWorkerProfile(id: String!, firstName: String!, lastName: String!, particles: String): Worker
+    changePassword(workerId: String!, currentPassword: String!, newPassword: String!): AuthPayload!
+    updateWorkerRole(workerId: String!, role: String!, requesterId: String!): Worker
   }
 `;
 
@@ -91,6 +103,7 @@ const resolvers = {
         firstName: row.first_name,
         lastName: row.last_name,
         particles: row.particles,
+        role: row.role,
       }));
     },
     worker: async (_: any, { id }: { id: string }) => {
@@ -102,6 +115,7 @@ const resolvers = {
         firstName: row.first_name,
         lastName: row.last_name,
         particles: row.particles,
+        role: row.role,
       };
     },
   },
@@ -125,6 +139,7 @@ const resolvers = {
         firstName: row.first_name,
         lastName: row.last_name,
         particles: row.particles,
+        role: row.role,
       };
     },
     addWorkerToTeam: async (_: any, { teamId, workerId }: { teamId: number; workerId: number }) => {
@@ -151,6 +166,130 @@ const resolvers = {
       const result = await pool.query('DELETE FROM worker WHERE id = $1', [id]);
       return (result.rowCount ?? 0) > 0;
     },
+    login: async (_: any, { workerId, password }: { workerId: string; password: string }) => {
+      try {
+        const result = await pool.query(
+          'SELECT * FROM worker WHERE id = $1',
+          [workerId]
+        );
+
+        if (result.rows.length === 0) {
+          return { success: false, message: 'Worker not found', worker: null };
+        }
+
+        const row = result.rows[0];
+
+        // Verify password using bcrypt
+        const passwordValid = await bcrypt.compare(password, row.password_hash);
+        if (!passwordValid) {
+          return { success: false, message: 'Invalid password', worker: null };
+        }
+
+        return {
+          success: true,
+          message: 'Login successful',
+          worker: {
+            id: row.id,
+            firstName: row.first_name,
+            lastName: row.last_name,
+            particles: row.particles,
+            role: row.role,
+          }
+        };
+      } catch (error) {
+        return { success: false, message: 'Login failed', worker: null };
+      }
+    },
+    updateWorkerProfile: async (_: any, { id, firstName, lastName, particles }: { id: string; firstName: string; lastName: string; particles?: string }) => {
+      const result = await pool.query(
+        'UPDATE worker SET first_name = $2, last_name = $3, particles = $4 WHERE id = $1 RETURNING *',
+        [id, firstName, lastName, particles || null]
+      );
+
+      if (result.rows.length === 0) return null;
+
+      const row = result.rows[0];
+      return {
+        id: row.id,
+        firstName: row.first_name,
+        lastName: row.last_name,
+        particles: row.particles,
+        role: row.role,
+      };
+    },
+    changePassword: async (_: any, { workerId, currentPassword, newPassword }: { workerId: string; currentPassword: string; newPassword: string }) => {
+      try {
+        const result = await pool.query(
+          'SELECT * FROM worker WHERE id = $1',
+          [workerId]
+        );
+
+        if (result.rows.length === 0) {
+          return { success: false, message: 'Worker not found', worker: null };
+        }
+
+        const row = result.rows[0];
+
+        // Verify current password using bcrypt
+        const passwordValid = await bcrypt.compare(currentPassword, row.password_hash);
+        if (!passwordValid) {
+          return { success: false, message: 'Current password is incorrect', worker: null };
+        }
+
+        // Hash the new password with bcrypt (10 salt rounds)
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await pool.query(
+          'UPDATE worker SET password_hash = $2 WHERE id = $1',
+          [workerId, hashedPassword]
+        );
+
+        return {
+          success: true,
+          message: 'Password changed successfully',
+          worker: {
+            id: row.id,
+            firstName: row.first_name,
+            lastName: row.last_name,
+            particles: row.particles,
+            role: row.role,
+          }
+        };
+      } catch (error) {
+        return { success: false, message: 'Failed to change password', worker: null };
+      }
+    },
+    updateWorkerRole: async (_: any, { workerId, role, requesterId }: { workerId: string; role: string; requesterId: string }) => {
+      // Validate role value
+      if (role !== 'user' && role !== 'manager') {
+        throw new Error('Invalid role. Must be "user" or "manager"');
+      }
+
+      // Check if requester is a manager
+      const requesterResult = await pool.query('SELECT role FROM worker WHERE id = $1', [requesterId]);
+      if (requesterResult.rows.length === 0) {
+        throw new Error('Requester not found');
+      }
+      if (requesterResult.rows[0].role !== 'manager') {
+        throw new Error('Only managers can change roles');
+      }
+
+      // Update the worker's role
+      const result = await pool.query(
+        'UPDATE worker SET role = $2 WHERE id = $1 RETURNING *',
+        [workerId, role]
+      );
+
+      if (result.rows.length === 0) return null;
+
+      const row = result.rows[0];
+      return {
+        id: row.id,
+        firstName: row.first_name,
+        lastName: row.last_name,
+        particles: row.particles,
+        role: row.role,
+      };
+    },
   },
   Team: {
     workers: async (parent: any) => {
@@ -166,6 +305,7 @@ const resolvers = {
         firstName: row.first_name,
         lastName: row.last_name,
         particles: row.particles,
+        role: row.role,
       }));
     },
   },

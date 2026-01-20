@@ -3,6 +3,7 @@ import { ShellComponent } from './shell/shell.component';
 import { TeamsListComponent } from './features/teams/teams-list/teams-list.component';
 import { WorkersListComponent } from './features/workers/workers-list/workers-list.component';
 import { ScheduleMatrixComponent } from './features/schedule/schedule-matrix/schedule-matrix.component';
+import { AccountComponent } from './features/account/account.component';
 
 export const routes: Routes = [
   {
@@ -12,7 +13,8 @@ export const routes: Routes = [
       { path: '', redirectTo: 'teams', pathMatch: 'full' },
       { path: 'teams', component: TeamsListComponent },
       { path: 'workers', component: WorkersListComponent },
-      { path: 'schedule', component: ScheduleMatrixComponent }
+      { path: 'schedule', component: ScheduleMatrixComponent },
+      { path: 'account', component: AccountComponent }
     ]
   }
 ];

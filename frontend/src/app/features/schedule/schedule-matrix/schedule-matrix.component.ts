@@ -82,9 +82,7 @@ interface DateColumn {
             <div class="month-header-cell"></div>
             <div class="day-header-cell"></div>
             <div *ngFor="let worker of filteredWorkers" class="worker-name-cell">
-              {{ worker.firstName }}
-              <span *ngIf="worker.particles"> {{ worker.particles }}</span>
-              {{ worker.lastName }}
+              {{ worker.firstName }}{{ worker.particles ? ' ' + worker.particles + ' ' : ' ' }}{{ worker.lastName }}
             </div>
           </div>
 
