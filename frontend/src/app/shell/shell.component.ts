@@ -50,6 +50,14 @@ interface NavItem {
           <div class="section-header" *ngIf="isExpanded">Management</div>
           <div class="section-divider" *ngIf="!isExpanded"></div>
           <a class="nav-item"
+             [class.active]="isActive('/manage/teams')"
+             routerLink="/manage/teams"
+             [matTooltip]="isExpanded ? '' : 'Teams'"
+             matTooltipPosition="right">
+            <mat-icon>group_work</mat-icon>
+            <span class="nav-label">Teams</span>
+          </a>
+          <a class="nav-item"
              [class.active]="isActive('/manage/workers')"
              routerLink="/manage/workers"
              [matTooltip]="isExpanded ? '' : 'Workers'"
@@ -58,19 +66,28 @@ interface NavItem {
             <span class="nav-label">Workers</span>
           </a>
           <a class="nav-item"
-             [class.active]="isActive('/manage/teams')"
-             routerLink="/manage/teams"
-             [matTooltip]="isExpanded ? '' : 'Teams'"
+             [class.active]="isActive('/manage/settings')"
+             routerLink="/manage/settings"
+             [matTooltip]="isExpanded ? '' : 'Settings'"
              matTooltipPosition="right">
-            <mat-icon>group_work</mat-icon>
-            <span class="nav-label">Teams</span>
+            <mat-icon>settings</mat-icon>
+            <span class="nav-label">Settings</span>
           </a>
         </div>
 
         <div class="nav-spacer"></div>
 
-        <!-- Account Menu Item at Bottom -->
+        <!-- Bottom Menu Items -->
         <div class="nav-account">
+          <a *ngIf="authService.isLoggedIn"
+             class="nav-item"
+             [class.active]="isActive('/preferences')"
+             routerLink="/preferences"
+             [matTooltip]="isExpanded ? '' : 'Preferences'"
+             matTooltipPosition="right">
+            <mat-icon>tune</mat-icon>
+            <span class="nav-label">Preferences</span>
+          </a>
           <a class="nav-item"
              [class.active]="isActive('/account')"
              routerLink="/account"

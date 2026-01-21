@@ -8,7 +8,6 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import { MatChipsModule } from '@angular/material/chips';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
@@ -115,7 +114,6 @@ const REMOVE_WORKER_FROM_TEAM_MUTATION = gql`
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
-    MatChipsModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
     MatDialogModule,
@@ -248,23 +246,14 @@ const REMOVE_WORKER_FROM_TEAM_MUTATION = gql`
                 <input matInput [value]="selectedWorker.role" disabled>
               </mat-form-field>
 
-              <div class="teams-section">
-                <label class="teams-label">Teams</label>
-                <mat-form-field *ngIf="isEditing" appearance="outline" class="full-width">
-                  <mat-label>Assign Teams</mat-label>
-                  <mat-select [(ngModel)]="editForm.teamIds" name="teams" multiple>
-                    <mat-option *ngFor="let team of allTeams" [value]="team.id">
-                      {{ team.name }}
-                    </mat-option>
-                  </mat-select>
-                </mat-form-field>
-                <div *ngIf="!isEditing" class="teams-chips">
-                  <mat-chip-set>
-                    <mat-chip *ngFor="let team of selectedWorker.teams">{{ team.name }}</mat-chip>
-                  </mat-chip-set>
-                  <span *ngIf="selectedWorker.teams.length === 0" class="no-teams">No teams assigned</span>
-                </div>
-              </div>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Teams</mat-label>
+                <mat-select [(ngModel)]="editForm.teamIds" name="teams" multiple [disabled]="!isEditing">
+                  <mat-option *ngFor="let team of allTeams" [value]="team.id">
+                    {{ team.name }}
+                  </mat-option>
+                </mat-select>
+              </mat-form-field>
             </form>
           </mat-card-content>
           <mat-card-actions align="end">
@@ -411,26 +400,6 @@ const REMOVE_WORKER_FROM_TEAM_MUTATION = gql`
 
     .full-width {
       width: 100%;
-    }
-
-    .teams-section {
-      margin-top: 8px;
-    }
-
-    .teams-label {
-      display: block;
-      font-size: 12px;
-      color: var(--mat-sys-on-surface-variant);
-      margin-bottom: 8px;
-    }
-
-    .teams-chips {
-      min-height: 32px;
-    }
-
-    .no-teams {
-      color: var(--mat-sys-on-surface-variant);
-      font-style: italic;
     }
 
     .no-selection {

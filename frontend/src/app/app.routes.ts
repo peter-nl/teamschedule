@@ -6,6 +6,8 @@ import { ScheduleMatrixComponent } from './features/schedule/schedule-matrix/sch
 import { AccountComponent } from './features/account/account.component';
 import { ManageWorkersComponent } from './features/manage/manage-workers.component';
 import { ManageTeamsComponent } from './features/manage/manage-teams.component';
+import { ManageSettingsComponent } from './features/manage/manage-settings.component';
+import { PreferencesComponent } from './features/preferences/preferences.component';
 
 export const routes: Routes = [
   {
@@ -16,8 +18,10 @@ export const routes: Routes = [
       { path: 'schedule', component: ScheduleMatrixComponent },
       { path: 'teams', component: TeamsListComponent },
       { path: 'workers', component: WorkersListComponent },
-      { path: 'manage/workers', component: ManageWorkersComponent },
       { path: 'manage/teams', component: ManageTeamsComponent },
+      { path: 'manage/workers', component: ManageWorkersComponent },
+      { path: 'manage/settings', component: ManageSettingsComponent },
+      { path: 'preferences', component: PreferencesComponent },
       { path: 'account', component: AccountComponent }
     ]
   }

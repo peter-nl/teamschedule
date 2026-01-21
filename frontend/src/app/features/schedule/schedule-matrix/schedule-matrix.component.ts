@@ -1,7 +1,8 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { MatBadgeModule } from '@angular/material/badge';
-import { MatChipsModule } from '@angular/material/chips';
+import { FormsModule } from '@angular/forms';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { forkJoin } from 'rxjs';
@@ -30,8 +31,9 @@ interface DateColumn {
   standalone: true,
   imports: [
     CommonModule,
-    MatBadgeModule,
-    MatChipsModule,
+    FormsModule,
+    MatFormFieldModule,
+    MatSelectModule,
     MatProgressSpinnerModule,
     MatIconModule
   ],
@@ -41,23 +43,14 @@ interface DateColumn {
       <div class="header">
         <h1>Schedule</h1>
         <div class="team-filter">
-          <span class="filter-label">Filter by Team:</span>
-          <mat-chip-set class="team-chips">
-            <mat-chip *ngFor="let team of teams"
-                      [highlighted]="isTeamSelected(team.id)"
-                      [matBadge]="getWorkerCountForTeam(team.id)"
-                      matBadgeSize="large"
-                      [matBadgeColor]="isTeamSelected(team.id) ? 'primary' : 'accent'"
-                      matBadgeOverlap="false"
-                      (click)="toggleTeam(team.id)">
-              {{ team.name }}
-              <button *ngIf="isTeamSelected(team.id)"
-                      matChipRemove
-                      (click)="$event.stopPropagation(); toggleTeam(team.id)">
-                <mat-icon>close</mat-icon>
-              </button>
-            </mat-chip>
-          </mat-chip-set>
+          <mat-form-field appearance="outline" class="team-select">
+            <mat-label>Filter by Teams</mat-label>
+            <mat-select [(ngModel)]="selectedTeamIdsArray" multiple (selectionChange)="onTeamSelectionChange()">
+              <mat-option *ngFor="let team of teams" [value]="team.id">
+                {{ team.name }} ({{ getWorkerCountForTeam(team.id) }})
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
         </div>
       </div>
 
@@ -161,69 +154,10 @@ interface DateColumn {
     .team-filter {
       display: flex;
       align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
     }
 
-    .filter-label {
-      font-size: 14px;
-      color: var(--mat-sys-on-surface-variant);
-      white-space: nowrap;
-    }
-
-    .team-chips {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .team-chips mat-chip {
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-
-    .team-chips mat-chip:not([highlighted]):hover {
-      background: var(--mat-sys-surface-container-highest);
-    }
-
-    .team-chips mat-chip[highlighted] {
-      --mat-chip-elevated-container-color: var(--mat-sys-secondary-container);
-      --mat-chip-label-text-color: var(--mat-sys-on-secondary-container);
-      --mat-chip-elevated-selected-container-color: var(--mat-sys-secondary-container);
-    }
-
-    .team-chips mat-chip[highlighted] [matChipRemove] {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background: var(--mat-sys-error);
-      color: var(--mat-sys-on-error);
-      margin-left: 4px;
-      cursor: pointer;
-      transition: all 0.15s ease;
-    }
-
-    .team-chips mat-chip[highlighted] [matChipRemove]:hover {
-      background: var(--mat-sys-error);
-      opacity: 0.85;
-      transform: scale(1.1);
-    }
-
-    .team-chips mat-chip[highlighted] [matChipRemove] mat-icon {
-      font-size: 14px;
-      width: 14px;
-      height: 14px;
-    }
-
-    .team-chips mat-chip:not([highlighted]) [matChipRemove] {
-      display: none;
-    }
-
-    .team-chips mat-chip {
-      overflow: visible;
+    .team-select {
+      min-width: 250px;
     }
 
     .loading-container,
@@ -435,6 +369,7 @@ export class ScheduleMatrixComponent implements OnInit {
   teams: Team[] = [];
   dateColumns: DateColumn[] = [];
   selectedTeamIds: Set<string> = new Set();
+  selectedTeamIdsArray: string[] = [];
   loading = true;
   error: string | null = null;
 
@@ -445,6 +380,7 @@ export class ScheduleMatrixComponent implements OnInit {
     const settings = this.settingsService.getScheduleSettings();
     if (settings?.selectedTeamIds) {
       this.selectedTeamIds = new Set(settings.selectedTeamIds);
+      this.selectedTeamIdsArray = settings.selectedTeamIds;
     }
   }
 
@@ -557,23 +493,15 @@ export class ScheduleMatrixComponent implements OnInit {
     });
   }
 
-  isTeamSelected(teamId: string): boolean {
-    return this.selectedTeamIds.has(teamId);
-  }
-
-  toggleTeam(teamId: string): void {
-    if (this.selectedTeamIds.has(teamId)) {
-      this.selectedTeamIds.delete(teamId);
-    } else {
-      this.selectedTeamIds.add(teamId);
-    }
+  onTeamSelectionChange(): void {
+    this.selectedTeamIds = new Set(this.selectedTeamIdsArray);
     this.filterWorkers();
     this.saveSettings();
   }
 
   private saveSettings(): void {
     this.settingsService.setScheduleSettings({
-      selectedTeamIds: Array.from(this.selectedTeamIds)
+      selectedTeamIds: this.selectedTeamIdsArray
     });
   }
 
