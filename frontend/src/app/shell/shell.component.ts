@@ -5,6 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { filter } from 'rxjs/operators';
 import { AuthService } from '../shared/services/auth.service';
+import { UserPreferencesService } from '../shared/services/user-preferences.service';
 
 interface NavItem {
   path: string;
@@ -346,12 +347,18 @@ export class ShellComponent {
   ];
 
   currentPath = '';
-  isExpanded = false;
+  isExpanded = true;
 
   constructor(
     private router: Router,
-    public authService: AuthService
+    public authService: AuthService,
+    private userPreferencesService: UserPreferencesService
   ) {
+    this.isExpanded = this.userPreferencesService.preferences.navigationExpanded;
+    this.userPreferencesService.preferences$.subscribe(prefs => {
+      this.isExpanded = prefs.navigationExpanded;
+    });
+
     this.currentPath = this.router.url;
     this.router.events.pipe(
       filter(event => event instanceof NavigationEnd)
@@ -365,6 +372,6 @@ export class ShellComponent {
   }
 
   toggleExpanded(): void {
-    this.isExpanded = !this.isExpanded;
+    this.userPreferencesService.setNavigationExpanded(!this.isExpanded);
   }
 }

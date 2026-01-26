@@ -4,8 +4,8 @@
 // have to load a single css file for Angular Material in your app.
 @include mat.core();
 
-// Define a Material 3 theme with primary, secondary, and tertiary colors
-$teamschedule-theme: mat.define-theme((
+// Define a Material 3 light theme
+$teamschedule-light-theme: mat.define-theme((
   color: (
     theme-type: light,
     primary: mat.$azure-palette,
@@ -20,23 +20,41 @@ $teamschedule-theme: mat.define-theme((
   )
 ));
 
-// Apply the theme to all Material components
-:root {
-  @include mat.all-component-themes($teamschedule-theme);
-}
-
-// You can also create dark theme
+// Define a Material 3 dark theme
 $teamschedule-dark-theme: mat.define-theme((
   color: (
     theme-type: dark,
     primary: mat.$azure-palette,
     tertiary: mat.$blue-palette,
   ),
+  typography: (
+    brand-family: 'Roboto, sans-serif',
+    plain-family: 'Roboto, sans-serif',
+  ),
+  density: (
+    scale: 0,
+  )
 ));
 
-// Apply dark theme when prefers-color-scheme is dark
-@media (prefers-color-scheme: dark) {
-  :root {
+// Default: Apply light theme
+:root {
+  @include mat.all-component-themes($teamschedule-light-theme);
+}
+
+// System preference: Apply dark theme when prefers-color-scheme is dark
+// This only applies when no manual theme class is set
+:root:not(.light-theme):not(.dark-theme) {
+  @media (prefers-color-scheme: dark) {
     @include mat.all-component-colors($teamschedule-dark-theme);
   }
+}
+
+// Manual override: Force light theme
+:root.light-theme {
+  @include mat.all-component-colors($teamschedule-light-theme);
+}
+
+// Manual override: Force dark theme
+:root.dark-theme {
+  @include mat.all-component-colors($teamschedule-dark-theme);
 }

@@ -1,0 +1,109 @@
+import { Injectable } from '@angular/core';
+import { BehaviorSubject } from 'rxjs';
+
+export interface UserPreferences {
+  theme: 'system' | 'light' | 'dark';
+  navigationExpanded: boolean;
+  defaultView: 'schedule' | 'teams' | 'workers';
+  scheduleWeekStartDay: 0 | 1; // 0 = Sunday, 1 = Monday
+}
+
+const DEFAULT_PREFERENCES: UserPreferences = {
+  theme: 'system',
+  navigationExpanded: true,
+  defaultView: 'schedule',
+  scheduleWeekStartDay: 1
+};
+
+const STORAGE_KEY = 'teamschedule-user-preferences';
+
+@Injectable({
+  providedIn: 'root'
+})
+export class UserPreferencesService {
+  private preferencesSubject = new BehaviorSubject<UserPreferences>(DEFAULT_PREFERENCES);
+  public preferences$ = this.preferencesSubject.asObservable();
+
+  constructor() {
+    this.loadPreferences();
+  }
+
+  get preferences(): UserPreferences {
+    return this.preferencesSubject.value;
+  }
+
+  private loadPreferences(): void {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const preferences = { ...DEFAULT_PREFERENCES, ...parsed };
+        this.preferencesSubject.next(preferences);
+        this.applyTheme(preferences.theme);
+      }
+    } catch (e) {
+      console.warn('Failed to load preferences from localStorage:', e);
+    }
+  }
+
+  private savePreferences(): void {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.preferencesSubject.value));
+    } catch (e) {
+      console.warn('Failed to save preferences to localStorage:', e);
+    }
+  }
+
+  setTheme(theme: 'system' | 'light' | 'dark'): void {
+    const current = this.preferencesSubject.value;
+    this.preferencesSubject.next({ ...current, theme });
+    this.applyTheme(theme);
+    this.savePreferences();
+  }
+
+  setDefaultView(defaultView: 'schedule' | 'teams' | 'workers'): void {
+    const current = this.preferencesSubject.value;
+    this.preferencesSubject.next({ ...current, defaultView });
+    this.savePreferences();
+  }
+
+  setScheduleWeekStartDay(day: 0 | 1): void {
+    const current = this.preferencesSubject.value;
+    this.preferencesSubject.next({ ...current, scheduleWeekStartDay: day });
+    this.savePreferences();
+  }
+
+  setNavigationExpanded(expanded: boolean): void {
+    const current = this.preferencesSubject.value;
+    this.preferencesSubject.next({ ...current, navigationExpanded: expanded });
+    this.savePreferences();
+  }
+
+  updatePreferences(partial: Partial<UserPreferences>): void {
+    const current = this.preferencesSubject.value;
+    const updated = { ...current, ...partial };
+    this.preferencesSubject.next(updated);
+    if (partial.theme !== undefined) {
+      this.applyTheme(partial.theme);
+    }
+    this.savePreferences();
+  }
+
+  private applyTheme(theme: 'system' | 'light' | 'dark'): void {
+    const root = document.documentElement;
+    root.classList.remove('light-theme', 'dark-theme');
+
+    if (theme === 'system') {
+      // Let the system preference take over (handled by CSS media query)
+      return;
+    }
+
+    root.classList.add(`${theme}-theme`);
+  }
+
+  resetToDefaults(): void {
+    this.preferencesSubject.next(DEFAULT_PREFERENCES);
+    this.applyTheme(DEFAULT_PREFERENCES.theme);
+    this.savePreferences();
+  }
+}

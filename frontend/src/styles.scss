@@ -8,7 +8,19 @@
 
 html, body {
   height: 100%;
+}
+
+// Color scheme adapts to theme class or system preference
+html:not(.light-theme):not(.dark-theme) {
   color-scheme: light dark;
+}
+
+html.light-theme {
+  color-scheme: light;
+}
+
+html.dark-theme {
+  color-scheme: dark;
 }
 
 body {

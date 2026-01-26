@@ -13,10 +13,6 @@ import { MatIconModule } from '@angular/material/icon';
   ],
   template: `
     <div class="settings-container">
-      <div class="header">
-        <h1>Settings</h1>
-      </div>
-
       <mat-card class="settings-card">
         <mat-card-header>
           <mat-icon mat-card-avatar>settings</mat-icon>
@@ -34,17 +30,6 @@ import { MatIconModule } from '@angular/material/icon';
       max-width: 800px;
       margin: 0 auto;
       padding: 24px;
-    }
-
-    .header {
-      margin-bottom: 24px;
-    }
-
-    h1 {
-      margin: 0;
-      font-size: 32px;
-      font-weight: 400;
-      color: var(--mat-sys-on-surface);
     }
 
     .settings-card {
