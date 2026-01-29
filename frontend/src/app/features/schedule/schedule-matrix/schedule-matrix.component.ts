@@ -1,15 +1,19 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, AfterViewInit, OnDestroy, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatButtonModule } from '@angular/material/button';
 import { forkJoin } from 'rxjs';
 import { ScheduleService } from '../services/schedule.service';
 import { Worker } from '../../../shared/models/worker.model';
 import { Team } from '../../../shared/models/team.model';
 import { SettingsService } from '../../../shared/services/settings.service';
+import { AppSettingsService } from '../../../core/services/app-settings.service';
+import { HolidayService } from '../../../core/services/holiday.service';
 
 interface DateColumn {
   date: Date;
@@ -18,7 +22,10 @@ interface DateColumn {
   monthName: string;
   monthFullName: string;
   year: number;
-  isWeekend: boolean;
+  dayOfWeek: number;
+  isNonWorkingDay: boolean;
+  isHoliday: boolean;
+  holidayName: string;
   isToday: boolean;
   isFirstOfMonth: boolean;
   isFirstOfYear: boolean;
@@ -35,7 +42,9 @@ interface DateColumn {
     MatFormFieldModule,
     MatSelectModule,
     MatProgressSpinnerModule,
-    MatIconModule
+    MatIconModule,
+    MatTooltipModule,
+    MatButtonModule
   ],
   template: `
     <div class="schedule-container">
@@ -71,22 +80,28 @@ interface DateColumn {
         <div class="matrix-grid">
           <!-- Fixed Worker Names Column -->
           <div class="worker-names-column">
-            <div class="year-header-cell"></div>
-            <div class="month-header-cell"></div>
+            <div class="year-header-cell">{{ visibleYear }}</div>
+            <div class="month-header-cell">{{ visibleMonth }}</div>
             <div class="day-header-cell"></div>
-            <div *ngFor="let worker of filteredWorkers" class="worker-name-cell">
+            <div *ngFor="let worker of filteredWorkers; let rowIndex = index"
+                 class="worker-name-cell"
+                 [class.odd-row]="rowIndex % 2 === 1">
               {{ worker.firstName }}{{ worker.particles ? ' ' + worker.particles + ' ' : ' ' }}{{ worker.lastName }}
             </div>
           </div>
 
           <!-- Scrollable Date Area -->
-          <div class="date-scroll-container">
+          <div class="date-scroll-container"
+               #scrollContainer
+               [class.dragging]="isDragging"
+               (mousedown)="onMouseDown($event)"
+               (touchstart)="onTouchStart($event)"
+               (scroll)="onScroll()">
             <!-- Year Header Row -->
             <div class="year-row">
               <ng-container *ngFor="let col of dateColumns">
                 <div *ngIf="col.isFirstOfYear"
                      class="year-cell"
-                     [class.weekend]="col.isWeekend"
                      [style.width.px]="col.daysInYear! * 40">
                   {{ col.year }}
                 </div>
@@ -98,7 +113,6 @@ interface DateColumn {
               <ng-container *ngFor="let col of dateColumns">
                 <div *ngIf="col.isFirstOfMonth"
                      class="month-cell"
-                     [class.weekend]="col.isWeekend"
                      [style.width.px]="col.daysInMonth! * 40">
                   {{ col.monthFullName }}
                 </div>
@@ -109,25 +123,39 @@ interface DateColumn {
             <div class="day-row">
               <div *ngFor="let col of dateColumns"
                    class="day-cell"
-                   [class.weekend]="col.isWeekend"
-                   [class.today]="col.isToday">
+                   [class.non-working]="col.isNonWorkingDay"
+                   [class.holiday]="col.isHoliday"
+                   [class.today]="col.isToday"
+                   [style.background-color]="getCellColor(col)"
+                   [matTooltip]="col.holidayName"
+                   [matTooltipDisabled]="!col.isHoliday">
                 <div class="day-name">{{ col.dayName }}</div>
                 <div class="day-number">{{ col.dayNumber }}</div>
               </div>
             </div>
 
             <!-- Worker Rows -->
-            <div *ngFor="let worker of filteredWorkers" class="worker-row">
+            <div *ngFor="let worker of filteredWorkers; let rowIndex = index" class="worker-row">
               <div *ngFor="let col of dateColumns"
                    class="schedule-cell"
-                   [class.weekend]="col.isWeekend"
-                   [class.today]="col.isToday">
+                   [class.non-working]="col.isNonWorkingDay"
+                   [class.holiday]="col.isHoliday"
+                   [class.today]="col.isToday"
+                   [class.odd-row]="rowIndex % 2 === 1"
+                   [style.background-color]="getCellColor(col)"
+                   [matTooltip]="col.holidayName"
+                   [matTooltipDisabled]="!col.isHoliday">
                 <!-- Empty for now - will hold schedule data later -->
               </div>
             </div>
           </div>
         </div>
+
       </div>
+
+      <button mat-fab class="today-fab" (click)="scrollToToday(true)" matTooltip="Go to today">
+        <mat-icon>today</mat-icon>
+      </button>
     </div>
   `,
   styles: [`
@@ -202,10 +230,22 @@ interface DateColumn {
 
     .year-header-cell {
       height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-right: 12px;
+      font-size: 13px;
+      font-weight: 600;
     }
 
     .month-header-cell {
       height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-right: 12px;
+      font-size: 13px;
+      font-weight: 600;
     }
 
     .day-header-cell {
@@ -221,13 +261,23 @@ interface DateColumn {
       font-size: 14px;
       font-weight: 500;
       border-bottom: 1px solid var(--mat-sys-outline-variant);
+      background: var(--mat-sys-surface);
+    }
+
+    .worker-name-cell.odd-row {
+      background: var(--mat-sys-surface-container-low);
     }
 
     .date-scroll-container {
       overflow-x: auto;
       overflow-y: hidden;
       position: relative;
-      scroll-behavior: smooth;
+      cursor: grab;
+      user-select: none;
+    }
+
+    .date-scroll-container.dragging {
+      cursor: grabbing;
     }
 
     .date-scroll-container::-webkit-scrollbar {
@@ -282,11 +332,6 @@ interface DateColumn {
       z-index: 11;
     }
 
-    .year-cell.weekend,
-    .month-cell.weekend {
-      background: var(--mat-sys-surface-container);
-    }
-
     .day-cell {
       flex-shrink: 0;
       width: 40px;
@@ -300,8 +345,9 @@ interface DateColumn {
       align-items: center;
     }
 
-    .day-cell.weekend {
+    .day-cell.non-working {
       background: var(--mat-sys-surface-container);
+      color: var(--mat-sys-on-surface-variant);
     }
 
     .day-cell.today {
@@ -331,19 +377,35 @@ interface DateColumn {
       border-right: 1px solid var(--mat-sys-outline-variant);
       border-bottom: 1px solid var(--mat-sys-outline-variant);
       cursor: pointer;
+      background: var(--mat-sys-surface);
+    }
+
+    .schedule-cell.odd-row {
+      background: var(--mat-sys-surface-container-low);
     }
 
     .schedule-cell:hover {
       background: var(--mat-sys-surface-container-highest);
     }
 
-    .schedule-cell.weekend {
-      background: var(--mat-sys-surface-container-low);
+    .schedule-cell.non-working {
+      background: var(--mat-sys-surface-container);
+    }
+
+    .schedule-cell.non-working.odd-row {
+      background: var(--mat-sys-surface-container-high);
     }
 
     .schedule-cell.today {
       border-left: 2px solid var(--mat-sys-primary);
       border-right: 2px solid var(--mat-sys-primary);
+    }
+
+    .today-fab {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 1000;
     }
 
     @media (max-width: 768px) {
@@ -363,7 +425,9 @@ interface DateColumn {
     }
   `]
 })
-export class ScheduleMatrixComponent implements OnInit {
+export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy {
+  @ViewChild('scrollContainer') scrollContainer!: ElementRef<HTMLDivElement>;
+
   workers: Worker[] = [];
   filteredWorkers: Worker[] = [];
   teams: Team[] = [];
@@ -373,20 +437,146 @@ export class ScheduleMatrixComponent implements OnInit {
   loading = true;
   error: string | null = null;
 
+  // Visible date info for fixed header
+  visibleYear = '';
+  visibleMonth = '';
+
+  // Dynamic colors from settings
+  nonWorkingDayColor = '#e0e0e0';
+  holidayColor = '#ffcdd2';
+
+  // Drag-to-scroll state
+  isDragging = false;
+  private startX = 0;
+  private scrollLeft = 0;
+  private boundMouseMove: (e: MouseEvent) => void;
+  private boundMouseUp: () => void;
+  private boundTouchMove: (e: TouchEvent) => void;
+  private boundTouchEnd: () => void;
+
   constructor(
     private scheduleService: ScheduleService,
-    private settingsService: SettingsService
+    private settingsService: SettingsService,
+    private appSettingsService: AppSettingsService,
+    private holidayService: HolidayService
   ) {
     const settings = this.settingsService.getScheduleSettings();
     if (settings?.selectedTeamIds) {
       this.selectedTeamIds = new Set(settings.selectedTeamIds);
       this.selectedTeamIdsArray = settings.selectedTeamIds;
     }
+
+    // Subscribe to app settings changes to update non-working days and colors
+    this.appSettingsService.settings$.subscribe(settings => {
+      this.nonWorkingDayColor = settings.nonWorkingDayColor;
+      this.holidayColor = settings.holidayColor;
+      this.updateNonWorkingDays();
+    });
+
+    // Bind event handlers for drag-to-scroll
+    this.boundMouseMove = this.onMouseMove.bind(this);
+    this.boundMouseUp = this.onMouseUp.bind(this);
+    this.boundTouchMove = this.onTouchMove.bind(this);
+    this.boundTouchEnd = this.onTouchEnd.bind(this);
   }
 
   ngOnInit(): void {
     this.generateDateColumns();
+    this.loadHolidays();
     this.loadData();
+
+    // Subscribe to holiday data changes
+    this.holidayService.holidays$.subscribe(() => {
+      this.updateHolidays();
+    });
+  }
+
+  ngAfterViewInit(): void {
+    // Add document-level listeners for mouse/touch end to handle drag ending outside container
+    document.addEventListener('mouseup', this.boundMouseUp);
+    document.addEventListener('touchend', this.boundTouchEnd);
+  }
+
+  ngOnDestroy(): void {
+    // Clean up document-level listeners
+    document.removeEventListener('mousemove', this.boundMouseMove);
+    document.removeEventListener('mouseup', this.boundMouseUp);
+    document.removeEventListener('touchmove', this.boundTouchMove);
+    document.removeEventListener('touchend', this.boundTouchEnd);
+  }
+
+  // Mouse drag handlers
+  onMouseDown(event: MouseEvent): void {
+    // Only handle left mouse button
+    if (event.button !== 0) return;
+
+    this.isDragging = true;
+    this.startX = event.pageX - this.scrollContainer.nativeElement.offsetLeft;
+    this.scrollLeft = this.scrollContainer.nativeElement.scrollLeft;
+
+    document.addEventListener('mousemove', this.boundMouseMove);
+  }
+
+  private onMouseMove(event: MouseEvent): void {
+    if (!this.isDragging) return;
+
+    event.preventDefault();
+    const x = event.pageX - this.scrollContainer.nativeElement.offsetLeft;
+    const walk = (x - this.startX) * 1.5; // Multiply for faster scrolling
+    this.scrollContainer.nativeElement.scrollLeft = this.scrollLeft - walk;
+  }
+
+  private onMouseUp(): void {
+    if (!this.isDragging) return;
+
+    this.isDragging = false;
+    document.removeEventListener('mousemove', this.boundMouseMove);
+  }
+
+  // Touch drag handlers
+  onTouchStart(event: TouchEvent): void {
+    if (event.touches.length !== 1) return;
+
+    this.isDragging = true;
+    this.startX = event.touches[0].pageX - this.scrollContainer.nativeElement.offsetLeft;
+    this.scrollLeft = this.scrollContainer.nativeElement.scrollLeft;
+
+    document.addEventListener('touchmove', this.boundTouchMove, { passive: false });
+  }
+
+  private onTouchMove(event: TouchEvent): void {
+    if (!this.isDragging || event.touches.length !== 1) return;
+
+    event.preventDefault();
+    const x = event.touches[0].pageX - this.scrollContainer.nativeElement.offsetLeft;
+    const walk = (x - this.startX) * 1.5;
+    this.scrollContainer.nativeElement.scrollLeft = this.scrollLeft - walk;
+  }
+
+  private onTouchEnd(): void {
+    if (!this.isDragging) return;
+
+    this.isDragging = false;
+    document.removeEventListener('touchmove', this.boundTouchMove);
+  }
+
+  // Scroll handler to update visible year/month
+  onScroll(): void {
+    this.updateVisibleDateInfo();
+  }
+
+  private updateVisibleDateInfo(): void {
+    if (!this.scrollContainer || this.dateColumns.length === 0) return;
+
+    const scrollLeft = this.scrollContainer.nativeElement.scrollLeft;
+    const cellWidth = 40;
+    const firstVisibleIndex = Math.floor(scrollLeft / cellWidth);
+
+    if (firstVisibleIndex >= 0 && firstVisibleIndex < this.dateColumns.length) {
+      const col = this.dateColumns[firstVisibleIndex];
+      this.visibleYear = col.year.toString();
+      this.visibleMonth = col.monthFullName;
+    }
   }
 
   generateDateColumns(): void {
@@ -400,10 +590,12 @@ export class ScheduleMatrixComponent implements OnInit {
     // First pass: create all date columns
     while (currentDate <= endDate) {
       const dayOfWeek = currentDate.getDay();
-      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      const isNonWorkingDay = !this.appSettingsService.isWorkingDay(dayOfWeek);
       const isToday = this.isSameDay(currentDate, new Date());
       const isFirstOfMonth = currentDate.getDate() === 1;
       const isFirstOfYear = currentDate.getMonth() === 0 && currentDate.getDate() === 1;
+
+      const holiday = this.holidayService.getHoliday(currentDate);
 
       this.dateColumns.push({
         date: new Date(currentDate),
@@ -412,7 +604,10 @@ export class ScheduleMatrixComponent implements OnInit {
         monthName: this.getMonthName(currentDate),
         monthFullName: this.getMonthFullName(currentDate),
         year: currentDate.getFullYear(),
-        isWeekend,
+        dayOfWeek,
+        isNonWorkingDay,
+        isHoliday: !!holiday,
+        holidayName: holiday?.localName || '',
         isToday,
         isFirstOfMonth,
         isFirstOfYear,
@@ -523,17 +718,51 @@ export class ScheduleMatrixComponent implements OnInit {
     ).length;
   }
 
-  scrollToToday(): void {
+  scrollToToday(animate = false): void {
     setTimeout(() => {
       const todayIndex = this.dateColumns.findIndex(col => col.isToday);
-      if (todayIndex !== -1) {
-        const scrollContainer = document.querySelector('.date-scroll-container');
+      if (todayIndex !== -1 && this.scrollContainer) {
         const cellWidth = 40;
-        const containerWidth = scrollContainer?.clientWidth || 800;
+        const containerWidth = this.scrollContainer.nativeElement.clientWidth || 800;
 
         const scrollPosition = (todayIndex * cellWidth) - (containerWidth / 2);
-        scrollContainer?.scrollTo({ left: Math.max(0, scrollPosition), behavior: 'smooth' });
+        if (animate) {
+          this.scrollContainer.nativeElement.scrollTo({ left: Math.max(0, scrollPosition), behavior: 'smooth' });
+        } else {
+          this.scrollContainer.nativeElement.scrollLeft = Math.max(0, scrollPosition);
+        }
       }
+      setTimeout(() => this.updateVisibleDateInfo(), animate ? 150 : 0);
     }, 100);
+  }
+
+  private loadHolidays(): void {
+    // Determine which years are covered by the date range
+    const years = new Set<number>();
+    for (const col of this.dateColumns) {
+      years.add(col.year);
+    }
+    this.holidayService.loadHolidaysForYears(Array.from(years)).subscribe();
+  }
+
+  private updateNonWorkingDays(): void {
+    for (const col of this.dateColumns) {
+      col.isNonWorkingDay = !this.appSettingsService.isWorkingDay(col.dayOfWeek);
+    }
+  }
+
+  private updateHolidays(): void {
+    for (const col of this.dateColumns) {
+      const holiday = this.holidayService.getHoliday(col.date);
+      col.isHoliday = !!holiday;
+      col.holidayName = holiday?.localName || '';
+    }
+  }
+
+  getCellColor(col: DateColumn): string | null {
+    if (col.isToday) return null;
+    if (col.isHoliday) return this.holidayColor;
+    if (col.isNonWorkingDay) return this.nonWorkingDayColor;
+    return null;
   }
 }

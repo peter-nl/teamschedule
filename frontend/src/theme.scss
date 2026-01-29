@@ -36,8 +36,79 @@ $teamschedule-dark-theme: mat.define-theme((
   )
 ));
 
-// Default: Apply light theme
+// Mixin to generate light theme CSS custom properties
+@mixin light-theme-tokens {
+  --mat-sys-primary: #{mat.get-theme-color($teamschedule-light-theme, primary)};
+  --mat-sys-on-primary: #{mat.get-theme-color($teamschedule-light-theme, on-primary)};
+  --mat-sys-primary-container: #{mat.get-theme-color($teamschedule-light-theme, primary-container)};
+  --mat-sys-on-primary-container: #{mat.get-theme-color($teamschedule-light-theme, on-primary-container)};
+  --mat-sys-secondary: #{mat.get-theme-color($teamschedule-light-theme, secondary)};
+  --mat-sys-on-secondary: #{mat.get-theme-color($teamschedule-light-theme, on-secondary)};
+  --mat-sys-secondary-container: #{mat.get-theme-color($teamschedule-light-theme, secondary-container)};
+  --mat-sys-on-secondary-container: #{mat.get-theme-color($teamschedule-light-theme, on-secondary-container)};
+  --mat-sys-tertiary: #{mat.get-theme-color($teamschedule-light-theme, tertiary)};
+  --mat-sys-on-tertiary: #{mat.get-theme-color($teamschedule-light-theme, on-tertiary)};
+  --mat-sys-tertiary-container: #{mat.get-theme-color($teamschedule-light-theme, tertiary-container)};
+  --mat-sys-on-tertiary-container: #{mat.get-theme-color($teamschedule-light-theme, on-tertiary-container)};
+  --mat-sys-error: #{mat.get-theme-color($teamschedule-light-theme, error)};
+  --mat-sys-on-error: #{mat.get-theme-color($teamschedule-light-theme, on-error)};
+  --mat-sys-error-container: #{mat.get-theme-color($teamschedule-light-theme, error-container)};
+  --mat-sys-on-error-container: #{mat.get-theme-color($teamschedule-light-theme, on-error-container)};
+  --mat-sys-background: #{mat.get-theme-color($teamschedule-light-theme, background)};
+  --mat-sys-on-background: #{mat.get-theme-color($teamschedule-light-theme, on-background)};
+  --mat-sys-surface: #{mat.get-theme-color($teamschedule-light-theme, surface)};
+  --mat-sys-on-surface: #{mat.get-theme-color($teamschedule-light-theme, on-surface)};
+  --mat-sys-surface-variant: #{mat.get-theme-color($teamschedule-light-theme, surface-variant)};
+  --mat-sys-on-surface-variant: #{mat.get-theme-color($teamschedule-light-theme, on-surface-variant)};
+  --mat-sys-outline: #{mat.get-theme-color($teamschedule-light-theme, outline)};
+  --mat-sys-outline-variant: #{mat.get-theme-color($teamschedule-light-theme, outline-variant)};
+  --mat-sys-surface-container: #{mat.get-theme-color($teamschedule-light-theme, surface-container)};
+  --mat-sys-surface-container-low: #{mat.get-theme-color($teamschedule-light-theme, surface-container-low)};
+  --mat-sys-surface-container-high: #{mat.get-theme-color($teamschedule-light-theme, surface-container-high)};
+  --mat-sys-surface-container-highest: #{mat.get-theme-color($teamschedule-light-theme, surface-container-highest)};
+  --mat-sys-inverse-surface: #{mat.get-theme-color($teamschedule-light-theme, inverse-surface)};
+  --mat-sys-inverse-on-surface: #{mat.get-theme-color($teamschedule-light-theme, inverse-on-surface)};
+  --mat-sys-inverse-primary: #{mat.get-theme-color($teamschedule-light-theme, inverse-primary)};
+}
+
+// Mixin to generate dark theme CSS custom properties
+@mixin dark-theme-tokens {
+  --mat-sys-primary: #{mat.get-theme-color($teamschedule-dark-theme, primary)};
+  --mat-sys-on-primary: #{mat.get-theme-color($teamschedule-dark-theme, on-primary)};
+  --mat-sys-primary-container: #{mat.get-theme-color($teamschedule-dark-theme, primary-container)};
+  --mat-sys-on-primary-container: #{mat.get-theme-color($teamschedule-dark-theme, on-primary-container)};
+  --mat-sys-secondary: #{mat.get-theme-color($teamschedule-dark-theme, secondary)};
+  --mat-sys-on-secondary: #{mat.get-theme-color($teamschedule-dark-theme, on-secondary)};
+  --mat-sys-secondary-container: #{mat.get-theme-color($teamschedule-dark-theme, secondary-container)};
+  --mat-sys-on-secondary-container: #{mat.get-theme-color($teamschedule-dark-theme, on-secondary-container)};
+  --mat-sys-tertiary: #{mat.get-theme-color($teamschedule-dark-theme, tertiary)};
+  --mat-sys-on-tertiary: #{mat.get-theme-color($teamschedule-dark-theme, on-tertiary)};
+  --mat-sys-tertiary-container: #{mat.get-theme-color($teamschedule-dark-theme, tertiary-container)};
+  --mat-sys-on-tertiary-container: #{mat.get-theme-color($teamschedule-dark-theme, on-tertiary-container)};
+  --mat-sys-error: #{mat.get-theme-color($teamschedule-dark-theme, error)};
+  --mat-sys-on-error: #{mat.get-theme-color($teamschedule-dark-theme, on-error)};
+  --mat-sys-error-container: #{mat.get-theme-color($teamschedule-dark-theme, error-container)};
+  --mat-sys-on-error-container: #{mat.get-theme-color($teamschedule-dark-theme, on-error-container)};
+  --mat-sys-background: #{mat.get-theme-color($teamschedule-dark-theme, background)};
+  --mat-sys-on-background: #{mat.get-theme-color($teamschedule-dark-theme, on-background)};
+  --mat-sys-surface: #{mat.get-theme-color($teamschedule-dark-theme, surface)};
+  --mat-sys-on-surface: #{mat.get-theme-color($teamschedule-dark-theme, on-surface)};
+  --mat-sys-surface-variant: #{mat.get-theme-color($teamschedule-dark-theme, surface-variant)};
+  --mat-sys-on-surface-variant: #{mat.get-theme-color($teamschedule-dark-theme, on-surface-variant)};
+  --mat-sys-outline: #{mat.get-theme-color($teamschedule-dark-theme, outline)};
+  --mat-sys-outline-variant: #{mat.get-theme-color($teamschedule-dark-theme, outline-variant)};
+  --mat-sys-surface-container: #{mat.get-theme-color($teamschedule-dark-theme, surface-container)};
+  --mat-sys-surface-container-low: #{mat.get-theme-color($teamschedule-dark-theme, surface-container-low)};
+  --mat-sys-surface-container-high: #{mat.get-theme-color($teamschedule-dark-theme, surface-container-high)};
+  --mat-sys-surface-container-highest: #{mat.get-theme-color($teamschedule-dark-theme, surface-container-highest)};
+  --mat-sys-inverse-surface: #{mat.get-theme-color($teamschedule-dark-theme, inverse-surface)};
+  --mat-sys-inverse-on-surface: #{mat.get-theme-color($teamschedule-dark-theme, inverse-on-surface)};
+  --mat-sys-inverse-primary: #{mat.get-theme-color($teamschedule-dark-theme, inverse-primary)};
+}
+
+// Default: Apply light theme with CSS custom properties
 :root {
+  @include light-theme-tokens;
   @include mat.all-component-themes($teamschedule-light-theme);
 }
 
@@ -45,16 +116,19 @@ $teamschedule-dark-theme: mat.define-theme((
 // This only applies when no manual theme class is set
 :root:not(.light-theme):not(.dark-theme) {
   @media (prefers-color-scheme: dark) {
+    @include dark-theme-tokens;
     @include mat.all-component-colors($teamschedule-dark-theme);
   }
 }
 
 // Manual override: Force light theme
 :root.light-theme {
+  @include light-theme-tokens;
   @include mat.all-component-colors($teamschedule-light-theme);
 }
 
 // Manual override: Force dark theme
 :root.dark-theme {
+  @include dark-theme-tokens;
   @include mat.all-component-colors($teamschedule-dark-theme);
 }
