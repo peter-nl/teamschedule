@@ -11,6 +11,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDividerModule } from '@angular/material/divider';
 import { AuthService, AuthWorker } from '../../shared/services/auth.service';
+import { WorkerHolidayService, WorkerHoliday } from '../../core/services/worker-holiday.service';
 
 @Component({
   selector: 'app-account',
@@ -198,6 +199,61 @@ import { AuthService, AuthWorker } from '../../shared/services/auth.service';
 
           <mat-divider class="section-divider"></mat-divider>
 
+          <h3 class="section-title">My Personal Holidays</h3>
+          <div class="holidays-section">
+            <div class="holiday-add-form">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Date</mat-label>
+                <input matInput
+                       [(ngModel)]="holidayForm.date"
+                       name="holidayDate"
+                       type="date"
+                       required>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Description (optional)</mat-label>
+                <input matInput
+                       [(ngModel)]="holidayForm.description"
+                       name="holidayDescription"
+                       placeholder="e.g., Vacation, Day off">
+              </mat-form-field>
+
+              <button mat-raised-button
+                      color="primary"
+                      (click)="onAddHoliday()"
+                      [disabled]="holidayAddLoading || !holidayForm.date">
+                <mat-spinner *ngIf="holidayAddLoading" diameter="20"></mat-spinner>
+                <span *ngIf="!holidayAddLoading">Add Holiday</span>
+              </button>
+            </div>
+
+            <div *ngIf="holidaysLoading" class="holidays-loading">
+              <mat-progress-spinner mode="indeterminate" diameter="24"></mat-progress-spinner>
+              <span>Loading holidays...</span>
+            </div>
+
+            <div *ngIf="!holidaysLoading && myHolidays.length === 0" class="holidays-empty">
+              No personal holidays set.
+            </div>
+
+            <div *ngIf="!holidaysLoading && myHolidays.length > 0" class="holidays-list">
+              <div *ngFor="let holiday of myHolidays" class="holiday-item">
+                <div class="holiday-info">
+                  <span class="holiday-date">{{ formatHolidayDate(holiday.date) }}</span>
+                  <span *ngIf="holiday.description" class="holiday-description">{{ holiday.description }}</span>
+                </div>
+                <button mat-icon-button
+                        (click)="onRemoveHoliday(holiday)"
+                        [disabled]="removingHolidayDate === holiday.date">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <mat-divider class="section-divider"></mat-divider>
+
           <button mat-stroked-button
                   color="warn"
                   (click)="onLogout()"
@@ -313,6 +369,65 @@ import { AuthService, AuthWorker } from '../../shared/services/auth.service';
       flex-direction: column;
       gap: 8px;
     }
+
+    .holidays-section {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .holiday-add-form {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .holidays-loading {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 0;
+      font-size: 14px;
+      color: var(--mat-sys-on-surface-variant);
+    }
+
+    .holidays-empty {
+      padding: 16px 0;
+      font-size: 14px;
+      color: var(--mat-sys-on-surface-variant);
+    }
+
+    .holidays-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .holiday-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: var(--mat-sys-surface-container-low);
+      border-radius: 8px;
+    }
+
+    .holiday-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .holiday-date {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--mat-sys-on-surface);
+    }
+
+    .holiday-description {
+      font-size: 12px;
+      color: var(--mat-sys-on-surface-variant);
+    }
   `]
 })
 export class AccountComponent {
@@ -348,9 +463,17 @@ export class AccountComponent {
   selectedRole: 'user' | 'manager' = 'user';
   roleLoading = false;
 
+  // Personal holidays
+  holidayForm = { date: '', description: '' };
+  myHolidays: WorkerHoliday[] = [];
+  holidaysLoading = false;
+  holidayAddLoading = false;
+  removingHolidayDate: string | null = null;
+
   constructor(
     public authService: AuthService,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private workerHolidayService: WorkerHolidayService
   ) {
     // Initialize profile form when logged in
     this.authService.currentUser$.subscribe(user => {
@@ -361,6 +484,9 @@ export class AccountComponent {
           particles: user.particles || ''
         };
         this.selectedRole = user.role;
+        this.loadMyHolidays(user.id);
+      } else {
+        this.myHolidays = [];
       }
     });
   }
@@ -472,6 +598,73 @@ export class AccountComponent {
         this.snackBar.open(error.message || 'Failed to update role', 'Close', { duration: 3000 });
         console.error('Update role error:', error);
       }
+    });
+  }
+
+  private loadMyHolidays(workerId: string): void {
+    this.holidaysLoading = true;
+    this.workerHolidayService.loadWorkerHolidays(workerId).subscribe({
+      next: (holidays) => {
+        this.myHolidays = [...holidays].sort((a, b) => a.date.localeCompare(b.date));
+        this.holidaysLoading = false;
+      },
+      error: (error) => {
+        this.holidaysLoading = false;
+        console.error('Failed to load holidays:', error);
+      }
+    });
+  }
+
+  onAddHoliday(): void {
+    const user = this.authService.currentUser;
+    if (!user || !this.holidayForm.date) return;
+
+    this.holidayAddLoading = true;
+    this.workerHolidayService.toggleHoliday(
+      user.id,
+      this.holidayForm.date,
+      this.holidayForm.description || undefined
+    ).subscribe({
+      next: () => {
+        this.holidayAddLoading = false;
+        this.holidayForm = { date: '', description: '' };
+        this.snackBar.open('Holiday added', 'Close', { duration: 3000 });
+        this.loadMyHolidays(user.id);
+      },
+      error: (error) => {
+        this.holidayAddLoading = false;
+        this.snackBar.open('Failed to add holiday', 'Close', { duration: 3000 });
+        console.error('Add holiday error:', error);
+      }
+    });
+  }
+
+  onRemoveHoliday(holiday: WorkerHoliday): void {
+    const user = this.authService.currentUser;
+    if (!user) return;
+
+    this.removingHolidayDate = holiday.date;
+    this.workerHolidayService.removeHoliday(user.id, holiday.date).subscribe({
+      next: () => {
+        this.removingHolidayDate = null;
+        this.snackBar.open('Holiday removed', 'Close', { duration: 3000 });
+        this.loadMyHolidays(user.id);
+      },
+      error: (error) => {
+        this.removingHolidayDate = null;
+        this.snackBar.open('Failed to remove holiday', 'Close', { duration: 3000 });
+        console.error('Remove holiday error:', error);
+      }
+    });
+  }
+
+  formatHolidayDate(dateStr: string): string {
+    const date = new Date(dateStr + 'T00:00:00');
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
     });
   }
 }

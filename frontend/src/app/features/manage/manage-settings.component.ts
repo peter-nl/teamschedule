@@ -102,6 +102,19 @@ interface HolidayYearGroup {
                   <span class="color-value">{{ holidayColor }}</span>
                 </div>
               </div>
+
+              <div class="color-setting">
+                <label for="workerHolidayColor">Personal holidays</label>
+                <div class="color-picker-wrapper">
+                  <input
+                    type="color"
+                    id="workerHolidayColor"
+                    [value]="workerHolidayColor"
+                    (input)="onWorkerHolidayColorChange($event)">
+                  <div class="color-preview" [style.background-color]="workerHolidayColor"></div>
+                  <span class="color-value">{{ workerHolidayColor }}</span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -335,6 +348,7 @@ export class ManageSettingsComponent implements OnInit {
   workingDays: boolean[];
   nonWorkingDayColor: string;
   holidayColor: string;
+  workerHolidayColor: string;
 
   holidays: HolidayInfo[] = [];
   holidaysByYear: HolidayYearGroup[] = [];
@@ -347,11 +361,13 @@ export class ManageSettingsComponent implements OnInit {
     this.workingDays = [...this.appSettingsService.settings.workingDays];
     this.nonWorkingDayColor = this.appSettingsService.settings.nonWorkingDayColor;
     this.holidayColor = this.appSettingsService.settings.holidayColor;
+    this.workerHolidayColor = this.appSettingsService.settings.workerHolidayColor;
 
     this.appSettingsService.settings$.subscribe(settings => {
       this.workingDays = [...settings.workingDays];
       this.nonWorkingDayColor = settings.nonWorkingDayColor;
       this.holidayColor = settings.holidayColor;
+      this.workerHolidayColor = settings.workerHolidayColor;
     });
   }
 
@@ -370,6 +386,12 @@ export class ManageSettingsComponent implements OnInit {
     const input = event.target as HTMLInputElement;
     this.holidayColor = input.value;
     this.appSettingsService.setHolidayColor(input.value);
+  }
+
+  onWorkerHolidayColorChange(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.workerHolidayColor = input.value;
+    this.appSettingsService.setWorkerHolidayColor(input.value);
   }
 
   ngOnInit(): void {

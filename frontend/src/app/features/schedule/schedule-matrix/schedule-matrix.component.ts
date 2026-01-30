@@ -1,4 +1,4 @@
-import { Component, OnInit, AfterViewInit, OnDestroy, ViewChild, ElementRef } from '@angular/core';
+import { Component, OnInit, AfterViewInit, OnDestroy, ViewChild, ElementRef, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -14,6 +14,8 @@ import { Team } from '../../../shared/models/team.model';
 import { SettingsService } from '../../../shared/services/settings.service';
 import { AppSettingsService } from '../../../core/services/app-settings.service';
 import { HolidayService } from '../../../core/services/holiday.service';
+import { WorkerHolidayService } from '../../../core/services/worker-holiday.service';
+import { AuthService } from '../../../shared/services/auth.service';
 
 interface DateColumn {
   date: Date;
@@ -135,17 +137,20 @@ interface DateColumn {
             </div>
 
             <!-- Worker Rows -->
-            <div *ngFor="let worker of filteredWorkers; let rowIndex = index" class="worker-row">
+            <div *ngFor="let worker of filteredWorkers; let rowIndex = index"
+                 class="worker-row"
+                 [class.own-row]="isOwnRow(worker)">
               <div *ngFor="let col of dateColumns"
                    class="schedule-cell"
                    [class.non-working]="col.isNonWorkingDay"
                    [class.holiday]="col.isHoliday"
+                   [class.worker-holiday]="hasWorkerHoliday(worker, col)"
                    [class.today]="col.isToday"
                    [class.odd-row]="rowIndex % 2 === 1"
-                   [style.background-color]="getCellColor(col)"
-                   [matTooltip]="col.holidayName"
-                   [matTooltipDisabled]="!col.isHoliday">
-                <!-- Empty for now - will hold schedule data later -->
+                   [style.background-color]="getWorkerCellColor(col, worker)"
+                   [matTooltip]="getWorkerCellTooltip(col, worker)"
+                   [matTooltipDisabled]="!col.isHoliday && !hasWorkerHoliday(worker, col)"
+                   (click)="onCellClick(worker, col)">
               </div>
             </div>
           </div>
@@ -401,6 +406,11 @@ interface DateColumn {
       border-right: 2px solid var(--mat-sys-primary);
     }
 
+    .own-row .schedule-cell:hover {
+      outline: 2px solid var(--mat-sys-primary);
+      outline-offset: -2px;
+    }
+
     .today-fab {
       position: fixed;
       bottom: 24px;
@@ -444,9 +454,11 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
   // Dynamic colors from settings
   nonWorkingDayColor = '#e0e0e0';
   holidayColor = '#ffcdd2';
+  workerHolidayColor = '#c8e6c9';
 
   // Drag-to-scroll state
   isDragging = false;
+  private hasDragged = false;
   private startX = 0;
   private scrollLeft = 0;
   private boundMouseMove: (e: MouseEvent) => void;
@@ -458,7 +470,10 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     private scheduleService: ScheduleService,
     private settingsService: SettingsService,
     private appSettingsService: AppSettingsService,
-    private holidayService: HolidayService
+    private holidayService: HolidayService,
+    private workerHolidayService: WorkerHolidayService,
+    private authService: AuthService,
+    private cdr: ChangeDetectorRef
   ) {
     const settings = this.settingsService.getScheduleSettings();
     if (settings?.selectedTeamIds) {
@@ -470,6 +485,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     this.appSettingsService.settings$.subscribe(settings => {
       this.nonWorkingDayColor = settings.nonWorkingDayColor;
       this.holidayColor = settings.holidayColor;
+      this.workerHolidayColor = settings.workerHolidayColor;
       this.updateNonWorkingDays();
     });
 
@@ -488,6 +504,11 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     // Subscribe to holiday data changes
     this.holidayService.holidays$.subscribe(() => {
       this.updateHolidays();
+    });
+
+    // Subscribe to worker holiday changes for reactive updates
+    this.workerHolidayService.holidays$.subscribe(() => {
+      this.cdr.markForCheck();
     });
   }
 
@@ -511,6 +532,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     if (event.button !== 0) return;
 
     this.isDragging = true;
+    this.hasDragged = false;
     this.startX = event.pageX - this.scrollContainer.nativeElement.offsetLeft;
     this.scrollLeft = this.scrollContainer.nativeElement.scrollLeft;
 
@@ -520,6 +542,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
   private onMouseMove(event: MouseEvent): void {
     if (!this.isDragging) return;
 
+    this.hasDragged = true;
     event.preventDefault();
     const x = event.pageX - this.scrollContainer.nativeElement.offsetLeft;
     const walk = (x - this.startX) * 1.5; // Multiply for faster scrolling
@@ -680,6 +703,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
         this.filterWorkers();
         this.loading = false;
         this.scrollToToday();
+        this.loadWorkerHolidays();
       },
       error: (error) => {
         this.error = error.message || 'Failed to load schedule';
@@ -764,5 +788,52 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     if (col.isHoliday) return this.holidayColor;
     if (col.isNonWorkingDay) return this.nonWorkingDayColor;
     return null;
+  }
+
+  private loadWorkerHolidays(): void {
+    if (this.dateColumns.length === 0) return;
+    const startDate = this.formatDateKey(this.dateColumns[0].date);
+    const endDate = this.formatDateKey(this.dateColumns[this.dateColumns.length - 1].date);
+    this.workerHolidayService.loadAllHolidays(startDate, endDate).subscribe();
+  }
+
+  private formatDateKey(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  isOwnRow(worker: Worker): boolean {
+    return this.authService.currentUser?.id === worker.id;
+  }
+
+  hasWorkerHoliday(worker: Worker, col: DateColumn): boolean {
+    return this.workerHolidayService.hasHoliday(worker.id, this.formatDateKey(col.date));
+  }
+
+  getWorkerCellColor(col: DateColumn, worker: Worker): string | null {
+    if (col.isToday) return null;
+    if (this.hasWorkerHoliday(worker, col)) return this.workerHolidayColor;
+    if (col.isHoliday) return this.holidayColor;
+    if (col.isNonWorkingDay) return this.nonWorkingDayColor;
+    return null;
+  }
+
+  getWorkerCellTooltip(col: DateColumn, worker: Worker): string {
+    const workerHoliday = this.workerHolidayService.getHoliday(worker.id, this.formatDateKey(col.date));
+    if (workerHoliday) {
+      return workerHoliday.description || 'Personal holiday';
+    }
+    return col.holidayName;
+  }
+
+  onCellClick(worker: Worker, col: DateColumn): void {
+    // Only allow toggling on own row, and only if not dragging
+    if (this.hasDragged) return;
+    if (!this.isOwnRow(worker)) return;
+
+    const dateStr = this.formatDateKey(col.date);
+    this.workerHolidayService.toggleHoliday(worker.id, dateStr).subscribe();
   }
 }

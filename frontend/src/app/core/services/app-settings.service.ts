@@ -5,12 +5,14 @@ export interface AppSettings {
   workingDays: boolean[]; // Index 0 = Sunday, 1 = Monday, ..., 6 = Saturday (matches JS Date.getDay())
   nonWorkingDayColor: string; // Background color for non-working days
   holidayColor: string; // Background color for holidays
+  workerHolidayColor: string; // Background color for personal holidays
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
   workingDays: [false, true, true, true, true, true, false], // Sun=off, Mon-Fri=on, Sat=off
   nonWorkingDayColor: '#e0e0e0', // Light gray
-  holidayColor: '#ffcdd2' // Light red/pink
+  holidayColor: '#ffcdd2', // Light red/pink
+  workerHolidayColor: '#c8e6c9' // Light green
 };
 
 const STORAGE_KEY = 'teamschedule-app-settings';
@@ -73,6 +75,12 @@ export class AppSettingsService {
     this.saveSettings();
   }
 
+  setWorkerHolidayColor(color: string): void {
+    const current = this.settingsSubject.value;
+    this.settingsSubject.next({ ...current, workerHolidayColor: color });
+    this.saveSettings();
+  }
+
   resetWorkingDays(): void {
     const current = this.settingsSubject.value;
     this.settingsSubject.next({ ...current, workingDays: [...DEFAULT_SETTINGS.workingDays] });
@@ -84,7 +92,8 @@ export class AppSettingsService {
     this.settingsSubject.next({
       ...current,
       nonWorkingDayColor: DEFAULT_SETTINGS.nonWorkingDayColor,
-      holidayColor: DEFAULT_SETTINGS.holidayColor
+      holidayColor: DEFAULT_SETTINGS.holidayColor,
+      workerHolidayColor: DEFAULT_SETTINGS.workerHolidayColor
     });
     this.saveSettings();
   }

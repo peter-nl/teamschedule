@@ -46,6 +46,13 @@ const typeDefs = `#graphql
     teams: [Team!]!
   }
 
+  type WorkerHoliday {
+    id: ID!
+    workerId: String!
+    date: String!
+    description: String
+  }
+
   type AuthPayload {
     success: Boolean!
     message: String
@@ -59,6 +66,8 @@ const typeDefs = `#graphql
     team(id: ID!): Team
     workers: [Worker!]!
     worker(id: ID!): Worker
+    workerHolidays(workerId: String!): [WorkerHoliday!]!
+    allWorkerHolidays(startDate: String!, endDate: String!): [WorkerHoliday!]!
   }
 
   type Mutation {
@@ -73,6 +82,8 @@ const typeDefs = `#graphql
     updateWorkerProfile(id: String!, firstName: String!, lastName: String!, particles: String): Worker
     changePassword(workerId: String!, currentPassword: String!, newPassword: String!): AuthPayload!
     updateWorkerRole(workerId: String!, role: String!, requesterId: String!): Worker
+    toggleWorkerHoliday(workerId: String!, date: String!, description: String): WorkerHoliday
+    removeWorkerHoliday(workerId: String!, date: String!): Boolean!
   }
 `;
 
@@ -117,6 +128,30 @@ const resolvers = {
         particles: row.particles,
         role: row.role,
       };
+    },
+    workerHolidays: async (_: any, { workerId }: { workerId: string }) => {
+      const result = await pool.query(
+        'SELECT * FROM worker_holiday WHERE worker_id = $1 ORDER BY date',
+        [workerId]
+      );
+      return result.rows.map(row => ({
+        id: row.id,
+        workerId: row.worker_id,
+        date: row.date.toISOString().split('T')[0],
+        description: row.description,
+      }));
+    },
+    allWorkerHolidays: async (_: any, { startDate, endDate }: { startDate: string; endDate: string }) => {
+      const result = await pool.query(
+        'SELECT * FROM worker_holiday WHERE date >= $1 AND date <= $2 ORDER BY date',
+        [startDate, endDate]
+      );
+      return result.rows.map(row => ({
+        id: row.id,
+        workerId: row.worker_id,
+        date: row.date.toISOString().split('T')[0],
+        description: row.description,
+      }));
     },
   },
   Mutation: {
@@ -257,6 +292,42 @@ const resolvers = {
       } catch (error) {
         return { success: false, message: 'Failed to change password', worker: null };
       }
+    },
+    toggleWorkerHoliday: async (_: any, { workerId, date, description }: { workerId: string; date: string; description?: string }) => {
+      // Check if holiday exists for this worker and date
+      const existing = await pool.query(
+        'SELECT * FROM worker_holiday WHERE worker_id = $1 AND date = $2',
+        [workerId, date]
+      );
+
+      if (existing.rows.length > 0) {
+        // Remove existing holiday (toggle off)
+        await pool.query(
+          'DELETE FROM worker_holiday WHERE worker_id = $1 AND date = $2',
+          [workerId, date]
+        );
+        return null;
+      } else {
+        // Create new holiday (toggle on)
+        const result = await pool.query(
+          'INSERT INTO worker_holiday (worker_id, date, description) VALUES ($1, $2, $3) RETURNING *',
+          [workerId, date, description || null]
+        );
+        const row = result.rows[0];
+        return {
+          id: row.id,
+          workerId: row.worker_id,
+          date: row.date.toISOString().split('T')[0],
+          description: row.description,
+        };
+      }
+    },
+    removeWorkerHoliday: async (_: any, { workerId, date }: { workerId: string; date: string }) => {
+      const result = await pool.query(
+        'DELETE FROM worker_holiday WHERE worker_id = $1 AND date = $2',
+        [workerId, date]
+      );
+      return (result.rowCount ?? 0) > 0;
     },
     updateWorkerRole: async (_: any, { workerId, role, requesterId }: { workerId: string; role: string; requesterId: string }) => {
       // Validate role value
