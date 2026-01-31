@@ -7,8 +7,11 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import { AppSettingsService } from '../../core/services/app-settings.service';
 import { HolidayService, HolidayInfo } from '../../core/services/holiday.service';
+import { HolidayTypeService, HolidayType } from '../../core/services/holiday-type.service';
 
 interface DayConfig {
   label: string;
@@ -31,7 +34,9 @@ interface HolidayYearGroup {
     MatCheckboxModule,
     MatButtonModule,
     MatDividerModule,
-    MatProgressSpinnerModule
+    MatProgressSpinnerModule,
+    MatFormFieldModule,
+    MatInputModule
   ],
   template: `
     <div class="settings-container">
@@ -103,18 +108,60 @@ interface HolidayYearGroup {
                 </div>
               </div>
 
-              <div class="color-setting">
-                <label for="workerHolidayColor">Personal holidays</label>
-                <div class="color-picker-wrapper">
-                  <input
-                    type="color"
-                    id="workerHolidayColor"
-                    [value]="workerHolidayColor"
-                    (input)="onWorkerHolidayColorChange($event)">
-                  <div class="color-preview" [style.background-color]="workerHolidayColor"></div>
-                  <span class="color-value">{{ workerHolidayColor }}</span>
-                </div>
+            </div>
+          </div>
+
+          <mat-divider></mat-divider>
+
+          <div class="settings-section">
+            <div class="section-header">
+              <div>
+                <h3>Holiday Types</h3>
+                <p class="section-description">Define holiday types with separate colors for light and dark themes. These are used when workers log personal holidays.</p>
               </div>
+            </div>
+
+            <div class="holiday-types-list">
+              <div *ngFor="let type of holidayTypes" class="holiday-type-row">
+                <span class="holiday-type-name">{{ type.name }}</span>
+                <div class="holiday-type-colors">
+                  <div class="color-pair">
+                    <label>Light</label>
+                    <input type="color" [value]="type.colorLight"
+                      (input)="onTypeColorLightChange(type, $event)">
+                    <div class="color-preview-small" [style.background-color]="type.colorLight"></div>
+                  </div>
+                  <div class="color-pair">
+                    <label>Dark</label>
+                    <input type="color" [value]="type.colorDark"
+                      (input)="onTypeColorDarkChange(type, $event)">
+                    <div class="color-preview-small" [style.background-color]="type.colorDark"></div>
+                  </div>
+                </div>
+                <button mat-icon-button (click)="deleteHolidayType(type)" class="delete-type-button">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+            </div>
+
+            <div class="add-holiday-type-form">
+              <mat-form-field appearance="outline" class="type-name-field">
+                <mat-label>New type name</mat-label>
+                <input matInput [(ngModel)]="newTypeName" placeholder="e.g. Ziekte">
+              </mat-form-field>
+              <div class="color-pair">
+                <label>Light</label>
+                <input type="color" [(ngModel)]="newTypeColorLight">
+                <div class="color-preview-small" [style.background-color]="newTypeColorLight"></div>
+              </div>
+              <div class="color-pair">
+                <label>Dark</label>
+                <input type="color" [(ngModel)]="newTypeColorDark">
+                <div class="color-preview-small" [style.background-color]="newTypeColorDark"></div>
+              </div>
+              <button mat-button color="primary" (click)="addHolidayType()" [disabled]="!newTypeName.trim()">
+                <mat-icon>add</mat-icon> Add
+              </button>
             </div>
           </div>
 
@@ -331,6 +378,89 @@ interface HolidayYearGroup {
     .holiday-name {
       color: var(--mat-sys-on-surface);
     }
+
+    .holiday-types-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .holiday-type-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 8px 12px;
+      background: var(--mat-sys-surface-container-low);
+      border-radius: 8px;
+    }
+
+    .holiday-type-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--mat-sys-on-surface);
+      min-width: 120px;
+      flex: 1;
+    }
+
+    .holiday-type-colors {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .color-pair {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .color-pair label {
+      font-size: 12px;
+      color: var(--mat-sys-on-surface-variant);
+      min-width: 32px;
+    }
+
+    .color-pair input[type="color"] {
+      width: 32px;
+      height: 32px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      padding: 0;
+      background: transparent;
+    }
+
+    .color-pair input[type="color"]::-webkit-color-swatch-wrapper {
+      padding: 0;
+    }
+
+    .color-pair input[type="color"]::-webkit-color-swatch {
+      border: 2px solid var(--mat-sys-outline);
+      border-radius: 4px;
+    }
+
+    .color-preview-small {
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      border: 1px solid var(--mat-sys-outline-variant);
+    }
+
+    .delete-type-button {
+      color: var(--mat-sys-error);
+    }
+
+    .add-holiday-type-form {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 8px 0;
+    }
+
+    .type-name-field {
+      flex: 1;
+    }
   `]
 })
 export class ManageSettingsComponent implements OnInit {
@@ -348,26 +478,30 @@ export class ManageSettingsComponent implements OnInit {
   workingDays: boolean[];
   nonWorkingDayColor: string;
   holidayColor: string;
-  workerHolidayColor: string;
 
   holidays: HolidayInfo[] = [];
   holidaysByYear: HolidayYearGroup[] = [];
   holidaysLoading = true;
 
+  // Holiday types
+  holidayTypes: HolidayType[] = [];
+  newTypeName = '';
+  newTypeColorLight = '#c8e6c9';
+  newTypeColorDark = '#2e7d32';
+
   constructor(
     private appSettingsService: AppSettingsService,
-    private holidayService: HolidayService
+    private holidayService: HolidayService,
+    private holidayTypeService: HolidayTypeService
   ) {
     this.workingDays = [...this.appSettingsService.settings.workingDays];
     this.nonWorkingDayColor = this.appSettingsService.settings.nonWorkingDayColor;
     this.holidayColor = this.appSettingsService.settings.holidayColor;
-    this.workerHolidayColor = this.appSettingsService.settings.workerHolidayColor;
 
     this.appSettingsService.settings$.subscribe(settings => {
       this.workingDays = [...settings.workingDays];
       this.nonWorkingDayColor = settings.nonWorkingDayColor;
       this.holidayColor = settings.holidayColor;
-      this.workerHolidayColor = settings.workerHolidayColor;
     });
   }
 
@@ -388,13 +522,12 @@ export class ManageSettingsComponent implements OnInit {
     this.appSettingsService.setHolidayColor(input.value);
   }
 
-  onWorkerHolidayColorChange(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    this.workerHolidayColor = input.value;
-    this.appSettingsService.setWorkerHolidayColor(input.value);
-  }
-
   ngOnInit(): void {
+    // Load holiday types
+    this.holidayTypeService.types$.subscribe(types => {
+      this.holidayTypes = types;
+    });
+    this.holidayTypeService.loadTypes().subscribe();
     const currentYear = new Date().getFullYear();
     const years = [currentYear, currentYear + 1];
 
@@ -420,6 +553,30 @@ export class ManageSettingsComponent implements OnInit {
     this.holidaysByYear = Array.from(groups.entries())
       .sort(([a], [b]) => a - b)
       .map(([year, holidays]) => ({ year, holidays }));
+  }
+
+  addHolidayType(): void {
+    const name = this.newTypeName.trim();
+    if (!name) return;
+    this.holidayTypeService.createType(name, this.newTypeColorLight, this.newTypeColorDark).subscribe(() => {
+      this.newTypeName = '';
+      this.newTypeColorLight = '#c8e6c9';
+      this.newTypeColorDark = '#2e7d32';
+    });
+  }
+
+  onTypeColorLightChange(type: HolidayType, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.holidayTypeService.updateType(type.id, undefined, input.value).subscribe();
+  }
+
+  onTypeColorDarkChange(type: HolidayType, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.holidayTypeService.updateType(type.id, undefined, undefined, input.value).subscribe();
+  }
+
+  deleteHolidayType(type: HolidayType): void {
+    this.holidayTypeService.deleteType(type.id).subscribe();
   }
 
   resetWorkingDays(): void {

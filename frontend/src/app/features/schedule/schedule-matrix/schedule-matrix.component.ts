@@ -7,6 +7,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { forkJoin } from 'rxjs';
 import { ScheduleService } from '../services/schedule.service';
 import { Worker } from '../../../shared/models/worker.model';
@@ -14,8 +15,11 @@ import { Team } from '../../../shared/models/team.model';
 import { SettingsService } from '../../../shared/services/settings.service';
 import { AppSettingsService } from '../../../core/services/app-settings.service';
 import { HolidayService } from '../../../core/services/holiday.service';
-import { WorkerHolidayService } from '../../../core/services/worker-holiday.service';
+import { WorkerHolidayService, ExpandedDayEntry, WorkerHolidayPeriod } from '../../../core/services/worker-holiday.service';
+import { HolidayTypeService } from '../../../core/services/holiday-type.service';
+import { UserPreferencesService } from '../../../shared/services/user-preferences.service';
 import { AuthService } from '../../../shared/services/auth.service';
+import { HolidayDialogComponent, HolidayDialogData, HolidayDialogResult } from '../../../shared/components/holiday-dialog.component';
 
 interface DateColumn {
   date: Date;
@@ -46,7 +50,8 @@ interface DateColumn {
     MatProgressSpinnerModule,
     MatIconModule,
     MatTooltipModule,
-    MatButtonModule
+    MatButtonModule,
+    MatDialogModule
   ],
   template: `
     <div class="schedule-container">
@@ -87,7 +92,8 @@ interface DateColumn {
             <div class="day-header-cell"></div>
             <div *ngFor="let worker of filteredWorkers; let rowIndex = index"
                  class="worker-name-cell"
-                 [class.odd-row]="rowIndex % 2 === 1">
+                 [class.odd-row]="rowIndex % 2 === 1"
+                 [class.my-row]="isCurrentUser(worker)">
               {{ worker.firstName }}{{ worker.particles ? ' ' + worker.particles + ' ' : ' ' }}{{ worker.lastName }}
             </div>
           </div>
@@ -138,8 +144,7 @@ interface DateColumn {
 
             <!-- Worker Rows -->
             <div *ngFor="let worker of filteredWorkers; let rowIndex = index"
-                 class="worker-row"
-                 [class.own-row]="isOwnRow(worker)">
+                 class="worker-row">
               <div *ngFor="let col of dateColumns"
                    class="schedule-cell"
                    [class.non-working]="col.isNonWorkingDay"
@@ -147,10 +152,15 @@ interface DateColumn {
                    [class.worker-holiday]="hasWorkerHoliday(worker, col)"
                    [class.today]="col.isToday"
                    [class.odd-row]="rowIndex % 2 === 1"
-                   [style.background-color]="getWorkerCellColor(col, worker)"
+                   [class.my-row]="isCurrentUser(worker)"
+                   [class.editable]="isOwnHolidayCell(worker, col)"
+                   [style.background-color]="getWorkerCellBgColor(col, worker)"
+                   [style.background-image]="getWorkerCellBgImage(col, worker)"
                    [matTooltip]="getWorkerCellTooltip(col, worker)"
                    [matTooltipDisabled]="!col.isHoliday && !hasWorkerHoliday(worker, col)"
-                   (click)="onCellClick(worker, col)">
+                   (dblclick)="onCellDblClick(worker, col)"
+                   (touchstart)="onCellTouchStart($event, worker, col)"
+                   (touchend)="onCellTouchEnd()">
               </div>
             </div>
           </div>
@@ -273,6 +283,10 @@ interface DateColumn {
       background: var(--mat-sys-surface-container-low);
     }
 
+    .worker-name-cell.my-row {
+      background: var(--mat-sys-primary-container);
+    }
+
     .date-scroll-container {
       overflow-x: auto;
       overflow-y: hidden;
@@ -381,24 +395,23 @@ interface DateColumn {
       height: 50px;
       border-right: 1px solid var(--mat-sys-outline-variant);
       border-bottom: 1px solid var(--mat-sys-outline-variant);
-      cursor: pointer;
-      background: var(--mat-sys-surface);
+      background-color: var(--mat-sys-surface);
     }
 
     .schedule-cell.odd-row {
-      background: var(--mat-sys-surface-container-low);
+      background-color: var(--mat-sys-surface-container-low);
     }
 
     .schedule-cell:hover {
-      background: var(--mat-sys-surface-container-highest);
+      background-color: var(--mat-sys-surface-container-highest);
     }
 
     .schedule-cell.non-working {
-      background: var(--mat-sys-surface-container);
+      background-color: var(--mat-sys-surface-container);
     }
 
     .schedule-cell.non-working.odd-row {
-      background: var(--mat-sys-surface-container-high);
+      background-color: var(--mat-sys-surface-container-high);
     }
 
     .schedule-cell.today {
@@ -406,7 +419,17 @@ interface DateColumn {
       border-right: 2px solid var(--mat-sys-primary);
     }
 
-    .own-row .schedule-cell:hover {
+    .worker-name-cell.my-row,
+    .schedule-cell.my-row {
+      border-top: 2px solid var(--mat-sys-primary);
+      border-bottom: 2px solid var(--mat-sys-primary);
+    }
+
+    .schedule-cell.editable {
+      cursor: pointer;
+    }
+
+    .schedule-cell.editable:hover {
       outline: 2px solid var(--mat-sys-primary);
       outline-offset: -2px;
     }
@@ -454,7 +477,9 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
   // Dynamic colors from settings
   nonWorkingDayColor = '#e0e0e0';
   holidayColor = '#ffcdd2';
-  workerHolidayColor = '#c8e6c9';
+
+  // Theme state for holiday type color selection
+  private isDark = false;
 
   // Drag-to-scroll state
   isDragging = false;
@@ -466,14 +491,20 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
   private boundTouchMove: (e: TouchEvent) => void;
   private boundTouchEnd: () => void;
 
+  // Long-press state for mobile holiday edit
+  private longPressTimer: ReturnType<typeof setTimeout> | null = null;
+
   constructor(
     private scheduleService: ScheduleService,
     private settingsService: SettingsService,
     private appSettingsService: AppSettingsService,
     private holidayService: HolidayService,
     private workerHolidayService: WorkerHolidayService,
+    private holidayTypeService: HolidayTypeService,
+    private userPreferencesService: UserPreferencesService,
     private authService: AuthService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private dialog: MatDialog
   ) {
     const settings = this.settingsService.getScheduleSettings();
     if (settings?.selectedTeamIds) {
@@ -485,8 +516,12 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     this.appSettingsService.settings$.subscribe(settings => {
       this.nonWorkingDayColor = settings.nonWorkingDayColor;
       this.holidayColor = settings.holidayColor;
-      this.workerHolidayColor = settings.workerHolidayColor;
       this.updateNonWorkingDays();
+    });
+
+    // Track dark/light theme for holiday type colors
+    this.userPreferencesService.isDarkTheme$.subscribe(isDark => {
+      this.isDark = isDark;
     });
 
     // Bind event handlers for drag-to-scroll
@@ -500,6 +535,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     this.generateDateColumns();
     this.loadHolidays();
     this.loadData();
+    this.holidayTypeService.ensureLoaded().subscribe();
 
     // Subscribe to holiday data changes
     this.holidayService.holidays$.subscribe(() => {
@@ -569,6 +605,9 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
 
   private onTouchMove(event: TouchEvent): void {
     if (!this.isDragging || event.touches.length !== 1) return;
+
+    // Cancel long-press on any movement
+    this.cancelLongPress();
 
     event.preventDefault();
     const x = event.touches[0].pageX - this.scrollContainer.nativeElement.offsetLeft;
@@ -804,7 +843,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     return `${year}-${month}-${day}`;
   }
 
-  isOwnRow(worker: Worker): boolean {
+  isCurrentUser(worker: Worker): boolean {
     return this.authService.currentUser?.id === worker.id;
   }
 
@@ -812,28 +851,121 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     return this.workerHolidayService.hasHoliday(worker.id, this.formatDateKey(col.date));
   }
 
-  getWorkerCellColor(col: DateColumn, worker: Worker): string | null {
+  getWorkerCellBgColor(col: DateColumn, worker: Worker): string | null {
+    const workerHoliday = this.workerHolidayService.getHoliday(worker.id, this.formatDateKey(col.date));
+    if (workerHoliday) {
+      // Full day: solid background color
+      if (workerHoliday.dayPart === 'full') {
+        return this.getHolidayColor(workerHoliday);
+      }
+      // Half day: no background-color — let CSS default show through the transparent half
+      return null;
+    }
     if (col.isToday) return null;
-    if (this.hasWorkerHoliday(worker, col)) return this.workerHolidayColor;
     if (col.isHoliday) return this.holidayColor;
     if (col.isNonWorkingDay) return this.nonWorkingDayColor;
     return null;
   }
 
+  getWorkerCellBgImage(col: DateColumn, worker: Worker): string | null {
+    const workerHoliday = this.workerHolidayService.getHoliday(worker.id, this.formatDateKey(col.date));
+    if (workerHoliday && workerHoliday.dayPart !== 'full') {
+      const color = this.getHolidayColor(workerHoliday);
+      if (workerHoliday.dayPart === 'morning') {
+        // Morning = \ pattern (top-left triangle colored)
+        return `linear-gradient(to bottom right, ${color} 50%, transparent 50%)`;
+      }
+      if (workerHoliday.dayPart === 'afternoon') {
+        // Afternoon = \ pattern (bottom-right triangle colored)
+        return `linear-gradient(to bottom right, transparent 50%, ${color} 50%)`;
+      }
+    }
+    return null;
+  }
+
+  private getHolidayColor(workerHoliday: ExpandedDayEntry): string {
+    if (workerHoliday.holidayType) {
+      return this.isDark ? workerHoliday.holidayType.colorDark : workerHoliday.holidayType.colorLight;
+    }
+    const defaultType = this.holidayTypeService.getDefaultType();
+    if (defaultType) {
+      return this.isDark ? defaultType.colorDark : defaultType.colorLight;
+    }
+    return '#c8e6c9';
+  }
+
   getWorkerCellTooltip(col: DateColumn, worker: Worker): string {
     const workerHoliday = this.workerHolidayService.getHoliday(worker.id, this.formatDateKey(col.date));
     if (workerHoliday) {
-      return workerHoliday.description || 'Personal holiday';
+      const typeName = workerHoliday.holidayType?.name || 'Vakantie';
+      const partLabel = workerHoliday.dayPart === 'morning' ? ' (morning)'
+                      : workerHoliday.dayPart === 'afternoon' ? ' (afternoon)'
+                      : '';
+      const desc = workerHoliday.description ? `: ${workerHoliday.description}` : '';
+      return `${typeName}${partLabel}${desc}`;
     }
     return col.holidayName;
   }
 
-  onCellClick(worker: Worker, col: DateColumn): void {
-    // Only allow toggling on own row, and only if not dragging
-    if (this.hasDragged) return;
-    if (!this.isOwnRow(worker)) return;
+  isOwnHolidayCell(worker: Worker, col: DateColumn): boolean {
+    return this.isCurrentUser(worker) && this.hasWorkerHoliday(worker, col);
+  }
 
-    const dateStr = this.formatDateKey(col.date);
-    this.workerHolidayService.toggleHoliday(worker.id, dateStr).subscribe();
+  onCellDblClick(worker: Worker, col: DateColumn): void {
+    if (!this.isOwnHolidayCell(worker, col)) return;
+
+    const dayEntry = this.workerHolidayService.getHoliday(worker.id, this.formatDateKey(col.date));
+    if (!dayEntry) return;
+
+    const period = this.workerHolidayService.getPeriod(dayEntry.periodId);
+    if (!period) return;
+
+    this.openEditHolidayDialog(period);
+  }
+
+  onCellTouchStart(event: TouchEvent, worker: Worker, col: DateColumn): void {
+    if (!this.isOwnHolidayCell(worker, col)) return;
+
+    this.longPressTimer = setTimeout(() => {
+      this.longPressTimer = null;
+      const dayEntry = this.workerHolidayService.getHoliday(worker.id, this.formatDateKey(col.date));
+      if (!dayEntry) return;
+
+      const period = this.workerHolidayService.getPeriod(dayEntry.periodId);
+      if (!period) return;
+
+      this.openEditHolidayDialog(period);
+    }, 500);
+  }
+
+  onCellTouchEnd(): void {
+    this.cancelLongPress();
+  }
+
+  private cancelLongPress(): void {
+    if (this.longPressTimer) {
+      clearTimeout(this.longPressTimer);
+      this.longPressTimer = null;
+    }
+  }
+
+  private openEditHolidayDialog(period: WorkerHolidayPeriod): void {
+    const user = this.authService.currentUser;
+    if (!user) return;
+
+    const dialogRef = this.dialog.open<HolidayDialogComponent, HolidayDialogData, HolidayDialogResult>(
+      HolidayDialogComponent,
+      {
+        width: '480px',
+        maxWidth: '95vw',
+        data: { mode: 'edit', workerId: user.id, period }
+      }
+    );
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) {
+        this.loadWorkerHolidays();
+      }
+    });
   }
 }

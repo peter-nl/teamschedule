@@ -3,20 +3,55 @@ import { BehaviorSubject, Observable, from, map, tap } from 'rxjs';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
 
-export interface WorkerHoliday {
+export interface WorkerHolidayType {
+  id: string;
+  name: string;
+  colorLight: string;
+  colorDark: string;
+  sortOrder: number;
+}
+
+export type DayPart = 'full' | 'morning' | 'afternoon';
+
+export interface WorkerHolidayPeriod {
   id: string;
   workerId: string;
-  date: string; // YYYY-MM-DD
+  startDate: string; // YYYY-MM-DD
+  endDate: string;   // YYYY-MM-DD
+  startDayPart: DayPart;
+  endDayPart: DayPart;
   description: string | null;
+  holidayType: WorkerHolidayType | null;
 }
+
+export interface WorkerHolidayInput {
+  startDate: string;
+  endDate: string;
+  startDayPart: DayPart;
+  endDayPart: DayPart;
+  description?: string;
+  holidayTypeId?: string;
+}
+
+// Per-day entry expanded from a period, for O(1) schedule matrix lookups
+export interface ExpandedDayEntry {
+  periodId: string;
+  workerId: string;
+  date: string;
+  dayPart: DayPart;
+  description: string | null;
+  holidayType: WorkerHolidayType | null;
+}
+
+const PERIOD_FIELDS = `
+  id workerId startDate endDate startDayPart endDayPart description
+  holidayType { id name colorLight colorDark sortOrder }
+`;
 
 const ALL_WORKER_HOLIDAYS_QUERY = gql`
   query AllWorkerHolidays($startDate: String!, $endDate: String!) {
     allWorkerHolidays(startDate: $startDate, endDate: $endDate) {
-      id
-      workerId
-      date
-      description
+      ${PERIOD_FIELDS}
     }
   }
 `;
@@ -24,28 +59,30 @@ const ALL_WORKER_HOLIDAYS_QUERY = gql`
 const WORKER_HOLIDAYS_QUERY = gql`
   query WorkerHolidays($workerId: String!) {
     workerHolidays(workerId: $workerId) {
-      id
-      workerId
-      date
-      description
+      ${PERIOD_FIELDS}
     }
   }
 `;
 
-const TOGGLE_WORKER_HOLIDAY_MUTATION = gql`
-  mutation ToggleWorkerHoliday($workerId: String!, $date: String!, $description: String) {
-    toggleWorkerHoliday(workerId: $workerId, date: $date, description: $description) {
-      id
-      workerId
-      date
-      description
+const ADD_WORKER_HOLIDAY_MUTATION = gql`
+  mutation AddWorkerHoliday($workerId: String!, $holiday: WorkerHolidayInput!) {
+    addWorkerHoliday(workerId: $workerId, holiday: $holiday) {
+      ${PERIOD_FIELDS}
     }
   }
 `;
 
 const REMOVE_WORKER_HOLIDAY_MUTATION = gql`
-  mutation RemoveWorkerHoliday($workerId: String!, $date: String!) {
-    removeWorkerHoliday(workerId: $workerId, date: $date)
+  mutation RemoveWorkerHoliday($id: ID!) {
+    removeWorkerHoliday(id: $id)
+  }
+`;
+
+const UPDATE_WORKER_HOLIDAY_MUTATION = gql`
+  mutation UpdateWorkerHoliday($id: ID!, $holiday: WorkerHolidayInput!) {
+    updateWorkerHoliday(id: $id, holiday: $holiday) {
+      ${PERIOD_FIELDS}
+    }
   }
 `;
 
@@ -53,10 +90,17 @@ const REMOVE_WORKER_HOLIDAY_MUTATION = gql`
   providedIn: 'root'
 })
 export class WorkerHolidayService {
-  // Map keyed by "workerId:YYYY-MM-DD" for O(1) lookups
-  private holidaysMap = new Map<string, WorkerHoliday>();
-  private holidaysSubject = new BehaviorSubject<Map<string, WorkerHoliday>>(this.holidaysMap);
+  // Raw periods from the API
+  private periods: WorkerHolidayPeriod[] = [];
+
+  // Expanded per-day map for O(1) cell lookups, keyed by "workerId:YYYY-MM-DD"
+  private holidaysMap = new Map<string, ExpandedDayEntry>();
+  private holidaysSubject = new BehaviorSubject<Map<string, ExpandedDayEntry>>(this.holidaysMap);
   public holidays$ = this.holidaysSubject.asObservable();
+
+  // Periods exposed for the account page list view
+  private periodsSubject = new BehaviorSubject<WorkerHolidayPeriod[]>([]);
+  public periods$ = this.periodsSubject.asObservable();
 
   private makeKey(workerId: string, date: string): string {
     return `${workerId}:${date}`;
@@ -66,11 +110,61 @@ export class WorkerHolidayService {
     return this.holidaysMap.has(this.makeKey(workerId, dateStr));
   }
 
-  getHoliday(workerId: string, dateStr: string): WorkerHoliday | undefined {
+  getHoliday(workerId: string, dateStr: string): ExpandedDayEntry | undefined {
     return this.holidaysMap.get(this.makeKey(workerId, dateStr));
   }
 
-  loadAllHolidays(startDate: string, endDate: string): Observable<WorkerHoliday[]> {
+  getPeriod(periodId: string): WorkerHolidayPeriod | undefined {
+    return this.periods.find(p => p.id === periodId);
+  }
+
+  private expandPeriod(period: WorkerHolidayPeriod): void {
+    const start = new Date(period.startDate + 'T00:00:00');
+    const end = new Date(period.endDate + 'T00:00:00');
+    const current = new Date(start);
+
+    while (current <= end) {
+      const dateStr = this.formatDate(current);
+      let dayPart: DayPart = 'full';
+
+      if (period.startDate === period.endDate) {
+        dayPart = period.startDayPart;
+      } else if (dateStr === period.startDate) {
+        dayPart = period.startDayPart;
+      } else if (dateStr === period.endDate) {
+        dayPart = period.endDayPart;
+      }
+
+      this.holidaysMap.set(this.makeKey(period.workerId, dateStr), {
+        periodId: period.id,
+        workerId: period.workerId,
+        date: dateStr,
+        dayPart,
+        description: period.description,
+        holidayType: period.holidayType,
+      });
+
+      current.setDate(current.getDate() + 1);
+    }
+  }
+
+  private formatDate(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  private rebuildMap(): void {
+    this.holidaysMap.clear();
+    for (const period of this.periods) {
+      this.expandPeriod(period);
+    }
+    this.holidaysSubject.next(this.holidaysMap);
+    this.periodsSubject.next([...this.periods]);
+  }
+
+  loadAllHolidays(startDate: string, endDate: string): Observable<WorkerHolidayPeriod[]> {
     return from(
       apolloClient.query({
         query: ALL_WORKER_HOLIDAYS_QUERY,
@@ -78,23 +172,19 @@ export class WorkerHolidayService {
         fetchPolicy: 'network-only'
       })
     ).pipe(
-      map((result: any) => result.data.allWorkerHolidays as WorkerHoliday[]),
-      tap(holidays => {
-        // Clear existing entries within the date range and rebuild
-        for (const [key, holiday] of this.holidaysMap.entries()) {
-          if (holiday.date >= startDate && holiday.date <= endDate) {
-            this.holidaysMap.delete(key);
-          }
-        }
-        for (const holiday of holidays) {
-          this.holidaysMap.set(this.makeKey(holiday.workerId, holiday.date), holiday);
-        }
-        this.holidaysSubject.next(this.holidaysMap);
+      map((result: any) => result.data.allWorkerHolidays as WorkerHolidayPeriod[]),
+      tap(periods => {
+        // Remove periods that overlap the queried range, then add fresh data
+        this.periods = this.periods.filter(p =>
+          !(p.startDate <= endDate && p.endDate >= startDate)
+        );
+        this.periods.push(...periods);
+        this.rebuildMap();
       })
     );
   }
 
-  loadWorkerHolidays(workerId: string): Observable<WorkerHoliday[]> {
+  loadWorkerHolidays(workerId: string): Observable<WorkerHolidayPeriod[]> {
     return from(
       apolloClient.query({
         query: WORKER_HOLIDAYS_QUERY,
@@ -102,71 +192,110 @@ export class WorkerHolidayService {
         fetchPolicy: 'network-only'
       })
     ).pipe(
-      map((result: any) => result.data.workerHolidays as WorkerHoliday[]),
-      tap(holidays => {
-        // Clear existing entries for this worker and rebuild
-        for (const key of this.holidaysMap.keys()) {
-          if (key.startsWith(`${workerId}:`)) {
-            this.holidaysMap.delete(key);
-          }
-        }
-        for (const holiday of holidays) {
-          this.holidaysMap.set(this.makeKey(holiday.workerId, holiday.date), holiday);
-        }
-        this.holidaysSubject.next(this.holidaysMap);
+      map((result: any) => result.data.workerHolidays as WorkerHolidayPeriod[]),
+      tap(periods => {
+        // Remove existing periods for this worker, then add fresh data
+        this.periods = this.periods.filter(p => p.workerId !== workerId);
+        this.periods.push(...periods);
+        this.rebuildMap();
       })
     );
   }
 
-  toggleHoliday(workerId: string, date: string, description?: string): Observable<WorkerHoliday | null> {
-    const key = this.makeKey(workerId, date);
-    const wasPresent = this.holidaysMap.has(key);
-
-    // Optimistic update
-    if (wasPresent) {
-      this.holidaysMap.delete(key);
-    } else {
-      this.holidaysMap.set(key, {
-        id: 'temp',
-        workerId,
-        date,
-        description: description || null
-      });
-    }
-    this.holidaysSubject.next(this.holidaysMap);
+  addHoliday(workerId: string, input: WorkerHolidayInput): Observable<WorkerHolidayPeriod> {
+    // Optimistic update: create a temp period
+    const tempId = 'temp-' + Date.now();
+    const tempPeriod: WorkerHolidayPeriod = {
+      id: tempId,
+      workerId,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      startDayPart: input.startDayPart,
+      endDayPart: input.endDayPart,
+      description: input.description || null,
+      holidayType: null,
+    };
+    this.periods.push(tempPeriod);
+    this.rebuildMap();
 
     return from(
       apolloClient.mutate({
-        mutation: TOGGLE_WORKER_HOLIDAY_MUTATION,
-        variables: { workerId, date, description: description || null }
+        mutation: ADD_WORKER_HOLIDAY_MUTATION,
+        variables: {
+          workerId,
+          holiday: {
+            startDate: input.startDate,
+            endDate: input.endDate,
+            startDayPart: input.startDayPart,
+            endDayPart: input.endDayPart,
+            description: input.description || null,
+            holidayTypeId: input.holidayTypeId || null,
+          }
+        }
       })
     ).pipe(
       map((result: any) => {
-        const holiday = result.data.toggleWorkerHoliday as WorkerHoliday | null;
-        if (holiday) {
-          // Replace temp entry with real one
-          this.holidaysMap.set(key, holiday);
-        } else {
-          // Confirm removal
-          this.holidaysMap.delete(key);
-        }
-        this.holidaysSubject.next(this.holidaysMap);
-        return holiday;
+        const returned = result.data.addWorkerHoliday as WorkerHolidayPeriod;
+        // Replace the temp period with the real one
+        this.periods = this.periods.filter(p => p.id !== tempId);
+        this.periods.push(returned);
+        this.rebuildMap();
+        return returned;
       })
     );
   }
 
-  removeHoliday(workerId: string, date: string): Observable<boolean> {
-    const key = this.makeKey(workerId, date);
+  updateHoliday(periodId: string, input: WorkerHolidayInput): Observable<WorkerHolidayPeriod> {
+    // Optimistic update: replace the period with a new object (originals may be frozen by Apollo)
+    const existing = this.periods.find(p => p.id === periodId);
+    if (existing) {
+      this.periods = this.periods.filter(p => p.id !== periodId);
+      this.periods.push({
+        ...existing,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        startDayPart: input.startDayPart,
+        endDayPart: input.endDayPart,
+        description: input.description || null,
+      });
+    }
+    this.rebuildMap();
 
-    // Optimistic update
-    this.holidaysMap.delete(key);
-    this.holidaysSubject.next(this.holidaysMap);
+    return from(
+      apolloClient.mutate({
+        mutation: UPDATE_WORKER_HOLIDAY_MUTATION,
+        variables: {
+          id: periodId,
+          holiday: {
+            startDate: input.startDate,
+            endDate: input.endDate,
+            startDayPart: input.startDayPart,
+            endDayPart: input.endDayPart,
+            description: input.description || null,
+            holidayTypeId: input.holidayTypeId || null,
+          }
+        }
+      })
+    ).pipe(
+      map((result: any) => {
+        const returned = result.data.updateWorkerHoliday as WorkerHolidayPeriod;
+        this.periods = this.periods.filter(p => p.id !== periodId);
+        this.periods.push(returned);
+        this.rebuildMap();
+        return returned;
+      })
+    );
+  }
+
+  removeHoliday(periodId: string): Observable<boolean> {
+    // Optimistic update: remove the period
+    this.periods = this.periods.filter(p => p.id !== periodId);
+    this.rebuildMap();
 
     return from(
       apolloClient.mutate({
         mutation: REMOVE_WORKER_HOLIDAY_MUTATION,
-        variables: { workerId, date }
+        variables: { id: periodId }
       })
     ).pipe(
       map((result: any) => result.data.removeWorkerHoliday as boolean)

@@ -46,11 +46,32 @@ const typeDefs = `#graphql
     teams: [Team!]!
   }
 
+  type HolidayType {
+    id: ID!
+    name: String!
+    colorLight: String!
+    colorDark: String!
+    sortOrder: Int!
+  }
+
   type WorkerHoliday {
     id: ID!
     workerId: String!
-    date: String!
+    startDate: String!
+    endDate: String!
+    startDayPart: String!
+    endDayPart: String!
     description: String
+    holidayType: HolidayType
+  }
+
+  input WorkerHolidayInput {
+    startDate: String!
+    endDate: String!
+    startDayPart: String!
+    endDayPart: String!
+    description: String
+    holidayTypeId: ID
   }
 
   type AuthPayload {
@@ -66,6 +87,7 @@ const typeDefs = `#graphql
     team(id: ID!): Team
     workers: [Worker!]!
     worker(id: ID!): Worker
+    holidayTypes: [HolidayType!]!
     workerHolidays(workerId: String!): [WorkerHoliday!]!
     allWorkerHolidays(startDate: String!, endDate: String!): [WorkerHoliday!]!
   }
@@ -82,8 +104,12 @@ const typeDefs = `#graphql
     updateWorkerProfile(id: String!, firstName: String!, lastName: String!, particles: String): Worker
     changePassword(workerId: String!, currentPassword: String!, newPassword: String!): AuthPayload!
     updateWorkerRole(workerId: String!, role: String!, requesterId: String!): Worker
-    toggleWorkerHoliday(workerId: String!, date: String!, description: String): WorkerHoliday
-    removeWorkerHoliday(workerId: String!, date: String!): Boolean!
+    addWorkerHoliday(workerId: String!, holiday: WorkerHolidayInput!): WorkerHoliday!
+    removeWorkerHoliday(id: ID!): Boolean!
+    updateWorkerHoliday(id: ID!, holiday: WorkerHolidayInput!): WorkerHoliday!
+    createHolidayType(name: String!, colorLight: String!, colorDark: String!): HolidayType!
+    updateHolidayType(id: ID!, name: String, colorLight: String, colorDark: String, sortOrder: Int): HolidayType!
+    deleteHolidayType(id: ID!): Boolean!
   }
 `;
 
@@ -129,28 +155,61 @@ const resolvers = {
         role: row.role,
       };
     },
+    holidayTypes: async () => {
+      const result = await pool.query('SELECT * FROM holiday_type ORDER BY sort_order, name');
+      return result.rows.map(row => ({
+        id: row.id,
+        name: row.name,
+        colorLight: row.color_light,
+        colorDark: row.color_dark,
+        sortOrder: row.sort_order,
+      }));
+    },
     workerHolidays: async (_: any, { workerId }: { workerId: string }) => {
       const result = await pool.query(
-        'SELECT * FROM worker_holiday WHERE worker_id = $1 ORDER BY date',
+        `SELECT wh.*, ht.id as ht_id, ht.name as ht_name, ht.color_light as ht_color_light,
+                ht.color_dark as ht_color_dark, ht.sort_order as ht_sort_order
+         FROM worker_holiday wh
+         LEFT JOIN holiday_type ht ON wh.holiday_type_id = ht.id
+         WHERE wh.worker_id = $1 ORDER BY wh.start_date`,
         [workerId]
       );
       return result.rows.map(row => ({
         id: row.id,
         workerId: row.worker_id,
-        date: row.date.toISOString().split('T')[0],
+        startDate: row.start_date.toISOString().split('T')[0],
+        endDate: row.end_date.toISOString().split('T')[0],
+        startDayPart: row.start_day_part,
+        endDayPart: row.end_day_part,
         description: row.description,
+        holidayType: row.ht_id ? {
+          id: row.ht_id, name: row.ht_name, colorLight: row.ht_color_light,
+          colorDark: row.ht_color_dark, sortOrder: row.ht_sort_order,
+        } : null,
       }));
     },
     allWorkerHolidays: async (_: any, { startDate, endDate }: { startDate: string; endDate: string }) => {
       const result = await pool.query(
-        'SELECT * FROM worker_holiday WHERE date >= $1 AND date <= $2 ORDER BY date',
+        `SELECT wh.*, ht.id as ht_id, ht.name as ht_name, ht.color_light as ht_color_light,
+                ht.color_dark as ht_color_dark, ht.sort_order as ht_sort_order
+         FROM worker_holiday wh
+         LEFT JOIN holiday_type ht ON wh.holiday_type_id = ht.id
+         WHERE wh.start_date <= $2 AND wh.end_date >= $1
+         ORDER BY wh.start_date`,
         [startDate, endDate]
       );
       return result.rows.map(row => ({
         id: row.id,
         workerId: row.worker_id,
-        date: row.date.toISOString().split('T')[0],
+        startDate: row.start_date.toISOString().split('T')[0],
+        endDate: row.end_date.toISOString().split('T')[0],
+        startDayPart: row.start_day_part,
+        endDayPart: row.end_day_part,
         description: row.description,
+        holidayType: row.ht_id ? {
+          id: row.ht_id, name: row.ht_name, colorLight: row.ht_color_light,
+          colorDark: row.ht_color_dark, sortOrder: row.ht_sort_order,
+        } : null,
       }));
     },
   },
@@ -293,40 +352,97 @@ const resolvers = {
         return { success: false, message: 'Failed to change password', worker: null };
       }
     },
-    toggleWorkerHoliday: async (_: any, { workerId, date, description }: { workerId: string; date: string; description?: string }) => {
-      // Check if holiday exists for this worker and date
-      const existing = await pool.query(
-        'SELECT * FROM worker_holiday WHERE worker_id = $1 AND date = $2',
-        [workerId, date]
+    addWorkerHoliday: async (_: any, { workerId, holiday }: { workerId: string; holiday: { startDate: string; endDate: string; startDayPart: string; endDayPart: string; description?: string; holidayTypeId?: string } }) => {
+      const insertResult = await pool.query(
+        `INSERT INTO worker_holiday (worker_id, start_date, end_date, start_day_part, end_day_part, description, holiday_type_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING *`,
+        [workerId, holiday.startDate, holiday.endDate, holiday.startDayPart, holiday.endDayPart, holiday.description || null, holiday.holidayTypeId || null]
       );
-
-      if (existing.rows.length > 0) {
-        // Remove existing holiday (toggle off)
-        await pool.query(
-          'DELETE FROM worker_holiday WHERE worker_id = $1 AND date = $2',
-          [workerId, date]
-        );
-        return null;
-      } else {
-        // Create new holiday (toggle on)
-        const result = await pool.query(
-          'INSERT INTO worker_holiday (worker_id, date, description) VALUES ($1, $2, $3) RETURNING *',
-          [workerId, date, description || null]
-        );
-        const row = result.rows[0];
-        return {
-          id: row.id,
-          workerId: row.worker_id,
-          date: row.date.toISOString().split('T')[0],
-          description: row.description,
-        };
-      }
-    },
-    removeWorkerHoliday: async (_: any, { workerId, date }: { workerId: string; date: string }) => {
+      const insertedId = insertResult.rows[0].id;
       const result = await pool.query(
-        'DELETE FROM worker_holiday WHERE worker_id = $1 AND date = $2',
-        [workerId, date]
+        `SELECT wh.*, ht.id as ht_id, ht.name as ht_name, ht.color_light as ht_color_light,
+                ht.color_dark as ht_color_dark, ht.sort_order as ht_sort_order
+         FROM worker_holiday wh
+         LEFT JOIN holiday_type ht ON wh.holiday_type_id = ht.id
+         WHERE wh.id = $1`,
+        [insertedId]
       );
+      const row = result.rows[0];
+      return {
+        id: row.id,
+        workerId: row.worker_id,
+        startDate: row.start_date.toISOString().split('T')[0],
+        endDate: row.end_date.toISOString().split('T')[0],
+        startDayPart: row.start_day_part,
+        endDayPart: row.end_day_part,
+        description: row.description,
+        holidayType: row.ht_id ? {
+          id: row.ht_id, name: row.ht_name, colorLight: row.ht_color_light,
+          colorDark: row.ht_color_dark, sortOrder: row.ht_sort_order,
+        } : null,
+      };
+    },
+    removeWorkerHoliday: async (_: any, { id }: { id: string }) => {
+      const result = await pool.query(
+        'DELETE FROM worker_holiday WHERE id = $1',
+        [id]
+      );
+      return (result.rowCount ?? 0) > 0;
+    },
+    updateWorkerHoliday: async (_: any, { id, holiday }: { id: string; holiday: { startDate: string; endDate: string; startDayPart: string; endDayPart: string; description?: string; holidayTypeId?: string } }) => {
+      await pool.query(
+        `UPDATE worker_holiday
+         SET start_date = $2, end_date = $3, start_day_part = $4, end_day_part = $5, description = $6, holiday_type_id = $7
+         WHERE id = $1`,
+        [id, holiday.startDate, holiday.endDate, holiday.startDayPart, holiday.endDayPart, holiday.description || null, holiday.holidayTypeId || null]
+      );
+      const result = await pool.query(
+        `SELECT wh.*, ht.id as ht_id, ht.name as ht_name, ht.color_light as ht_color_light,
+                ht.color_dark as ht_color_dark, ht.sort_order as ht_sort_order
+         FROM worker_holiday wh
+         LEFT JOIN holiday_type ht ON wh.holiday_type_id = ht.id
+         WHERE wh.id = $1`,
+        [id]
+      );
+      const row = result.rows[0];
+      return {
+        id: row.id,
+        workerId: row.worker_id,
+        startDate: row.start_date.toISOString().split('T')[0],
+        endDate: row.end_date.toISOString().split('T')[0],
+        startDayPart: row.start_day_part,
+        endDayPart: row.end_day_part,
+        description: row.description,
+        holidayType: row.ht_id ? {
+          id: row.ht_id, name: row.ht_name, colorLight: row.ht_color_light,
+          colorDark: row.ht_color_dark, sortOrder: row.ht_sort_order,
+        } : null,
+      };
+    },
+    createHolidayType: async (_: any, { name, colorLight, colorDark }: { name: string; colorLight: string; colorDark: string }) => {
+      const maxOrder = await pool.query('SELECT COALESCE(MAX(sort_order), -1) + 1 as next_order FROM holiday_type');
+      const sortOrder = maxOrder.rows[0].next_order;
+      const result = await pool.query(
+        'INSERT INTO holiday_type (name, color_light, color_dark, sort_order) VALUES ($1, $2, $3, $4) RETURNING *',
+        [name, colorLight, colorDark, sortOrder]
+      );
+      const row = result.rows[0];
+      return { id: row.id, name: row.name, colorLight: row.color_light, colorDark: row.color_dark, sortOrder: row.sort_order };
+    },
+    updateHolidayType: async (_: any, { id, name, colorLight, colorDark, sortOrder }: { id: number; name?: string; colorLight?: string; colorDark?: string; sortOrder?: number }) => {
+      const current = await pool.query('SELECT * FROM holiday_type WHERE id = $1', [id]);
+      if (current.rows.length === 0) throw new Error('Holiday type not found');
+      const cur = current.rows[0];
+      const result = await pool.query(
+        'UPDATE holiday_type SET name = $2, color_light = $3, color_dark = $4, sort_order = $5 WHERE id = $1 RETURNING *',
+        [id, name ?? cur.name, colorLight ?? cur.color_light, colorDark ?? cur.color_dark, sortOrder ?? cur.sort_order]
+      );
+      const row = result.rows[0];
+      return { id: row.id, name: row.name, colorLight: row.color_light, colorDark: row.color_dark, sortOrder: row.sort_order };
+    },
+    deleteHolidayType: async (_: any, { id }: { id: number }) => {
+      const result = await pool.query('DELETE FROM holiday_type WHERE id = $1', [id]);
       return (result.rowCount ?? 0) > 0;
     },
     updateWorkerRole: async (_: any, { workerId, role, requesterId }: { workerId: string; role: string; requesterId: string }) => {

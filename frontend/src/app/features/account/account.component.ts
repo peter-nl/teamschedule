@@ -10,8 +10,11 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDividerModule } from '@angular/material/divider';
-import { AuthService, AuthWorker } from '../../shared/services/auth.service';
-import { WorkerHolidayService, WorkerHoliday } from '../../core/services/worker-holiday.service';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { AuthService } from '../../shared/services/auth.service';
+import { WorkerHolidayService, WorkerHolidayPeriod } from '../../core/services/worker-holiday.service';
+import { UserPreferencesService } from '../../shared/services/user-preferences.service';
+import { HolidayDialogComponent, HolidayDialogData, HolidayDialogResult } from '../../shared/components/holiday-dialog.component';
 
 @Component({
   selector: 'app-account',
@@ -27,7 +30,8 @@ import { WorkerHolidayService, WorkerHoliday } from '../../core/services/worker-
     MatIconModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
-    MatDividerModule
+    MatDividerModule,
+    MatDialogModule
   ],
   template: `
     <div class="account-container">
@@ -201,32 +205,12 @@ import { WorkerHolidayService, WorkerHoliday } from '../../core/services/worker-
 
           <h3 class="section-title">My Personal Holidays</h3>
           <div class="holidays-section">
-            <div class="holiday-add-form">
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Date</mat-label>
-                <input matInput
-                       [(ngModel)]="holidayForm.date"
-                       name="holidayDate"
-                       type="date"
-                       required>
-              </mat-form-field>
-
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Description (optional)</mat-label>
-                <input matInput
-                       [(ngModel)]="holidayForm.description"
-                       name="holidayDescription"
-                       placeholder="e.g., Vacation, Day off">
-              </mat-form-field>
-
-              <button mat-raised-button
-                      color="primary"
-                      (click)="onAddHoliday()"
-                      [disabled]="holidayAddLoading || !holidayForm.date">
-                <mat-spinner *ngIf="holidayAddLoading" diameter="20"></mat-spinner>
-                <span *ngIf="!holidayAddLoading">Add Holiday</span>
-              </button>
-            </div>
+            <button mat-raised-button
+                    color="primary"
+                    (click)="openAddHolidayDialog()">
+              <mat-icon>add</mat-icon>
+              Add Holiday
+            </button>
 
             <div *ngIf="holidaysLoading" class="holidays-loading">
               <mat-progress-spinner mode="indeterminate" diameter="24"></mat-progress-spinner>
@@ -238,14 +222,29 @@ import { WorkerHolidayService, WorkerHoliday } from '../../core/services/worker-
             </div>
 
             <div *ngIf="!holidaysLoading && myHolidays.length > 0" class="holidays-list">
-              <div *ngFor="let holiday of myHolidays" class="holiday-item">
+              <div *ngFor="let holiday of myHolidays"
+                   class="holiday-item clickable"
+                   (click)="openEditHolidayDialog(holiday)">
                 <div class="holiday-info">
-                  <span class="holiday-date">{{ formatHolidayDate(holiday.date) }}</span>
+                  <span class="holiday-date">
+                    {{ formatHolidayPeriod(holiday) }}
+                    <span *ngIf="holiday.startDate === holiday.endDate && holiday.startDayPart !== 'full'" class="day-part-label">
+                      ({{ holiday.startDayPart === 'morning' ? 'Morning' : 'Afternoon' }})
+                    </span>
+                    <span *ngIf="holiday.startDate !== holiday.endDate" class="day-part-label">
+                      <span *ngIf="holiday.startDayPart !== 'full'"> (first: {{ holiday.startDayPart === 'afternoon' ? 'Afternoon' : 'Morning' }})</span>
+                      <span *ngIf="holiday.endDayPart !== 'full'"> (last: {{ holiday.endDayPart === 'morning' ? 'Morning' : 'Afternoon' }})</span>
+                    </span>
+                  </span>
+                  <span *ngIf="holiday.holidayType" class="holiday-type-badge"
+                        [style.background-color]="isDark ? holiday.holidayType.colorDark : holiday.holidayType.colorLight">
+                    {{ holiday.holidayType.name }}
+                  </span>
                   <span *ngIf="holiday.description" class="holiday-description">{{ holiday.description }}</span>
                 </div>
                 <button mat-icon-button
-                        (click)="onRemoveHoliday(holiday)"
-                        [disabled]="removingHolidayDate === holiday.date">
+                        (click)="onRemoveHoliday(holiday, $event)"
+                        [disabled]="removingHolidayId === holiday.id">
                   <mat-icon>delete</mat-icon>
                 </button>
               </div>
@@ -376,12 +375,6 @@ import { WorkerHolidayService, WorkerHoliday } from '../../core/services/worker-
       gap: 16px;
     }
 
-    .holiday-add-form {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
     .holidays-loading {
       display: flex;
       align-items: center;
@@ -412,6 +405,15 @@ import { WorkerHolidayService, WorkerHoliday } from '../../core/services/worker-
       border-radius: 8px;
     }
 
+    .holiday-item.clickable {
+      cursor: pointer;
+      transition: background-color 0.15s;
+    }
+
+    .holiday-item.clickable:hover {
+      background: var(--mat-sys-surface-container);
+    }
+
     .holiday-info {
       display: flex;
       flex-direction: column;
@@ -426,6 +428,21 @@ import { WorkerHolidayService, WorkerHoliday } from '../../core/services/worker-
 
     .holiday-description {
       font-size: 12px;
+      color: var(--mat-sys-on-surface-variant);
+    }
+
+    .holiday-type-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 12px;
+      color: rgba(0, 0, 0, 0.87);
+    }
+
+    .day-part-label {
+      font-size: 12px;
+      font-weight: 400;
       color: var(--mat-sys-on-surface-variant);
     }
   `]
@@ -464,17 +481,22 @@ export class AccountComponent {
   roleLoading = false;
 
   // Personal holidays
-  holidayForm = { date: '', description: '' };
-  myHolidays: WorkerHoliday[] = [];
+  myHolidays: WorkerHolidayPeriod[] = [];
   holidaysLoading = false;
-  holidayAddLoading = false;
-  removingHolidayDate: string | null = null;
+  removingHolidayId: string | null = null;
+  isDark = false;
 
   constructor(
     public authService: AuthService,
     private snackBar: MatSnackBar,
-    private workerHolidayService: WorkerHolidayService
+    private workerHolidayService: WorkerHolidayService,
+    private userPreferencesService: UserPreferencesService,
+    private dialog: MatDialog
   ) {
+    // Track dark theme
+    this.userPreferencesService.isDarkTheme$.subscribe(isDark => {
+      this.isDark = isDark;
+    });
     // Initialize profile form when logged in
     this.authService.currentUser$.subscribe(user => {
       if (user) {
@@ -604,8 +626,8 @@ export class AccountComponent {
   private loadMyHolidays(workerId: string): void {
     this.holidaysLoading = true;
     this.workerHolidayService.loadWorkerHolidays(workerId).subscribe({
-      next: (holidays) => {
-        this.myHolidays = [...holidays].sort((a, b) => a.date.localeCompare(b.date));
+      next: (periods) => {
+        this.myHolidays = [...periods].sort((a, b) => a.startDate.localeCompare(b.startDate));
         this.holidaysLoading = false;
       },
       error: (error) => {
@@ -615,56 +637,71 @@ export class AccountComponent {
     });
   }
 
-  onAddHoliday(): void {
-    const user = this.authService.currentUser;
-    if (!user || !this.holidayForm.date) return;
-
-    this.holidayAddLoading = true;
-    this.workerHolidayService.toggleHoliday(
-      user.id,
-      this.holidayForm.date,
-      this.holidayForm.description || undefined
-    ).subscribe({
-      next: () => {
-        this.holidayAddLoading = false;
-        this.holidayForm = { date: '', description: '' };
-        this.snackBar.open('Holiday added', 'Close', { duration: 3000 });
-        this.loadMyHolidays(user.id);
-      },
-      error: (error) => {
-        this.holidayAddLoading = false;
-        this.snackBar.open('Failed to add holiday', 'Close', { duration: 3000 });
-        console.error('Add holiday error:', error);
-      }
-    });
-  }
-
-  onRemoveHoliday(holiday: WorkerHoliday): void {
+  openAddHolidayDialog(): void {
     const user = this.authService.currentUser;
     if (!user) return;
 
-    this.removingHolidayDate = holiday.date;
-    this.workerHolidayService.removeHoliday(user.id, holiday.date).subscribe({
+    const dialogRef = this.dialog.open<HolidayDialogComponent, HolidayDialogData, HolidayDialogResult>(
+      HolidayDialogComponent,
+      {
+        width: '480px',
+        maxWidth: '95vw',
+        data: { mode: 'add', workerId: user.id }
+      }
+    );
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) this.loadMyHolidays(user.id);
+    });
+  }
+
+  openEditHolidayDialog(holiday: WorkerHolidayPeriod): void {
+    const user = this.authService.currentUser;
+    if (!user) return;
+
+    const dialogRef = this.dialog.open<HolidayDialogComponent, HolidayDialogData, HolidayDialogResult>(
+      HolidayDialogComponent,
+      {
+        width: '480px',
+        maxWidth: '95vw',
+        data: { mode: 'edit', workerId: user.id, period: holiday }
+      }
+    );
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) this.loadMyHolidays(user.id);
+    });
+  }
+
+  onRemoveHoliday(holiday: WorkerHolidayPeriod, event?: Event): void {
+    event?.stopPropagation();
+    const user = this.authService.currentUser;
+    if (!user) return;
+
+    this.removingHolidayId = holiday.id;
+    this.workerHolidayService.removeHoliday(holiday.id).subscribe({
       next: () => {
-        this.removingHolidayDate = null;
+        this.removingHolidayId = null;
         this.snackBar.open('Holiday removed', 'Close', { duration: 3000 });
         this.loadMyHolidays(user.id);
       },
       error: (error) => {
-        this.removingHolidayDate = null;
+        this.removingHolidayId = null;
         this.snackBar.open('Failed to remove holiday', 'Close', { duration: 3000 });
         console.error('Remove holiday error:', error);
       }
     });
   }
 
-  formatHolidayDate(dateStr: string): string {
-    const date = new Date(dateStr + 'T00:00:00');
-    return date.toLocaleDateString('en-US', {
-      weekday: 'short',
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
+  formatHolidayPeriod(period: WorkerHolidayPeriod): string {
+    const opts: Intl.DateTimeFormatOptions = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
+    const start = new Date(period.startDate + 'T00:00:00');
+    if (period.startDate === period.endDate) {
+      return start.toLocaleDateString('en-US', opts);
+    }
+    const end = new Date(period.endDate + 'T00:00:00');
+    const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const endStr = end.toLocaleDateString('en-US', opts);
+    return `${startStr} – ${endStr}`;
   }
 }

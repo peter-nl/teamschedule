@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, map } from 'rxjs';
 
 export interface UserPreferences {
   theme: 'system' | 'light' | 'dark';
@@ -24,8 +24,16 @@ export class UserPreferencesService {
   private preferencesSubject = new BehaviorSubject<UserPreferences>(DEFAULT_PREFERENCES);
   public preferences$ = this.preferencesSubject.asObservable();
 
+  public isDarkTheme$ = this.preferences$.pipe(
+    map(prefs => this.computeIsDark(prefs.theme))
+  );
+
   constructor() {
     this.loadPreferences();
+    // Re-emit when OS theme changes (affects 'system' setting)
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      this.preferencesSubject.next(this.preferencesSubject.value);
+    });
   }
 
   get preferences(): UserPreferences {
@@ -105,5 +113,15 @@ export class UserPreferencesService {
     this.preferencesSubject.next(DEFAULT_PREFERENCES);
     this.applyTheme(DEFAULT_PREFERENCES.theme);
     this.savePreferences();
+  }
+
+  get isDarkTheme(): boolean {
+    return this.computeIsDark(this.preferencesSubject.value.theme);
+  }
+
+  private computeIsDark(theme: 'system' | 'light' | 'dark'): boolean {
+    if (theme === 'dark') return true;
+    if (theme === 'light') return false;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
   }
 }
