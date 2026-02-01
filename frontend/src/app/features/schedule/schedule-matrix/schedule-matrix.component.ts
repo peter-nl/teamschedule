@@ -153,7 +153,7 @@ interface DateColumn {
                    [class.today]="col.isToday"
                    [class.odd-row]="rowIndex % 2 === 1"
                    [class.my-row]="isCurrentUser(worker)"
-                   [class.editable]="isOwnHolidayCell(worker, col)"
+                   [class.editable]="canEditCell(worker)"
                    [style.background-color]="getWorkerCellBgColor(col, worker)"
                    [style.background-image]="getWorkerCellBgImage(col, worker)"
                    [matTooltip]="getWorkerCellTooltip(col, worker)"
@@ -474,12 +474,25 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
   visibleYear = '';
   visibleMonth = '';
 
-  // Dynamic colors from settings
-  nonWorkingDayColor = '#e0e0e0';
-  holidayColor = '#ffcdd2';
+  // Dynamic colors from settings (light/dark pairs)
+  private nonWorkingDayColorLight = '#e0e0e0';
+  private nonWorkingDayColorDark = '#3a3a3a';
+  private holidayColorLight = '#ffcdd2';
+  private holidayColorDark = '#772727';
 
   // Theme state for holiday type color selection
   private isDark = false;
+
+  private get nonWorkingDayColor(): string {
+    return this.isDark ? this.nonWorkingDayColorDark : this.nonWorkingDayColorLight;
+  }
+
+  private get holidayColor(): string {
+    return this.isDark ? this.holidayColorDark : this.holidayColorLight;
+  }
+
+  // Manager editing mode
+  private managementModeEnabled = false;
 
   // Drag-to-scroll state
   isDragging = false;
@@ -514,14 +527,21 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
 
     // Subscribe to app settings changes to update non-working days and colors
     this.appSettingsService.settings$.subscribe(settings => {
-      this.nonWorkingDayColor = settings.nonWorkingDayColor;
-      this.holidayColor = settings.holidayColor;
+      this.nonWorkingDayColorLight = settings.nonWorkingDayColorLight;
+      this.nonWorkingDayColorDark = settings.nonWorkingDayColorDark;
+      this.holidayColorLight = settings.holidayColorLight;
+      this.holidayColorDark = settings.holidayColorDark;
       this.updateNonWorkingDays();
     });
 
     // Track dark/light theme for holiday type colors
     this.userPreferencesService.isDarkTheme$.subscribe(isDark => {
       this.isDark = isDark;
+    });
+
+    // Track management mode
+    this.userPreferencesService.preferences$.subscribe(prefs => {
+      this.managementModeEnabled = prefs.managementMode;
     });
 
     // Bind event handlers for drag-to-scroll
@@ -907,34 +927,52 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     return col.holidayName;
   }
 
-  isOwnHolidayCell(worker: Worker, col: DateColumn): boolean {
-    return this.isCurrentUser(worker) && this.hasWorkerHoliday(worker, col);
+  private get isManagerMode(): boolean {
+    return this.authService.isManager && this.managementModeEnabled;
+  }
+
+  canEditCell(worker: Worker): boolean {
+    return this.isCurrentUser(worker) || this.isManagerMode;
+  }
+
+  isEditableCell(worker: Worker, col: DateColumn): boolean {
+    if (!this.canEditCell(worker)) return false;
+    return this.hasWorkerHoliday(worker, col);
   }
 
   onCellDblClick(worker: Worker, col: DateColumn): void {
-    if (!this.isOwnHolidayCell(worker, col)) return;
+    if (!this.canEditCell(worker)) return;
 
-    const dayEntry = this.workerHolidayService.getHoliday(worker.id, this.formatDateKey(col.date));
-    if (!dayEntry) return;
-
-    const period = this.workerHolidayService.getPeriod(dayEntry.periodId);
-    if (!period) return;
-
-    this.openEditHolidayDialog(period);
-  }
-
-  onCellTouchStart(event: TouchEvent, worker: Worker, col: DateColumn): void {
-    if (!this.isOwnHolidayCell(worker, col)) return;
-
-    this.longPressTimer = setTimeout(() => {
-      this.longPressTimer = null;
+    if (this.hasWorkerHoliday(worker, col)) {
       const dayEntry = this.workerHolidayService.getHoliday(worker.id, this.formatDateKey(col.date));
       if (!dayEntry) return;
 
       const period = this.workerHolidayService.getPeriod(dayEntry.periodId);
       if (!period) return;
 
-      this.openEditHolidayDialog(period);
+      this.openEditHolidayDialog(period, worker);
+    } else {
+      this.openAddHolidayDialog(col.date, worker);
+    }
+  }
+
+  onCellTouchStart(event: TouchEvent, worker: Worker, col: DateColumn): void {
+    if (!this.canEditCell(worker)) return;
+
+    this.longPressTimer = setTimeout(() => {
+      this.longPressTimer = null;
+
+      if (this.hasWorkerHoliday(worker, col)) {
+        const dayEntry = this.workerHolidayService.getHoliday(worker.id, this.formatDateKey(col.date));
+        if (!dayEntry) return;
+
+        const period = this.workerHolidayService.getPeriod(dayEntry.periodId);
+        if (!period) return;
+
+        this.openEditHolidayDialog(period, worker);
+      } else {
+        this.openAddHolidayDialog(col.date, worker);
+      }
     }, 500);
   }
 
@@ -949,16 +987,48 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     }
   }
 
-  private openEditHolidayDialog(period: WorkerHolidayPeriod): void {
-    const user = this.authService.currentUser;
-    if (!user) return;
+  private getWorkerName(worker: Worker): string {
+    return worker.particles
+      ? `${worker.firstName} ${worker.particles} ${worker.lastName}`
+      : `${worker.firstName} ${worker.lastName}`;
+  }
 
+  private openAddHolidayDialog(date: Date, worker: Worker): void {
+    const isOther = !this.isCurrentUser(worker);
     const dialogRef = this.dialog.open<HolidayDialogComponent, HolidayDialogData, HolidayDialogResult>(
       HolidayDialogComponent,
       {
         width: '480px',
         maxWidth: '95vw',
-        data: { mode: 'edit', workerId: user.id, period }
+        data: {
+          mode: 'add',
+          workerId: worker.id,
+          initialDate: date,
+          workerName: isOther ? this.getWorkerName(worker) : undefined
+        }
+      }
+    );
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) {
+        this.loadWorkerHolidays();
+      }
+    });
+  }
+
+  private openEditHolidayDialog(period: WorkerHolidayPeriod, worker: Worker): void {
+    const isOther = !this.isCurrentUser(worker);
+    const dialogRef = this.dialog.open<HolidayDialogComponent, HolidayDialogData, HolidayDialogResult>(
+      HolidayDialogComponent,
+      {
+        width: '480px',
+        maxWidth: '95vw',
+        data: {
+          mode: 'edit',
+          workerId: worker.id,
+          period,
+          workerName: isOther ? this.getWorkerName(worker) : undefined
+        }
       }
     );
 

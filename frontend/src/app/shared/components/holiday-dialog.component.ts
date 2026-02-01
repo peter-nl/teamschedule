@@ -19,6 +19,8 @@ export interface HolidayDialogData {
   mode: 'add' | 'edit';
   workerId: string;
   period?: WorkerHolidayPeriod;
+  initialDate?: Date;
+  workerName?: string; // Set when editing another worker's data (manager mode)
 }
 
 export interface HolidayDialogResult {
@@ -49,6 +51,10 @@ export interface HolidayDialogResult {
     </h2>
 
     <mat-dialog-content>
+      <div *ngIf="data.workerName" class="worker-warning">
+        <mat-icon>warning</mat-icon>
+        <span>You are editing the data of worker <strong>{{ data.workerName }}</strong></span>
+      </div>
       <div class="form-content">
         <div class="date-row">
           <mat-form-field appearance="outline" class="date-field">
@@ -162,6 +168,25 @@ export interface HolidayDialogResult {
       padding: 0 24px 16px;
     }
 
+    .worker-warning {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      margin-bottom: 12px;
+      border-radius: 8px;
+      background: var(--mat-sys-error-container);
+      color: var(--mat-sys-on-error-container);
+      font-size: 13px;
+    }
+
+    .worker-warning mat-icon {
+      flex-shrink: 0;
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+    }
+
     .form-content {
       display: flex;
       flex-direction: column;
@@ -252,6 +277,11 @@ export class HolidayDialogComponent implements OnInit {
     this.userPreferencesService.isDarkTheme$.subscribe(isDark => {
       this.isDark = isDark;
     });
+
+    // Pre-fill start date from initialDate (add mode)
+    if (this.data.mode === 'add' && this.data.initialDate) {
+      this.form.startDate = this.data.initialDate;
+    }
 
     // Pre-fill form in edit mode
     if (this.data.mode === 'edit' && this.data.period) {

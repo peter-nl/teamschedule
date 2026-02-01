@@ -9,6 +9,7 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { AppSettingsService } from '../../core/services/app-settings.service';
 import { HolidayService, HolidayInfo } from '../../core/services/holiday.service';
 import { HolidayTypeService, HolidayType } from '../../core/services/holiday-type.service';
@@ -36,7 +37,8 @@ interface HolidayYearGroup {
     MatDividerModule,
     MatProgressSpinnerModule,
     MatFormFieldModule,
-    MatInputModule
+    MatInputModule,
+    MatSelectModule
   ],
   template: `
     <div class="settings-container">
@@ -60,12 +62,20 @@ interface HolidayYearGroup {
 
             <div class="days-grid">
               <mat-checkbox
-                *ngFor="let day of days"
+                *ngFor="let day of orderedDays"
                 [checked]="workingDays[day.jsIndex]"
                 (change)="onDayToggle(day.jsIndex, $event.checked)">
                 {{ day.label }}
               </mat-checkbox>
             </div>
+
+            <mat-form-field appearance="outline" class="week-start-field">
+              <mat-label>Week starts on</mat-label>
+              <mat-select [value]="weekStartDay" (selectionChange)="onWeekStartDayChange($event.value)">
+                <mat-option [value]="1">Monday</mat-option>
+                <mat-option [value]="0">Sunday</mat-option>
+              </mat-select>
+            </mat-form-field>
           </div>
 
           <mat-divider></mat-divider>
@@ -83,31 +93,40 @@ interface HolidayYearGroup {
 
             <div class="color-settings">
               <div class="color-setting">
-                <label for="nonWorkingDayColor">Non-working days</label>
-                <div class="color-picker-wrapper">
-                  <input
-                    type="color"
-                    id="nonWorkingDayColor"
-                    [value]="nonWorkingDayColor"
-                    (input)="onNonWorkingDayColorChange($event)">
-                  <div class="color-preview" [style.background-color]="nonWorkingDayColor"></div>
-                  <span class="color-value">{{ nonWorkingDayColor }}</span>
+                <span class="color-setting-label">Non-working days</span>
+                <div class="color-setting-pickers">
+                  <div class="color-pair">
+                    <label>Light</label>
+                    <input type="color" [value]="nonWorkingDayColorLight"
+                      (input)="onColorChange('nonWorkingDayLight', $event)">
+                    <div class="color-preview-small" [style.background-color]="nonWorkingDayColorLight"></div>
+                  </div>
+                  <div class="color-pair">
+                    <label>Dark</label>
+                    <input type="color" [value]="nonWorkingDayColorDark"
+                      (input)="onColorChange('nonWorkingDayDark', $event)">
+                    <div class="color-preview-small" [style.background-color]="nonWorkingDayColorDark"></div>
+                  </div>
                 </div>
               </div>
 
               <div class="color-setting">
-                <label for="holidayColor">Holidays</label>
-                <div class="color-picker-wrapper">
-                  <input
-                    type="color"
-                    id="holidayColor"
-                    [value]="holidayColor"
-                    (input)="onHolidayColorChange($event)">
-                  <div class="color-preview" [style.background-color]="holidayColor"></div>
-                  <span class="color-value">{{ holidayColor }}</span>
+                <span class="color-setting-label">Public holidays</span>
+                <div class="color-setting-pickers">
+                  <div class="color-pair">
+                    <label>Light</label>
+                    <input type="color" [value]="holidayColorLight"
+                      (input)="onColorChange('holidayLight', $event)">
+                    <div class="color-preview-small" [style.background-color]="holidayColorLight"></div>
+                  </div>
+                  <div class="color-pair">
+                    <label>Dark</label>
+                    <input type="color" [value]="holidayColorDark"
+                      (input)="onColorChange('holidayDark', $event)">
+                    <div class="color-preview-small" [style.background-color]="holidayColorDark"></div>
+                  </div>
                 </div>
               </div>
-
             </div>
           </div>
 
@@ -263,6 +282,11 @@ interface HolidayYearGroup {
       min-width: 110px;
     }
 
+    .week-start-field {
+      margin-top: 16px;
+      width: 200px;
+    }
+
     mat-card-actions {
       padding: 16px;
     }
@@ -282,49 +306,18 @@ interface HolidayYearGroup {
       border-radius: 8px;
     }
 
-    .color-setting label {
+    .color-setting-label {
       font-size: 14px;
       font-weight: 500;
       color: var(--mat-sys-on-surface);
+      min-width: 120px;
+      flex: 1;
     }
 
-    .color-picker-wrapper {
+    .color-setting-pickers {
       display: flex;
+      gap: 16px;
       align-items: center;
-      gap: 12px;
-    }
-
-    .color-picker-wrapper input[type="color"] {
-      width: 40px;
-      height: 40px;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      padding: 0;
-      background: transparent;
-    }
-
-    .color-picker-wrapper input[type="color"]::-webkit-color-swatch-wrapper {
-      padding: 0;
-    }
-
-    .color-picker-wrapper input[type="color"]::-webkit-color-swatch {
-      border: 2px solid var(--mat-sys-outline);
-      border-radius: 6px;
-    }
-
-    .color-preview {
-      width: 32px;
-      height: 32px;
-      border-radius: 6px;
-      border: 1px solid var(--mat-sys-outline-variant);
-    }
-
-    .color-value {
-      font-family: monospace;
-      font-size: 12px;
-      color: var(--mat-sys-on-surface-variant);
-      min-width: 70px;
     }
 
     .holidays-loading {
@@ -464,20 +457,24 @@ interface HolidayYearGroup {
   `]
 })
 export class ManageSettingsComponent implements OnInit {
-  // Days ordered Monday to Sunday for display
-  days: DayConfig[] = [
+  private static readonly ALL_DAYS: DayConfig[] = [
+    { label: 'Sunday', jsIndex: 0 },
     { label: 'Monday', jsIndex: 1 },
     { label: 'Tuesday', jsIndex: 2 },
     { label: 'Wednesday', jsIndex: 3 },
     { label: 'Thursday', jsIndex: 4 },
     { label: 'Friday', jsIndex: 5 },
-    { label: 'Saturday', jsIndex: 6 },
-    { label: 'Sunday', jsIndex: 0 }
+    { label: 'Saturday', jsIndex: 6 }
   ];
 
+  orderedDays: DayConfig[] = [];
+  weekStartDay: 0 | 1 = 1;
+
   workingDays: boolean[];
-  nonWorkingDayColor: string;
-  holidayColor: string;
+  nonWorkingDayColorLight: string;
+  nonWorkingDayColorDark: string;
+  holidayColorLight: string;
+  holidayColorDark: string;
 
   holidays: HolidayInfo[] = [];
   holidaysByYear: HolidayYearGroup[] = [];
@@ -494,14 +491,23 @@ export class ManageSettingsComponent implements OnInit {
     private holidayService: HolidayService,
     private holidayTypeService: HolidayTypeService
   ) {
-    this.workingDays = [...this.appSettingsService.settings.workingDays];
-    this.nonWorkingDayColor = this.appSettingsService.settings.nonWorkingDayColor;
-    this.holidayColor = this.appSettingsService.settings.holidayColor;
+    const s = this.appSettingsService.settings;
+    this.workingDays = [...s.workingDays];
+    this.nonWorkingDayColorLight = s.nonWorkingDayColorLight;
+    this.nonWorkingDayColorDark = s.nonWorkingDayColorDark;
+    this.holidayColorLight = s.holidayColorLight;
+    this.holidayColorDark = s.holidayColorDark;
+    this.weekStartDay = s.weekStartDay;
+    this.reorderDays();
 
     this.appSettingsService.settings$.subscribe(settings => {
       this.workingDays = [...settings.workingDays];
-      this.nonWorkingDayColor = settings.nonWorkingDayColor;
-      this.holidayColor = settings.holidayColor;
+      this.nonWorkingDayColorLight = settings.nonWorkingDayColorLight;
+      this.nonWorkingDayColorDark = settings.nonWorkingDayColorDark;
+      this.holidayColorLight = settings.holidayColorLight;
+      this.holidayColorDark = settings.holidayColorDark;
+      this.weekStartDay = settings.weekStartDay;
+      this.reorderDays();
     });
   }
 
@@ -510,16 +516,39 @@ export class ManageSettingsComponent implements OnInit {
     this.appSettingsService.setWorkingDays([...this.workingDays]);
   }
 
-  onNonWorkingDayColorChange(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    this.nonWorkingDayColor = input.value;
-    this.appSettingsService.setNonWorkingDayColor(input.value);
+  onWeekStartDayChange(day: 0 | 1): void {
+    this.appSettingsService.setWeekStartDay(day);
   }
 
-  onHolidayColorChange(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    this.holidayColor = input.value;
-    this.appSettingsService.setHolidayColor(input.value);
+  private reorderDays(): void {
+    const allDays = ManageSettingsComponent.ALL_DAYS;
+    const startIndex = this.weekStartDay;
+    this.orderedDays = [
+      ...allDays.slice(startIndex),
+      ...allDays.slice(0, startIndex)
+    ];
+  }
+
+  onColorChange(target: string, event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    switch (target) {
+      case 'nonWorkingDayLight':
+        this.nonWorkingDayColorLight = value;
+        this.appSettingsService.setNonWorkingDayColor(this.nonWorkingDayColorLight, this.nonWorkingDayColorDark);
+        break;
+      case 'nonWorkingDayDark':
+        this.nonWorkingDayColorDark = value;
+        this.appSettingsService.setNonWorkingDayColor(this.nonWorkingDayColorLight, this.nonWorkingDayColorDark);
+        break;
+      case 'holidayLight':
+        this.holidayColorLight = value;
+        this.appSettingsService.setHolidayColor(this.holidayColorLight, this.holidayColorDark);
+        break;
+      case 'holidayDark':
+        this.holidayColorDark = value;
+        this.appSettingsService.setHolidayColor(this.holidayColorLight, this.holidayColorDark);
+        break;
+    }
   }
 
   ngOnInit(): void {

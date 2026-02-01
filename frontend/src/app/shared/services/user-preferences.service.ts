@@ -5,14 +5,14 @@ export interface UserPreferences {
   theme: 'system' | 'light' | 'dark';
   navigationExpanded: boolean;
   defaultView: 'schedule' | 'teams' | 'workers';
-  scheduleWeekStartDay: 0 | 1; // 0 = Sunday, 1 = Monday
+  managementMode: boolean;
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
   theme: 'system',
   navigationExpanded: true,
   defaultView: 'schedule',
-  scheduleWeekStartDay: 1
+  managementMode: true
 };
 
 const STORAGE_KEY = 'teamschedule-user-preferences';
@@ -75,15 +75,15 @@ export class UserPreferencesService {
     this.savePreferences();
   }
 
-  setScheduleWeekStartDay(day: 0 | 1): void {
-    const current = this.preferencesSubject.value;
-    this.preferencesSubject.next({ ...current, scheduleWeekStartDay: day });
-    this.savePreferences();
-  }
-
   setNavigationExpanded(expanded: boolean): void {
     const current = this.preferencesSubject.value;
     this.preferencesSubject.next({ ...current, navigationExpanded: expanded });
+    this.savePreferences();
+  }
+
+  setManagementMode(enabled: boolean): void {
+    const current = this.preferencesSubject.value;
+    this.preferencesSubject.next({ ...current, managementMode: enabled });
     this.savePreferences();
   }
 

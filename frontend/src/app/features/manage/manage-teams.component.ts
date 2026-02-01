@@ -237,9 +237,10 @@ const REMOVE_WORKER_FROM_TEAM_MUTATION = gql`
   styles: [`
     .manage-container {
       display: flex;
-      height: calc(100vh - 24px);
+      height: 100%;
       gap: 24px;
       padding: 12px;
+      box-sizing: border-box;
     }
 
     .list-panel {

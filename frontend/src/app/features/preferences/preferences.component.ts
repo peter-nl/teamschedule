@@ -6,6 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDividerModule } from '@angular/material/divider';
 import { AuthService } from '../../shared/services/auth.service';
 import { UserPreferencesService, UserPreferences } from '../../shared/services/user-preferences.service';
@@ -21,7 +22,8 @@ import { UserPreferencesService, UserPreferences } from '../../shared/services/u
     MatFormFieldModule,
     MatSelectModule,
     MatButtonModule,
-    MatDividerModule
+    MatDividerModule,
+    MatCheckboxModule
   ],
   template: `
     <div class="preferences-container">
@@ -80,18 +82,15 @@ import { UserPreferencesService, UserPreferences } from '../../shared/services/u
             </mat-form-field>
           </div>
 
-          <mat-divider></mat-divider>
-
-          <div class="preferences-section">
-            <h3>Schedule</h3>
-
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Week starts on</mat-label>
-              <mat-select [value]="preferences.scheduleWeekStartDay" (selectionChange)="onWeekStartDayChange($event.value)">
-                <mat-option [value]="0">Sunday</mat-option>
-                <mat-option [value]="1">Monday</mat-option>
-              </mat-select>
-            </mat-form-field>
+          <div *ngIf="authService.isManager" class="preferences-section">
+            <mat-divider></mat-divider>
+            <h3 style="margin-top: 16px">Management</h3>
+            <mat-checkbox
+              [checked]="preferences.managementMode"
+              (change)="onManagementModeChange($event.checked)">
+              Management mode
+            </mat-checkbox>
+            <p class="hint-text">Show management options in the navigation rail</p>
           </div>
         </mat-card-content>
         <mat-card-actions align="end">
@@ -154,6 +153,12 @@ import { UserPreferencesService, UserPreferences } from '../../shared/services/u
       margin: 0;
     }
 
+    .hint-text {
+      margin: 4px 0 0;
+      font-size: 12px;
+      color: var(--mat-sys-on-surface-variant);
+    }
+
     mat-card-actions {
       padding: 16px;
     }
@@ -180,12 +185,12 @@ export class PreferencesComponent {
     this.userPreferencesService.setDefaultView(view);
   }
 
-  onWeekStartDayChange(day: 0 | 1): void {
-    this.userPreferencesService.setScheduleWeekStartDay(day);
-  }
-
   onNavigationExpandedChange(expanded: boolean): void {
     this.userPreferencesService.setNavigationExpanded(expanded);
+  }
+
+  onManagementModeChange(enabled: boolean): void {
+    this.userPreferencesService.setManagementMode(enabled);
   }
 
   resetToDefaults(): void {

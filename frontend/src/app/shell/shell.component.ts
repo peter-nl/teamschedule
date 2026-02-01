@@ -1,11 +1,24 @@
-import { Component } from '@angular/core';
+import { Component, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, RouterOutlet, Router, NavigationEnd } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { filter } from 'rxjs/operators';
 import { AuthService } from '../shared/services/auth.service';
 import { UserPreferencesService } from '../shared/services/user-preferences.service';
+import { AccountLoginComponent } from '../features/account/account-login.component';
+import { AccountProfileComponent } from '../features/account/account-profile.component';
+import { AccountHolidaysComponent } from '../features/account/account-holidays.component';
+import { AccountPasswordComponent } from '../features/account/account-password.component';
+import { PreferencesComponent } from '../features/preferences/preferences.component';
+import { ManageTeamsComponent } from '../features/manage/manage-teams.component';
+import { ManageWorkersComponent } from '../features/manage/manage-workers.component';
+import { ManageSettingsComponent } from '../features/manage/manage-settings.component';
+
+type NavBarType = 'account' | 'management';
+type PanelType = 'login' | 'profile' | 'holidays' | 'password' | 'preferences'
+              | 'manage-teams' | 'manage-workers' | 'manage-settings';
 
 interface NavItem {
   path: string;
@@ -21,7 +34,16 @@ interface NavItem {
     RouterModule,
     RouterOutlet,
     MatIconModule,
-    MatTooltipModule
+    MatTooltipModule,
+    MatSnackBarModule,
+    AccountLoginComponent,
+    AccountProfileComponent,
+    AccountHolidaysComponent,
+    AccountPasswordComponent,
+    PreferencesComponent,
+    ManageTeamsComponent,
+    ManageWorkersComponent,
+    ManageSettingsComponent
   ],
   template: `
     <div class="app-layout">
@@ -46,52 +68,22 @@ interface NavItem {
           </a>
         </div>
 
-        <!-- Management Section (managers only) -->
-        <div *ngIf="authService.isManager" class="nav-section">
-          <div class="section-header" *ngIf="isExpanded">Management</div>
-          <div class="section-divider" *ngIf="!isExpanded"></div>
-          <a class="nav-item"
-             [class.active]="isActive('/manage/teams')"
-             routerLink="/manage/teams"
-             [matTooltip]="isExpanded ? '' : 'Teams'"
-             matTooltipPosition="right">
-            <mat-icon>group_work</mat-icon>
-            <span class="nav-label">Teams</span>
-          </a>
-          <a class="nav-item"
-             [class.active]="isActive('/manage/workers')"
-             routerLink="/manage/workers"
-             [matTooltip]="isExpanded ? '' : 'Workers'"
-             matTooltipPosition="right">
-            <mat-icon>manage_accounts</mat-icon>
-            <span class="nav-label">Workers</span>
-          </a>
-          <a class="nav-item"
-             [class.active]="isActive('/manage/settings')"
-             routerLink="/manage/settings"
-             [matTooltip]="isExpanded ? '' : 'Settings'"
-             matTooltipPosition="right">
-            <mat-icon>settings</mat-icon>
-            <span class="nav-label">Settings</span>
-          </a>
-        </div>
-
         <div class="nav-spacer"></div>
 
         <!-- Bottom Menu Items -->
         <div class="nav-account">
-          <a *ngIf="authService.isLoggedIn"
+          <a *ngIf="showManagement"
              class="nav-item"
-             [class.active]="isActive('/preferences')"
-             routerLink="/preferences"
-             [matTooltip]="isExpanded ? '' : 'Preferences'"
+             [class.active]="activeNavBar === 'management'"
+             (click)="toggleNavBar('management')"
+             [matTooltip]="isExpanded ? '' : 'Management'"
              matTooltipPosition="right">
-            <mat-icon>tune</mat-icon>
-            <span class="nav-label">Preferences</span>
+            <mat-icon>admin_panel_settings</mat-icon>
+            <span class="nav-label">Management</span>
           </a>
           <a class="nav-item"
-             [class.active]="isActive('/account')"
-             routerLink="/account"
+             [class.active]="activeNavBar === 'account'"
+             (click)="toggleNavBar('account')"
              [matTooltip]="isExpanded ? '' : (authService.isLoggedIn ? 'Account' : 'Login')"
              matTooltipPosition="right">
             <mat-icon>{{ authService.isLoggedIn ? 'account_circle' : 'login' }}</mat-icon>
@@ -100,10 +92,106 @@ interface NavItem {
         </div>
       </nav>
 
+      <!-- Account Nav Bar -->
+      <nav class="nav-bar" *ngIf="activeNavBar === 'account'">
+        <div class="nav-bar-spacer"></div>
+        <div class="nav-bar-items">
+          <button class="nav-bar-item" (click)="toggleTheme()">
+            <mat-icon>{{ isDark ? 'light_mode' : 'dark_mode' }}</mat-icon>
+            <span>{{ isDark ? 'Light theme' : 'Dark theme' }}</span>
+          </button>
+
+          <button *ngIf="!authService.isLoggedIn"
+                  class="nav-bar-item"
+                  [class.active]="activePanel === 'login'"
+                  (click)="openPanel('login')">
+            <mat-icon>login</mat-icon>
+            <span>Sign in</span>
+          </button>
+
+          <button *ngIf="authService.isLoggedIn"
+                  class="nav-bar-item"
+                  [class.active]="activePanel === 'preferences'"
+                  (click)="openPanel('preferences')">
+            <mat-icon>tune</mat-icon>
+            <span>Preferences</span>
+          </button>
+          <button *ngIf="authService.isLoggedIn"
+                  class="nav-bar-item"
+                  [class.active]="activePanel === 'profile'"
+                  (click)="openPanel('profile')">
+            <mat-icon>account_circle</mat-icon>
+            <span>Account</span>
+          </button>
+          <button *ngIf="authService.isLoggedIn"
+                  class="nav-bar-item"
+                  [class.active]="activePanel === 'holidays'"
+                  (click)="openPanel('holidays')">
+            <mat-icon>beach_access</mat-icon>
+            <span>Holidays</span>
+          </button>
+          <button *ngIf="authService.isLoggedIn"
+                  class="nav-bar-item"
+                  [class.active]="activePanel === 'password'"
+                  (click)="openPanel('password')">
+            <mat-icon>lock</mat-icon>
+            <span>Change password</span>
+          </button>
+          <button *ngIf="authService.isLoggedIn"
+                  class="nav-bar-item"
+                  (click)="onSignOut()">
+            <mat-icon>logout</mat-icon>
+            <span>Sign out</span>
+          </button>
+        </div>
+      </nav>
+
+      <!-- Management Nav Bar -->
+      <nav class="nav-bar" *ngIf="activeNavBar === 'management'">
+        <div class="nav-bar-spacer"></div>
+        <div class="nav-bar-items">
+          <button class="nav-bar-item"
+                  [class.active]="activePanel === 'manage-teams'"
+                  (click)="openPanel('manage-teams')">
+            <mat-icon>group_work</mat-icon>
+            <span>Teams</span>
+          </button>
+          <button class="nav-bar-item"
+                  [class.active]="activePanel === 'manage-workers'"
+                  (click)="openPanel('manage-workers')">
+            <mat-icon>manage_accounts</mat-icon>
+            <span>Workers</span>
+          </button>
+          <button class="nav-bar-item"
+                  [class.active]="activePanel === 'manage-settings'"
+                  (click)="openPanel('manage-settings')">
+            <mat-icon>settings</mat-icon>
+            <span>Settings</span>
+          </button>
+        </div>
+      </nav>
+
       <!-- Main Content Area -->
       <main class="main-content">
         <router-outlet></router-outlet>
       </main>
+    </div>
+
+    <!-- Panel Overlay -->
+    <div class="panel-overlay" *ngIf="activePanel" (click)="closePanel()">
+      <div class="panel-dialog" [class.panel-dialog-wide]="isWidePanel" (click)="$event.stopPropagation()">
+        <button class="panel-close" (click)="closePanel()">
+          <mat-icon>close</mat-icon>
+        </button>
+        <app-account-login *ngIf="activePanel === 'login'" (loginSuccess)="onLoginSuccess()"></app-account-login>
+        <app-account-profile *ngIf="activePanel === 'profile'"></app-account-profile>
+        <app-account-holidays *ngIf="activePanel === 'holidays'"></app-account-holidays>
+        <app-account-password *ngIf="activePanel === 'password'"></app-account-password>
+        <app-preferences *ngIf="activePanel === 'preferences'"></app-preferences>
+        <app-manage-teams *ngIf="activePanel === 'manage-teams'"></app-manage-teams>
+        <app-manage-workers *ngIf="activePanel === 'manage-workers'"></app-manage-workers>
+        <app-manage-settings *ngIf="activePanel === 'manage-settings'"></app-manage-settings>
+      </div>
     </div>
   `,
   styles: [`
@@ -182,33 +270,13 @@ interface NavItem {
       white-space: nowrap;
     }
 
-    .nav-items,
-    .nav-section {
+    .nav-items {
       display: flex;
       flex-direction: column;
       gap: 4px;
       width: 100%;
       padding: 0 12px;
       box-sizing: border-box;
-    }
-
-    .nav-section {
-      margin-top: 16px;
-    }
-
-    .section-header {
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--mat-sys-on-surface-variant);
-      padding: 8px 16px 4px;
-    }
-
-    .section-divider {
-      height: 1px;
-      background: var(--mat-sys-outline-variant);
-      margin: 8px 12px;
     }
 
     .nav-spacer {
@@ -219,6 +287,9 @@ interface NavItem {
       width: 100%;
       padding: 0 12px 12px;
       box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
     }
 
     .nav-item {
@@ -233,6 +304,9 @@ interface NavItem {
       cursor: pointer;
       transition: all 0.2s ease;
       gap: 4px;
+      border: none;
+      background: transparent;
+      font-family: inherit;
     }
 
     .nav-rail.expanded .nav-item {
@@ -269,6 +343,121 @@ interface NavItem {
       text-align: left;
     }
 
+    /* Secondary Nav Bar */
+    .nav-bar {
+      width: 200px;
+      min-width: 200px;
+      height: 100vh;
+      background: var(--mat-sys-surface-container);
+      border-right: 1px solid var(--mat-sys-outline-variant);
+      display: flex;
+      flex-direction: column;
+      position: sticky;
+      top: 0;
+    }
+
+    .nav-bar-spacer {
+      flex: 1;
+    }
+
+    .nav-bar-items {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 12px;
+    }
+
+    .nav-bar-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      border-radius: 12px;
+      border: none;
+      background: transparent;
+      color: var(--mat-sys-on-surface-variant);
+      text-decoration: none;
+      cursor: pointer;
+      font-size: 14px;
+      font-family: inherit;
+      transition: background 0.15s;
+      text-align: left;
+    }
+
+    .nav-bar-item:hover {
+      background: var(--mat-sys-surface-container-highest);
+    }
+
+    .nav-bar-item.active {
+      background: var(--mat-sys-secondary-container);
+      color: var(--mat-sys-on-secondary-container);
+    }
+
+    .nav-bar-item mat-icon {
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+    }
+
+    /* Panel Overlay */
+    .panel-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+
+    .panel-dialog {
+      position: relative;
+      max-width: 560px;
+      width: 90%;
+      max-height: 85vh;
+      overflow-y: auto;
+      border-radius: 16px;
+    }
+
+    .panel-dialog-wide {
+      max-width: 1100px;
+      width: 95%;
+      height: 80vh;
+      overflow-y: hidden;
+      background: var(--mat-sys-surface);
+    }
+
+    .panel-close {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      z-index: 1;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: none;
+      background: var(--mat-sys-surface-container-highest);
+      color: var(--mat-sys-on-surface-variant);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .panel-close:hover {
+      background: var(--mat-sys-outline-variant);
+    }
+
+    .panel-close mat-icon {
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+    }
+
     /* Main Content */
     .main-content {
       flex: 1;
@@ -301,8 +490,7 @@ interface NavItem {
         min-width: unset;
       }
 
-      .nav-header,
-      .nav-section {
+      .nav-header {
         display: none;
       }
 
@@ -320,6 +508,7 @@ interface NavItem {
 
       .nav-account {
         padding: 8px 0;
+        flex-direction: row;
       }
 
       .nav-item {
@@ -331,6 +520,10 @@ interface NavItem {
       .nav-label {
         font-size: 12px;
         text-align: center;
+      }
+
+      .nav-bar {
+        display: none;
       }
 
       .main-content {
@@ -348,15 +541,31 @@ export class ShellComponent {
 
   currentPath = '';
   isExpanded = true;
+  isDark = false;
+  managementModeEnabled = true;
+  activeNavBar: NavBarType | null = null;
+  activePanel: PanelType | null = null;
 
   constructor(
     private router: Router,
     public authService: AuthService,
-    private userPreferencesService: UserPreferencesService
+    private userPreferencesService: UserPreferencesService,
+    private snackBar: MatSnackBar
   ) {
     this.isExpanded = this.userPreferencesService.preferences.navigationExpanded;
+    this.managementModeEnabled = this.userPreferencesService.preferences.managementMode;
     this.userPreferencesService.preferences$.subscribe(prefs => {
       this.isExpanded = prefs.navigationExpanded;
+      this.managementModeEnabled = prefs.managementMode;
+      // Close management nav bar if management mode gets disabled
+      if (!prefs.managementMode && this.activeNavBar === 'management') {
+        this.activeNavBar = null;
+        this.activePanel = null;
+      }
+    });
+
+    this.userPreferencesService.isDarkTheme$.subscribe(isDark => {
+      this.isDark = isDark;
     });
 
     this.currentPath = this.router.url;
@@ -364,7 +573,27 @@ export class ShellComponent {
       filter(event => event instanceof NavigationEnd)
     ).subscribe((event: NavigationEnd) => {
       this.currentPath = event.urlAfterRedirects;
+      this.activeNavBar = null;
+      this.activePanel = null;
     });
+  }
+
+  get showManagement(): boolean {
+    return this.authService.isManager && this.managementModeEnabled;
+  }
+
+  get isWidePanel(): boolean {
+    return this.activePanel === 'manage-teams'
+        || this.activePanel === 'manage-workers';
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscapeKey(): void {
+    if (this.activePanel) {
+      this.closePanel();
+    } else if (this.activeNavBar) {
+      this.activeNavBar = null;
+    }
   }
 
   isActive(path: string): boolean {
@@ -373,5 +602,43 @@ export class ShellComponent {
 
   toggleExpanded(): void {
     this.userPreferencesService.setNavigationExpanded(!this.isExpanded);
+  }
+
+  toggleNavBar(type: NavBarType): void {
+    if (this.activeNavBar === type) {
+      this.activeNavBar = null;
+      this.activePanel = null;
+    } else {
+      this.activeNavBar = type;
+      this.activePanel = null;
+    }
+  }
+
+  openPanel(panel: PanelType): void {
+    this.activePanel = this.activePanel === panel ? null : panel;
+  }
+
+  closePanel(): void {
+    this.activePanel = null;
+  }
+
+  onLoginSuccess(): void {
+    this.activePanel = null;
+  }
+
+  toggleTheme(): void {
+    const current = this.userPreferencesService.preferences.theme;
+    if (current === 'light' || (current === 'system' && !this.isDark)) {
+      this.userPreferencesService.setTheme('dark');
+    } else {
+      this.userPreferencesService.setTheme('light');
+    }
+  }
+
+  onSignOut(): void {
+    this.authService.logout();
+    this.snackBar.open('You have been signed out', 'Close', { duration: 3000 });
+    this.activeNavBar = null;
+    this.activePanel = null;
   }
 }

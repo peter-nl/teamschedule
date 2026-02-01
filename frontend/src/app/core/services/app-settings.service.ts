@@ -3,14 +3,20 @@ import { BehaviorSubject } from 'rxjs';
 
 export interface AppSettings {
   workingDays: boolean[]; // Index 0 = Sunday, 1 = Monday, ..., 6 = Saturday (matches JS Date.getDay())
-  nonWorkingDayColor: string; // Background color for non-working days
-  holidayColor: string; // Background color for holidays
+  nonWorkingDayColorLight: string;
+  nonWorkingDayColorDark: string;
+  holidayColorLight: string;
+  holidayColorDark: string;
+  weekStartDay: 0 | 1; // 0 = Sunday, 1 = Monday
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
   workingDays: [false, true, true, true, true, true, false], // Sun=off, Mon-Fri=on, Sat=off
-  nonWorkingDayColor: '#e0e0e0', // Light gray
-  holidayColor: '#ffcdd2' // Light red/pink
+  nonWorkingDayColorLight: '#e0e0e0',
+  nonWorkingDayColorDark: '#3a3a3a',
+  holidayColorLight: '#ffcdd2',
+  holidayColorDark: '#772727',
+  weekStartDay: 1 // Monday
 };
 
 const STORAGE_KEY = 'teamschedule-app-settings';
@@ -61,15 +67,21 @@ export class AppSettingsService {
     return this.settingsSubject.value.workingDays[dayOfWeek];
   }
 
-  setNonWorkingDayColor(color: string): void {
+  setNonWorkingDayColor(colorLight: string, colorDark: string): void {
     const current = this.settingsSubject.value;
-    this.settingsSubject.next({ ...current, nonWorkingDayColor: color });
+    this.settingsSubject.next({ ...current, nonWorkingDayColorLight: colorLight, nonWorkingDayColorDark: colorDark });
     this.saveSettings();
   }
 
-  setHolidayColor(color: string): void {
+  setHolidayColor(colorLight: string, colorDark: string): void {
     const current = this.settingsSubject.value;
-    this.settingsSubject.next({ ...current, holidayColor: color });
+    this.settingsSubject.next({ ...current, holidayColorLight: colorLight, holidayColorDark: colorDark });
+    this.saveSettings();
+  }
+
+  setWeekStartDay(day: 0 | 1): void {
+    const current = this.settingsSubject.value;
+    this.settingsSubject.next({ ...current, weekStartDay: day });
     this.saveSettings();
   }
 
@@ -83,8 +95,10 @@ export class AppSettingsService {
     const current = this.settingsSubject.value;
     this.settingsSubject.next({
       ...current,
-      nonWorkingDayColor: DEFAULT_SETTINGS.nonWorkingDayColor,
-      holidayColor: DEFAULT_SETTINGS.holidayColor
+      nonWorkingDayColorLight: DEFAULT_SETTINGS.nonWorkingDayColorLight,
+      nonWorkingDayColorDark: DEFAULT_SETTINGS.nonWorkingDayColorDark,
+      holidayColorLight: DEFAULT_SETTINGS.holidayColorLight,
+      holidayColorDark: DEFAULT_SETTINGS.holidayColorDark
     });
     this.saveSettings();
   }
