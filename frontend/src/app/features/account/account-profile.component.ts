@@ -4,7 +4,6 @@ import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -21,7 +20,6 @@ import { AuthService } from '../../shared/services/auth.service';
     MatCardModule,
     MatFormFieldModule,
     MatInputModule,
-    MatSelectModule,
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
@@ -78,21 +76,6 @@ import { AuthService } from '../../shared/services/auth.service';
           <div class="role-display">
             <mat-icon>{{ authService.currentUser?.role === 'manager' ? 'admin_panel_settings' : 'person' }}</mat-icon>
             <span class="role-label">{{ authService.currentUser?.role === 'manager' ? 'Manager' : 'User' }}</span>
-          </div>
-          <div *ngIf="authService.isManager" class="role-edit">
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Change Role</mat-label>
-              <mat-select [(ngModel)]="selectedRole" name="role">
-                <mat-option value="user">User</mat-option>
-                <mat-option value="manager">Manager</mat-option>
-              </mat-select>
-            </mat-form-field>
-            <button mat-raised-button
-                    (click)="onUpdateRole()"
-                    [disabled]="roleLoading || selectedRole === authService.currentUser?.role">
-              <mat-spinner *ngIf="roleLoading" diameter="20"></mat-spinner>
-              <span *ngIf="!roleLoading">Update Role</span>
-            </button>
           </div>
         </div>
       </mat-card-content>
@@ -165,11 +148,6 @@ import { AuthService } from '../../shared/services/auth.service';
       text-transform: capitalize;
     }
 
-    .role-edit {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
   `]
 })
 export class AccountProfileComponent {
@@ -179,9 +157,6 @@ export class AccountProfileComponent {
     particles: ''
   };
   profileLoading = false;
-
-  selectedRole: 'user' | 'manager' = 'user';
-  roleLoading = false;
 
   constructor(
     public authService: AuthService,
@@ -194,7 +169,6 @@ export class AccountProfileComponent {
           lastName: user.lastName,
           particles: user.particles || ''
         };
-        this.selectedRole = user.role;
       }
     });
   }
@@ -224,22 +198,4 @@ export class AccountProfileComponent {
     });
   }
 
-  onUpdateRole(): void {
-    const user = this.authService.currentUser;
-    if (!user) return;
-
-    this.roleLoading = true;
-
-    this.authService.updateRole(user.id, this.selectedRole).subscribe({
-      next: () => {
-        this.roleLoading = false;
-        this.snackBar.open('Role updated successfully', 'Close', { duration: 3000 });
-      },
-      error: (error) => {
-        this.roleLoading = false;
-        this.snackBar.open(error.message || 'Failed to update role', 'Close', { duration: 3000 });
-        console.error('Update role error:', error);
-      }
-    });
-  }
 }

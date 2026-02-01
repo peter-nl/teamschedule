@@ -15,6 +15,7 @@ import { MatDividerModule } from '@angular/material/divider';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog.component';
+import { AuthService } from '../../shared/services/auth.service';
 
 interface Team {
   id: string;
@@ -243,7 +244,11 @@ const REMOVE_WORKER_FROM_TEAM_MUTATION = gql`
 
               <mat-form-field appearance="outline" class="full-width">
                 <mat-label>Role</mat-label>
-                <input matInput [value]="selectedWorker.role" disabled>
+                <mat-select [(ngModel)]="editForm.role" name="role"
+                            [disabled]="!isEditing || isSelectedWorkerSelf">
+                  <mat-option value="user">User</mat-option>
+                  <mat-option value="manager">Manager</mat-option>
+                </mat-select>
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="full-width">
@@ -463,6 +468,7 @@ export class ManageWorkersComponent implements OnInit {
     firstName: '',
     lastName: '',
     particles: '',
+    role: 'user' as string,
     teamIds: [] as string[]
   };
 
@@ -475,9 +481,14 @@ export class ManageWorkersComponent implements OnInit {
   };
 
   constructor(
+    private authService: AuthService,
     private snackBar: MatSnackBar,
     private dialog: MatDialog
   ) {}
+
+  get isSelectedWorkerSelf(): boolean {
+    return this.selectedWorker?.id === this.authService.currentUser?.id;
+  }
 
   ngOnInit(): void {
     this.loadData();
@@ -524,6 +535,7 @@ export class ManageWorkersComponent implements OnInit {
         firstName: this.selectedWorker.firstName,
         lastName: this.selectedWorker.lastName,
         particles: this.selectedWorker.particles || '',
+        role: this.selectedWorker.role,
         teamIds: this.selectedWorker.teams.map(t => t.id)
       };
     }
@@ -554,6 +566,16 @@ export class ManageWorkersComponent implements OnInit {
           particles: this.editForm.particles || null
         }
       });
+
+      // Update role if changed (only for other workers)
+      if (!this.isSelectedWorkerSelf && this.editForm.role !== this.selectedWorker.role) {
+        await new Promise<void>((resolve, reject) => {
+          this.authService.updateRole(
+            this.selectedWorker!.id,
+            this.editForm.role as 'user' | 'manager'
+          ).subscribe({ next: () => resolve(), error: (e) => reject(e) });
+        });
+      }
 
       // Update team assignments
       const currentTeamIds = this.selectedWorker.teams.map(t => t.id);
