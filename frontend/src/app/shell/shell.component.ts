@@ -535,7 +535,6 @@ interface NavItem {
 export class ShellComponent {
   navItems: NavItem[] = [
     { path: '/schedule', icon: 'calendar_month', label: 'Schedule' },
-    { path: '/teams', icon: 'groups', label: 'Teams' },
     { path: '/workers', icon: 'person', label: 'Workers' }
   ];
 

@@ -35,8 +35,11 @@ interface DateColumn {
   isToday: boolean;
   isFirstOfMonth: boolean;
   isFirstOfYear: boolean;
+  isFirstOfWeek: boolean;
+  weekNumber: number;
   daysInMonth?: number;
   daysInYear?: number;
+  daysInWeek?: number;
 }
 
 @Component({
@@ -58,16 +61,14 @@ interface DateColumn {
       <!-- Header with Team Filter -->
       <div class="header">
         <h1>Schedule</h1>
-        <div class="team-filter">
-          <mat-form-field appearance="outline" class="team-select">
-            <mat-label>Filter by Teams</mat-label>
-            <mat-select [(ngModel)]="selectedTeamIdsArray" multiple (selectionChange)="onTeamSelectionChange()">
-              <mat-option *ngFor="let team of teams" [value]="team.id">
-                {{ team.name }} ({{ getWorkerCountForTeam(team.id) }})
-              </mat-option>
-            </mat-select>
-          </mat-form-field>
-        </div>
+        <mat-form-field appearance="outline" class="team-select">
+          <mat-label>Filter by Teams</mat-label>
+          <mat-select [(ngModel)]="selectedTeamIdsArray" multiple (selectionChange)="onTeamSelectionChange()">
+            <mat-option *ngFor="let team of teams" [value]="team.id">
+              {{ team.name }} ({{ getWorkerCountForTeam(team.id) }})
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
       </div>
 
       <!-- Loading State -->
@@ -84,16 +85,26 @@ interface DateColumn {
 
       <!-- Schedule Matrix -->
       <div *ngIf="!loading && !error" class="matrix-wrapper">
+        <div class="zoom-controls">
+          <button mat-icon-button (click)="zoomIn()" [disabled]="cellWidth >= 48" matTooltip="Zoom in">
+            <mat-icon>add</mat-icon>
+          </button>
+          <button mat-icon-button (click)="zoomOut()" [disabled]="cellWidth <= 16" matTooltip="Zoom out">
+            <mat-icon>remove</mat-icon>
+          </button>
+        </div>
         <div class="matrix-grid">
           <!-- Fixed Worker Names Column -->
           <div class="worker-names-column">
             <div class="year-header-cell">{{ visibleYear }}</div>
             <div class="month-header-cell">{{ visibleMonth }}</div>
-            <div class="day-header-cell"></div>
+            <div class="week-header-cell"></div>
+            <div class="day-header-cell" [style.height.px]="rowHeight"></div>
             <div *ngFor="let worker of filteredWorkers; let rowIndex = index"
                  class="worker-name-cell"
                  [class.odd-row]="rowIndex % 2 === 1"
-                 [class.my-row]="isCurrentUser(worker)">
+                 [class.my-row]="isCurrentUser(worker)"
+                 [style.height.px]="rowHeight">
               {{ worker.firstName }}{{ worker.particles ? ' ' + worker.particles + ' ' : ' ' }}{{ worker.lastName }}
             </div>
           </div>
@@ -104,13 +115,14 @@ interface DateColumn {
                [class.dragging]="isDragging"
                (mousedown)="onMouseDown($event)"
                (touchstart)="onTouchStart($event)"
+               (wheel)="onWheel($event)"
                (scroll)="onScroll()">
             <!-- Year Header Row -->
             <div class="year-row">
               <ng-container *ngFor="let col of dateColumns">
                 <div *ngIf="col.isFirstOfYear"
                      class="year-cell"
-                     [style.width.px]="col.daysInYear! * 40">
+                     [style.width.px]="col.daysInYear! * cellWidth">
                   {{ col.year }}
                 </div>
               </ng-container>
@@ -121,19 +133,31 @@ interface DateColumn {
               <ng-container *ngFor="let col of dateColumns">
                 <div *ngIf="col.isFirstOfMonth"
                      class="month-cell"
-                     [style.width.px]="col.daysInMonth! * 40">
+                     [style.width.px]="col.daysInMonth! * cellWidth">
                   {{ col.monthFullName }}
                 </div>
               </ng-container>
             </div>
 
+            <!-- Week Header Row -->
+            <div class="week-row">
+              <ng-container *ngFor="let col of dateColumns">
+                <div *ngIf="col.isFirstOfWeek"
+                     class="week-cell"
+                     [style.width.px]="col.daysInWeek! * cellWidth">
+                  {{ col.weekNumber }}
+                </div>
+              </ng-container>
+            </div>
+
             <!-- Day Header Row -->
-            <div class="day-row">
+            <div class="day-row" [style.height.px]="rowHeight">
               <div *ngFor="let col of dateColumns"
                    class="day-cell"
                    [class.non-working]="col.isNonWorkingDay"
                    [class.holiday]="col.isHoliday"
                    [class.today]="col.isToday"
+                   [style.width.px]="cellWidth"
                    [style.background-color]="getCellColor(col)"
                    [matTooltip]="col.holidayName"
                    [matTooltipDisabled]="!col.isHoliday">
@@ -154,6 +178,8 @@ interface DateColumn {
                    [class.odd-row]="rowIndex % 2 === 1"
                    [class.my-row]="isCurrentUser(worker)"
                    [class.editable]="canEditCell(worker)"
+                   [style.width.px]="cellWidth"
+                   [style.height.px]="rowHeight"
                    [style.background-color]="getWorkerCellBgColor(col, worker)"
                    [style.background-image]="getWorkerCellBgImage(col, worker)"
                    [matTooltip]="getWorkerCellTooltip(col, worker)"
@@ -194,11 +220,6 @@ interface DateColumn {
       color: var(--mat-sys-on-surface);
     }
 
-    .team-filter {
-      display: flex;
-      align-items: center;
-    }
-
     .team-select {
       min-width: 250px;
     }
@@ -221,9 +242,29 @@ interface DateColumn {
     }
 
     .matrix-wrapper {
+      position: relative;
       border: 1px solid var(--mat-sys-outline-variant);
       border-radius: 12px;
       overflow: hidden;
+    }
+
+    .zoom-controls {
+      position: absolute;
+      top: 8px;
+      right: 20px;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      background: var(--mat-sys-surface-container);
+      border-radius: 12px;
+      padding: 2px;
+      opacity: 0.5;
+      transition: opacity 0.15s;
+    }
+
+    .zoom-controls:hover {
+      opacity: 1;
     }
 
     .matrix-grid {
@@ -263,14 +304,24 @@ interface DateColumn {
       font-weight: 600;
     }
 
+    .week-header-cell {
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-right: 12px;
+      font-size: 11px;
+      color: var(--mat-sys-on-surface-variant);
+      background: var(--mat-sys-surface-variant);
+      border-bottom: 1px solid var(--mat-sys-outline-variant);
+    }
+
     .day-header-cell {
-      height: 50px;
       border-bottom: 2px solid var(--mat-sys-outline-variant);
     }
 
     .worker-name-cell {
-      height: 50px;
-      padding: 12px;
+      padding: 0 12px;
       display: flex;
       align-items: center;
       font-size: 14px;
@@ -305,6 +356,7 @@ interface DateColumn {
 
     .year-row,
     .month-row,
+    .week-row,
     .day-row {
       display: flex;
       background: var(--mat-sys-surface-variant);
@@ -325,9 +377,26 @@ interface DateColumn {
       border-bottom: 1px solid var(--mat-sys-outline-variant);
     }
 
-    .day-row {
-      height: 50px;
+    .week-row {
+      height: 20px;
       top: 60px;
+      border-bottom: 1px solid var(--mat-sys-outline-variant);
+    }
+
+    .week-cell {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      padding-left: 4px;
+      font-size: 9px;
+      color: var(--mat-sys-on-surface-variant);
+      border-right: 1px solid var(--mat-sys-outline-variant);
+      background: var(--mat-sys-surface-variant);
+    }
+
+    .day-row {
+      top: 80px;
       border-bottom: 2px solid var(--mat-sys-outline-variant);
     }
 
@@ -353,7 +422,6 @@ interface DateColumn {
 
     .day-cell {
       flex-shrink: 0;
-      width: 40px;
       padding: 4px;
       text-align: center;
       font-size: 11px;
@@ -381,7 +449,7 @@ interface DateColumn {
     }
 
     .day-number {
-      font-size: 14px;
+      font-size: 10px;
       font-weight: 500;
     }
 
@@ -391,8 +459,6 @@ interface DateColumn {
 
     .schedule-cell {
       flex-shrink: 0;
-      width: 40px;
-      height: 50px;
       border-right: 1px solid var(--mat-sys-outline-variant);
       border-bottom: 1px solid var(--mat-sys-outline-variant);
       background-color: var(--mat-sys-surface);
@@ -447,11 +513,6 @@ interface DateColumn {
         align-items: stretch;
       }
 
-      .team-filter {
-        flex-direction: column;
-        align-items: flex-start;
-      }
-
       h1 {
         font-size: 24px;
       }
@@ -470,9 +531,20 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
   loading = true;
   error: string | null = null;
 
+  // Zoom
+  cellWidth = 40;
+  private readonly ZOOM_MIN = 16;
+  private readonly ZOOM_MAX = 48;
+  private readonly ZOOM_STEP = 4;
+
+  get rowHeight(): number {
+    return Math.round(this.cellWidth * 1.25);
+  }
+
   // Visible date info for fixed header
   visibleYear = '';
   visibleMonth = '';
+  visibleWeek = '';
 
   // Dynamic colors from settings (light/dark pairs)
   private nonWorkingDayColorLight = '#e0e0e0';
@@ -539,9 +611,12 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
       this.isDark = isDark;
     });
 
-    // Track management mode
+    // Track management mode and react to zoom changes from preferences
     this.userPreferencesService.preferences$.subscribe(prefs => {
       this.managementModeEnabled = prefs.managementMode;
+      if (prefs.scheduleZoom >= this.ZOOM_MIN && prefs.scheduleZoom <= this.ZOOM_MAX && prefs.scheduleZoom !== this.cellWidth) {
+        this.cellWidth = prefs.scheduleZoom;
+      }
     });
 
     // Bind event handlers for drag-to-scroll
@@ -651,13 +726,13 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     if (!this.scrollContainer || this.dateColumns.length === 0) return;
 
     const scrollLeft = this.scrollContainer.nativeElement.scrollLeft;
-    const cellWidth = 40;
-    const firstVisibleIndex = Math.floor(scrollLeft / cellWidth);
+    const firstVisibleIndex = Math.floor(scrollLeft / this.cellWidth);
 
     if (firstVisibleIndex >= 0 && firstVisibleIndex < this.dateColumns.length) {
       const col = this.dateColumns[firstVisibleIndex];
       this.visibleYear = col.year.toString();
       this.visibleMonth = col.monthFullName;
+      this.visibleWeek = 'W' + col.weekNumber;
     }
   }
 
@@ -679,6 +754,10 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
 
       const holiday = this.holidayService.getHoliday(currentDate);
 
+      const isoWeek = this.getISOWeekNumber(currentDate);
+      // Monday = first of ISO week, or first column in the range
+      const isFirstOfWeek = dayOfWeek === 1 || this.dateColumns.length === 0;
+
       this.dateColumns.push({
         date: new Date(currentDate),
         dayName: this.getDayName(currentDate),
@@ -693,8 +772,11 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
         isToday,
         isFirstOfMonth,
         isFirstOfYear,
+        isFirstOfWeek,
+        weekNumber: isoWeek,
         daysInMonth: 0,
-        daysInYear: 0
+        daysInYear: 0,
+        daysInWeek: 0
       });
 
       currentDate.setDate(currentDate.getDate() + 1);
@@ -715,6 +797,18 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
           }
         }
         col.daysInMonth = daysInMonth;
+      }
+
+      if (col.isFirstOfWeek) {
+        let daysInWeek = 1;
+        for (let j = i + 1; j < this.dateColumns.length; j++) {
+          if (this.dateColumns[j].weekNumber === col.weekNumber && !this.dateColumns[j].isFirstOfWeek) {
+            daysInWeek++;
+          } else {
+            break;
+          }
+        }
+        col.daysInWeek = daysInWeek;
       }
 
       if (col.isFirstOfYear) {
@@ -741,6 +835,13 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
 
   private getMonthFullName(date: Date): string {
     return date.toLocaleDateString('en-US', { month: 'long' });
+  }
+
+  private getISOWeekNumber(date: Date): number {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
   }
 
   private isSameDay(d1: Date, d2: Date): boolean {
@@ -805,10 +906,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     setTimeout(() => {
       const todayIndex = this.dateColumns.findIndex(col => col.isToday);
       if (todayIndex !== -1 && this.scrollContainer) {
-        const cellWidth = 40;
-        const containerWidth = this.scrollContainer.nativeElement.clientWidth || 800;
-
-        const scrollPosition = (todayIndex * cellWidth) - (containerWidth / 2);
+        const scrollPosition = (todayIndex - 7) * this.cellWidth;
         if (animate) {
           this.scrollContainer.nativeElement.scrollTo({ left: Math.max(0, scrollPosition), behavior: 'smooth' });
         } else {
@@ -817,6 +915,49 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
       }
       setTimeout(() => this.updateVisibleDateInfo(), animate ? 150 : 0);
     }, 100);
+  }
+
+  zoomIn(): void {
+    this.applyZoom(Math.min(this.cellWidth + this.ZOOM_STEP, this.ZOOM_MAX));
+  }
+
+  zoomOut(): void {
+    this.applyZoom(Math.max(this.cellWidth - this.ZOOM_STEP, this.ZOOM_MIN));
+  }
+
+  onWheel(event: WheelEvent): void {
+    event.preventDefault();
+    const container = this.scrollContainer.nativeElement;
+    const mouseX = event.clientX - container.getBoundingClientRect().left;
+    const oldWidth = this.cellWidth;
+    const newWidth = event.deltaY < 0
+      ? Math.min(oldWidth + this.ZOOM_STEP, this.ZOOM_MAX)
+      : Math.max(oldWidth - this.ZOOM_STEP, this.ZOOM_MIN);
+
+    if (newWidth === oldWidth) return;
+
+    // Keep the date under the cursor stable
+    const dateIndex = (container.scrollLeft + mouseX) / oldWidth;
+    this.cellWidth = newWidth;
+    container.scrollLeft = dateIndex * newWidth - mouseX;
+    this.updateVisibleDateInfo();
+    this.saveZoom();
+  }
+
+  private applyZoom(newWidth: number): void {
+    if (newWidth === this.cellWidth || !this.scrollContainer) return;
+
+    const container = this.scrollContainer.nativeElement;
+    const centerX = container.clientWidth / 2;
+    const dateIndex = (container.scrollLeft + centerX) / this.cellWidth;
+    this.cellWidth = newWidth;
+    container.scrollLeft = dateIndex * newWidth - centerX;
+    this.updateVisibleDateInfo();
+    this.saveZoom();
+  }
+
+  private saveZoom(): void {
+    this.userPreferencesService.setScheduleZoom(this.cellWidth);
   }
 
   private loadHolidays(): void {

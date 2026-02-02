@@ -8,6 +8,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatSliderModule } from '@angular/material/slider';
 import { AuthService } from '../../shared/services/auth.service';
 import { UserPreferencesService, UserPreferences } from '../../shared/services/user-preferences.service';
 
@@ -23,7 +24,8 @@ import { UserPreferencesService, UserPreferences } from '../../shared/services/u
     MatSelectModule,
     MatButtonModule,
     MatDividerModule,
-    MatCheckboxModule
+    MatCheckboxModule,
+    MatSliderModule
   ],
   template: `
     <div class="preferences-container">
@@ -80,6 +82,20 @@ import { UserPreferencesService, UserPreferences } from '../../shared/services/u
                 <mat-option value="workers">Workers</mat-option>
               </mat-select>
             </mat-form-field>
+          </div>
+
+          <mat-divider></mat-divider>
+
+          <div class="preferences-section">
+            <h3>Schedule</h3>
+
+            <div class="zoom-setting">
+              <label>Zoom level</label>
+              <mat-slider min="16" max="48" step="4" discrete>
+                <input matSliderThumb [value]="preferences.scheduleZoom" (valueChange)="onScheduleZoomChange($event)">
+              </mat-slider>
+              <span class="zoom-value">{{ preferences.scheduleZoom }}px</span>
+            </div>
           </div>
 
           <div *ngIf="authService.isManager" class="preferences-section">
@@ -153,6 +169,29 @@ import { UserPreferencesService, UserPreferences } from '../../shared/services/u
       margin: 0;
     }
 
+    .zoom-setting {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .zoom-setting label {
+      font-size: 14px;
+      white-space: nowrap;
+      color: var(--mat-sys-on-surface);
+    }
+
+    .zoom-setting mat-slider {
+      flex: 1;
+    }
+
+    .zoom-value {
+      font-size: 14px;
+      min-width: 36px;
+      text-align: right;
+      color: var(--mat-sys-on-surface-variant);
+    }
+
     .hint-text {
       margin: 4px 0 0;
       font-size: 12px;
@@ -187,6 +226,10 @@ export class PreferencesComponent {
 
   onNavigationExpandedChange(expanded: boolean): void {
     this.userPreferencesService.setNavigationExpanded(expanded);
+  }
+
+  onScheduleZoomChange(zoom: number): void {
+    this.userPreferencesService.setScheduleZoom(zoom);
   }
 
   onManagementModeChange(enabled: boolean): void {

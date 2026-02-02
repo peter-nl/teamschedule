@@ -6,13 +6,15 @@ export interface UserPreferences {
   navigationExpanded: boolean;
   defaultView: 'schedule' | 'teams' | 'workers';
   managementMode: boolean;
+  scheduleZoom: number;
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
   theme: 'system',
   navigationExpanded: true,
   defaultView: 'schedule',
-  managementMode: true
+  managementMode: true,
+  scheduleZoom: 40
 };
 
 const STORAGE_KEY = 'teamschedule-user-preferences';
@@ -84,6 +86,12 @@ export class UserPreferencesService {
   setManagementMode(enabled: boolean): void {
     const current = this.preferencesSubject.value;
     this.preferencesSubject.next({ ...current, managementMode: enabled });
+    this.savePreferences();
+  }
+
+  setScheduleZoom(zoom: number): void {
+    const current = this.preferencesSubject.value;
+    this.preferencesSubject.next({ ...current, scheduleZoom: zoom });
     this.savePreferences();
   }
 
