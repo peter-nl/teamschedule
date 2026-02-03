@@ -10,9 +10,14 @@ export interface ScheduleSettings {
   selectedTeamIds: string[];
 }
 
+export interface WorkersFilterSettings {
+  selectedTeamIds: string[];
+}
+
 interface AppSettings {
   teamsTable?: TableSettings;
   workersTable?: TableSettings;
+  workersFilter?: WorkersFilterSettings;
   schedule?: ScheduleSettings;
 }
 
@@ -63,6 +68,15 @@ export class SettingsService {
 
   setWorkersTableSettings(settings: TableSettings): void {
     this.settings.workersTable = settings;
+    this.saveSettings();
+  }
+
+  getWorkersFilterSettings(): WorkersFilterSettings | undefined {
+    return this.settings.workersFilter;
+  }
+
+  setWorkersFilterSettings(settings: WorkersFilterSettings): void {
+    this.settings.workersFilter = settings;
     this.saveSettings();
   }
 

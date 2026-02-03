@@ -9,9 +9,15 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatSelectModule } from '@angular/material/select';
+import { FormsModule } from '@angular/forms';
+import { forkJoin } from 'rxjs';
 import { WorkersService } from '../services/workers.service';
-import { Worker } from '../../../shared/models/worker.model';
+import { Worker, TeamBasic } from '../../../shared/models/worker.model';
 import { SettingsService } from '../../../shared/services/settings.service';
+import { ScheduleService } from '../../schedule/services/schedule.service';
+import { WorkerDetailDialogComponent } from '../../../shared/components/worker-detail-dialog.component';
 
 @Component({
   selector: 'app-workers-list',
@@ -26,17 +32,33 @@ import { SettingsService } from '../../../shared/services/settings.service';
     MatProgressSpinnerModule,
     MatButtonModule,
     MatIconModule,
-    MatChipsModule
+    MatChipsModule,
+    MatDialogModule,
+    MatSelectModule,
+    FormsModule
   ],
   template: `
     <div class="workers-container">
       <div class="header">
         <h1>Workers</h1>
-        <mat-form-field class="search-field" appearance="outline">
-          <mat-label>Search workers</mat-label>
-          <input matInput (keyup)="applyFilter($event)" placeholder="Search by ID, name, or particles" #input>
-          <mat-icon matSuffix>search</mat-icon>
-        </mat-form-field>
+        <div class="filter-fields">
+          <mat-form-field class="search-field" appearance="outline">
+            <mat-label>Search workers</mat-label>
+            <input matInput (keyup)="applyFilter($event)" placeholder="Search by ID, name, or particles" #input>
+            <mat-icon matSuffix>search</mat-icon>
+          </mat-form-field>
+          <mat-form-field class="team-filter" appearance="outline">
+            <mat-label>Filter by Teams</mat-label>
+            <mat-select [(ngModel)]="selectedTeamIdsArray" multiple (selectionChange)="onTeamFilterChange()">
+              <mat-option value="__no_team__">
+                [geen team] ({{ getWorkerCountWithoutTeam() }})
+              </mat-option>
+              <mat-option *ngFor="let team of teams" [value]="team.id">
+                {{ team.name }} ({{ getWorkerCountForTeam(team.id) }})
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
       </div>
 
       <div *ngIf="loading" class="loading-container">
@@ -87,20 +109,10 @@ import { SettingsService } from '../../../shared/services/settings.service';
             </td>
           </ng-container>
 
-          <ng-container matColumnDef="actions">
-            <th mat-header-cell *matHeaderCellDef>Actions</th>
-            <td mat-cell *matCellDef="let worker">
-              <button mat-icon-button color="primary" aria-label="View worker">
-                <mat-icon>visibility</mat-icon>
-              </button>
-              <button mat-icon-button color="accent" aria-label="Edit worker">
-                <mat-icon>edit</mat-icon>
-              </button>
-            </td>
-          </ng-container>
-
           <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;"
+              (dblclick)="onRowDblClick(row)"
+              class="clickable-row"></tr>
 
           <tr class="mat-row" *matNoDataRow>
             <td class="mat-cell" [attr.colspan]="displayedColumns.length">
@@ -144,9 +156,19 @@ import { SettingsService } from '../../../shared/services/settings.service';
       color: var(--mat-sys-on-surface);
     }
 
+    .filter-fields {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+
     .search-field {
       flex: 0 1 400px;
       min-width: 200px;
+    }
+
+    .team-filter {
+      min-width: 250px;
     }
 
     .loading-container,
@@ -187,6 +209,10 @@ import { SettingsService } from '../../../shared/services/settings.service';
 
     .mat-mdc-cell {
       padding: 16px;
+    }
+
+    .clickable-row {
+      cursor: pointer;
     }
 
     .mat-mdc-row:hover {
@@ -249,8 +275,11 @@ import { SettingsService } from '../../../shared/services/settings.service';
   `]
 })
 export class WorkersListComponent implements OnInit {
-  displayedColumns: string[] = ['id', 'firstName', 'particles', 'lastName', 'teams', 'actions'];
+  displayedColumns: string[] = ['id', 'firstName', 'particles', 'lastName', 'teams'];
   dataSource = new MatTableDataSource<Worker>();
+  allWorkers: Worker[] = [];
+  teams: TeamBasic[] = [];
+  selectedTeamIdsArray: string[] = [];
   loading = true;
   error: string | null = null;
   pageSize = 10;
@@ -273,11 +302,18 @@ export class WorkersListComponent implements OnInit {
 
   constructor(
     private workersService: WorkersService,
-    private settingsService: SettingsService
+    private scheduleService: ScheduleService,
+    private settingsService: SettingsService,
+    private dialog: MatDialog
   ) {
     const settings = this.settingsService.getWorkersTableSettings();
     if (settings) {
       this.pageSize = settings.pageSize;
+    }
+
+    const filterSettings = this.settingsService.getWorkersFilterSettings();
+    if (filterSettings) {
+      this.selectedTeamIdsArray = filterSettings.selectedTeamIds;
     }
 
     // Custom filter for searching across multiple fields including teams
@@ -310,9 +346,14 @@ export class WorkersListComponent implements OnInit {
     this.loading = true;
     this.error = null;
 
-    this.workersService.getWorkers().subscribe({
-      next: (workers) => {
-        this.dataSource.data = workers;
+    forkJoin({
+      workers: this.workersService.getWorkers(),
+      teams: this.scheduleService.getTeams()
+    }).subscribe({
+      next: (result) => {
+        this.allWorkers = result.workers;
+        this.teams = result.teams;
+        this.applyTeamFilter();
         this.loading = false;
       },
       error: (error) => {
@@ -345,6 +386,55 @@ export class WorkersListComponent implements OnInit {
       sortColumn: this.sortRef?.active || '',
       sortDirection: this.sortRef?.direction || '',
       pageSize: this.pageSize
+    });
+  }
+
+  onTeamFilterChange(): void {
+    this.settingsService.setWorkersFilterSettings({
+      selectedTeamIds: this.selectedTeamIdsArray
+    });
+    this.applyTeamFilter();
+  }
+
+  private applyTeamFilter(): void {
+    if (this.selectedTeamIdsArray.length === 0) {
+      this.dataSource.data = this.allWorkers;
+    } else {
+      this.dataSource.data = this.allWorkers.filter(worker => {
+        const workerTeamIds = new Set(worker.teams?.map(t => t.id) || []);
+        return this.selectedTeamIdsArray.every(teamId => {
+          if (teamId === '__no_team__') {
+            return !worker.teams || worker.teams.length === 0;
+          }
+          return workerTeamIds.has(teamId);
+        });
+      });
+    }
+  }
+
+  getWorkerCountForTeam(teamId: string): number {
+    return this.allWorkers.filter(worker =>
+      worker.teams?.some(t => t.id === teamId)
+    ).length;
+  }
+
+  getWorkerCountWithoutTeam(): number {
+    return this.allWorkers.filter(worker =>
+      !worker.teams || worker.teams.length === 0
+    ).length;
+  }
+
+  onRowDblClick(worker: Worker): void {
+    const dialogRef = this.dialog.open(WorkerDetailDialogComponent, {
+      width: '480px',
+      maxWidth: '95vw',
+      data: { workerId: worker.id }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) {
+        this.loadWorkers();
+      }
     });
   }
 }

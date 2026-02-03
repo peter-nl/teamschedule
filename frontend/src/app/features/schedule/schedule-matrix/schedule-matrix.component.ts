@@ -64,6 +64,9 @@ interface DateColumn {
         <mat-form-field appearance="outline" class="team-select">
           <mat-label>Filter by Teams</mat-label>
           <mat-select [(ngModel)]="selectedTeamIdsArray" multiple (selectionChange)="onTeamSelectionChange()">
+            <mat-option value="__no_team__">
+              [geen team] ({{ getWorkerCountWithoutTeam() }})
+            </mat-option>
             <mat-option *ngFor="let team of teams" [value]="team.id">
               {{ team.name }} ({{ getWorkerCountForTeam(team.id) }})
             </mat-option>
@@ -888,17 +891,28 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     if (this.selectedTeamIds.size === 0) {
       this.filteredWorkers = this.workers;
     } else {
-      // AND logic: worker must belong to ALL selected teams
+      // AND logic: worker must match ALL selected filters
       this.filteredWorkers = this.workers.filter(worker => {
         const workerTeamIds = new Set(worker.teams?.map(team => team.id) || []);
-        return Array.from(this.selectedTeamIds).every(teamId => workerTeamIds.has(teamId));
+        return Array.from(this.selectedTeamIds).every(teamId => {
+          if (teamId === '__no_team__') {
+            return !worker.teams || worker.teams.length === 0;
+          }
+          return workerTeamIds.has(teamId);
+        });
       });
     }
   }
 
   getWorkerCountForTeam(teamId: string): number {
-    return this.filteredWorkers.filter(worker =>
+    return this.workers.filter(worker =>
       worker.teams?.some(team => team.id === teamId)
+    ).length;
+  }
+
+  getWorkerCountWithoutTeam(): number {
+    return this.workers.filter(worker =>
+      !worker.teams || worker.teams.length === 0
     ).length;
   }
 
