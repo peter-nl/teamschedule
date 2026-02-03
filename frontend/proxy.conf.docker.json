@@ -1,0 +1,6 @@
+{
+  "/graphql": {
+    "target": "http://backend:4000",
+    "secure": false
+  }
+}

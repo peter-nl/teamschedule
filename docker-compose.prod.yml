@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: teamschedule-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - teamschedule-network
+
+  backend:
+    image: ghcr.io/peter-nl/teamschedule-backend:latest
+    container_name: teamschedule-backend
+    restart: always
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      PORT: 4000
+    depends_on:
+      - postgres
+    networks:
+      - teamschedule-network
+
+  frontend:
+    image: ghcr.io/peter-nl/teamschedule-frontend:latest
+    container_name: teamschedule-frontend
+    restart: always
+    depends_on:
+      - backend
+    networks:
+      - teamschedule-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: teamschedule-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - certbot_data:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - teamschedule-network
+
+  certbot:
+    image: certbot/certbot
+    container_name: teamschedule-certbot
+    volumes:
+      - certbot_data:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+
+volumes:
+  postgres_data:
+  certbot_data:
+  certbot_www:
+
+networks:
+  teamschedule-network:
+    driver: bridge
