@@ -95,7 +95,7 @@ const typeDefs = `#graphql
   type Mutation {
     ping: String
     createTeam(name: String!): Team!
-    createWorker(id: String!, firstName: String!, lastName: String!, particles: String): Worker!
+    createWorker(id: String!, firstName: String!, lastName: String!, particles: String, password: String!): Worker!
     addWorkerToTeam(teamId: ID!, workerId: ID!): Team!
     removeWorkerFromTeam(teamId: ID!, workerId: ID!): Team!
     deleteTeam(id: ID!): Boolean!
@@ -103,6 +103,7 @@ const typeDefs = `#graphql
     login(workerId: String!, password: String!): AuthPayload!
     updateWorkerProfile(id: String!, firstName: String!, lastName: String!, particles: String): Worker
     changePassword(workerId: String!, currentPassword: String!, newPassword: String!): AuthPayload!
+    resetPassword(workerId: String!, newPassword: String!, requesterId: String!): AuthPayload!
     updateWorkerRole(workerId: String!, role: String!, requesterId: String!): Worker
     addWorkerHoliday(workerId: String!, holiday: WorkerHolidayInput!): WorkerHoliday!
     removeWorkerHoliday(id: ID!): Boolean!
@@ -222,10 +223,13 @@ const resolvers = {
       );
       return result.rows[0];
     },
-    createWorker: async (_: any, { id, firstName, lastName, particles }: { id: string; firstName: string; lastName: string; particles?: string }) => {
+    createWorker: async (_: any, { id, firstName, lastName, particles, password }: { id: string; firstName: string; lastName: string; particles?: string; password: string }) => {
+      // Hash the password with bcrypt (10 salt rounds)
+      const hashedPassword = await bcrypt.hash(password, 10);
+
       const result = await pool.query(
-        'INSERT INTO worker (id, first_name, last_name, particles) VALUES ($1, $2, $3, $4) RETURNING *',
-        [id, firstName, lastName, particles || null]
+        'INSERT INTO worker (id, first_name, last_name, particles, password_hash) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+        [id, firstName, lastName, particles || null, hashedPassword]
       );
       const row = result.rows[0];
       return {
@@ -350,6 +354,48 @@ const resolvers = {
         };
       } catch (error) {
         return { success: false, message: 'Failed to change password', worker: null };
+      }
+    },
+    resetPassword: async (_: any, { workerId, newPassword, requesterId }: { workerId: string; newPassword: string; requesterId: string }) => {
+      try {
+        // Check if requester is a manager
+        const requesterResult = await pool.query('SELECT role FROM worker WHERE id = $1', [requesterId]);
+        if (requesterResult.rows.length === 0) {
+          return { success: false, message: 'Requester not found', worker: null };
+        }
+        if (requesterResult.rows[0].role !== 'manager') {
+          return { success: false, message: 'Only managers can reset passwords', worker: null };
+        }
+
+        // Prevent managers from resetting their own password via this mutation
+        if (workerId === requesterId) {
+          return { success: false, message: 'Cannot reset your own password. Use change password instead.', worker: null };
+        }
+
+        // Verify target worker exists
+        const workerResult = await pool.query('SELECT * FROM worker WHERE id = $1', [workerId]);
+        if (workerResult.rows.length === 0) {
+          return { success: false, message: 'Worker not found', worker: null };
+        }
+
+        // Hash and update password
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await pool.query('UPDATE worker SET password_hash = $2 WHERE id = $1', [workerId, hashedPassword]);
+
+        const row = workerResult.rows[0];
+        return {
+          success: true,
+          message: 'Password reset successfully',
+          worker: {
+            id: row.id,
+            firstName: row.first_name,
+            lastName: row.last_name,
+            particles: row.particles,
+            role: row.role,
+          }
+        };
+      } catch (error) {
+        return { success: false, message: 'Failed to reset password', worker: null };
       }
     },
     addWorkerHoliday: async (_: any, { workerId, holiday }: { workerId: string; holiday: { startDate: string; endDate: string; startDayPart: string; endDayPart: string; description?: string; holidayTypeId?: string } }) => {

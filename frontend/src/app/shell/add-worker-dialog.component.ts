@@ -27,8 +27,8 @@ const GET_TEAMS_QUERY = gql`
 `;
 
 const CREATE_WORKER_MUTATION = gql`
-  mutation CreateWorker($id: String!, $firstName: String!, $lastName: String!, $particles: String) {
-    createWorker(id: $id, firstName: $firstName, lastName: $lastName, particles: $particles) {
+  mutation CreateWorker($id: String!, $firstName: String!, $lastName: String!, $particles: String, $password: String!) {
+    createWorker(id: $id, firstName: $firstName, lastName: $lastName, particles: $particles, password: $password) {
       id
       firstName
       lastName
@@ -113,6 +113,31 @@ const ADD_WORKER_TO_TEAM_MUTATION = gql`
           </mat-select>
           <mat-hint>Optional - select one or more teams</mat-hint>
         </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Password</mat-label>
+          <input matInput
+                 [(ngModel)]="workerForm.password"
+                 name="password"
+                 [type]="hidePassword ? 'password' : 'text'"
+                 required>
+          <button mat-icon-button matSuffix type="button" (click)="hidePassword = !hidePassword">
+            <mat-icon>{{ hidePassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+          </button>
+          <mat-hint>Initial password for the worker</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Confirm Password</mat-label>
+          <input matInput
+                 [(ngModel)]="workerForm.confirmPassword"
+                 name="confirmPassword"
+                 [type]="hideConfirmPassword ? 'password' : 'text'"
+                 required>
+          <button mat-icon-button matSuffix type="button" (click)="hideConfirmPassword = !hideConfirmPassword">
+            <mat-icon>{{ hideConfirmPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+          </button>
+        </mat-form-field>
       </form>
     </mat-dialog-content>
 
@@ -170,12 +195,16 @@ export class AddWorkerDialogComponent implements OnInit {
     id: '',
     firstName: '',
     lastName: '',
-    particles: ''
+    particles: '',
+    password: '',
+    confirmPassword: ''
   };
 
   teams: Team[] = [];
   selectedTeamIds: string[] = [];
   loading = false;
+  hidePassword = true;
+  hideConfirmPassword = true;
 
   constructor(
     private dialogRef: MatDialogRef<AddWorkerDialogComponent>,
@@ -199,7 +228,13 @@ export class AddWorkerDialogComponent implements OnInit {
   }
 
   isValid(): boolean {
-    return !!(this.workerForm.id && this.workerForm.firstName && this.workerForm.lastName);
+    return !!(
+      this.workerForm.id &&
+      this.workerForm.firstName &&
+      this.workerForm.lastName &&
+      this.workerForm.password &&
+      this.workerForm.password === this.workerForm.confirmPassword
+    );
   }
 
   async onSubmit(): Promise<void> {
@@ -215,7 +250,8 @@ export class AddWorkerDialogComponent implements OnInit {
           id: this.workerForm.id,
           firstName: this.workerForm.firstName,
           lastName: this.workerForm.lastName,
-          particles: this.workerForm.particles || null
+          particles: this.workerForm.particles || null,
+          password: this.workerForm.password
         }
       });
 

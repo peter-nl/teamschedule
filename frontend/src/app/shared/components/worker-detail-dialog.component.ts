@@ -77,6 +77,15 @@ const REMOVE_WORKER_FROM_TEAM_MUTATION = gql`
   }
 `;
 
+const RESET_PASSWORD_MUTATION = gql`
+  mutation ResetPassword($workerId: String!, $newPassword: String!, $requesterId: String!) {
+    resetPassword(workerId: $workerId, newPassword: $newPassword, requesterId: $requesterId) {
+      success
+      message
+    }
+  }
+`;
+
 @Component({
   selector: 'app-worker-detail-dialog',
   standalone: true,
@@ -144,6 +153,49 @@ const REMOVE_WORKER_FROM_TEAM_MUTATION = gql`
             </mat-option>
           </mat-select>
         </mat-form-field>
+
+        <!-- Reset Password Section (managers only, for other workers) -->
+        <ng-container *ngIf="isEditing && canResetPassword">
+          <mat-divider style="margin: 16px 0;"></mat-divider>
+
+          <h4 style="margin: 0 0 12px 0; color: var(--mat-sys-primary); display: flex; align-items: center; gap: 8px;">
+            <mat-icon>lock_reset</mat-icon>
+            Reset Password
+          </h4>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>New Password</mat-label>
+            <input matInput
+                   [(ngModel)]="resetPasswordForm.newPassword"
+                   name="newPassword"
+                   [type]="hideNewPassword ? 'password' : 'text'">
+            <button mat-icon-button matSuffix type="button" (click)="hideNewPassword = !hideNewPassword">
+              <mat-icon>{{ hideNewPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+            </button>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Confirm New Password</mat-label>
+            <input matInput
+                   [(ngModel)]="resetPasswordForm.confirmPassword"
+                   name="confirmNewPassword"
+                   [type]="hideConfirmPassword ? 'password' : 'text'">
+            <button mat-icon-button matSuffix type="button" (click)="hideConfirmPassword = !hideConfirmPassword">
+              <mat-icon>{{ hideConfirmPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+            </button>
+          </mat-form-field>
+
+          <button mat-stroked-button
+                  color="primary"
+                  type="button"
+                  (click)="onResetPassword()"
+                  [disabled]="resettingPassword || !isPasswordFormValid"
+                  style="margin-top: 8px;">
+            <mat-spinner *ngIf="resettingPassword" diameter="18"></mat-spinner>
+            <mat-icon *ngIf="!resettingPassword">lock_reset</mat-icon>
+            <span *ngIf="!resettingPassword">Reset Password</span>
+          </button>
+        </ng-container>
       </div>
     </mat-dialog-content>
 
@@ -244,6 +296,14 @@ export class WorkerDetailDialogComponent implements OnInit {
     teamIds: [] as string[]
   };
 
+  resetPasswordForm = {
+    newPassword: '',
+    confirmPassword: ''
+  };
+  hideNewPassword = true;
+  hideConfirmPassword = true;
+  resettingPassword = false;
+
   constructor(
     public dialogRef: MatDialogRef<WorkerDetailDialogComponent, WorkerDetailDialogResult>,
     @Inject(MAT_DIALOG_DATA) public data: WorkerDetailDialogData,
@@ -280,8 +340,19 @@ export class WorkerDetailDialogComponent implements OnInit {
     return this.isManager && !this.isSelf;
   }
 
+  get canResetPassword(): boolean {
+    return this.isManager && !this.isSelf;
+  }
+
   get isFormValid(): boolean {
     return !!(this.editForm.firstName && this.editForm.lastName);
+  }
+
+  get isPasswordFormValid(): boolean {
+    return !!(
+      this.resetPasswordForm.newPassword &&
+      this.resetPasswordForm.newPassword === this.resetPasswordForm.confirmPassword
+    );
   }
 
   private async loadData(): Promise<void> {
@@ -432,6 +503,34 @@ export class WorkerDetailDialogComponent implements OnInit {
       this.snackBar.open(error.message || 'Failed to delete worker', 'Close', { duration: 5000 });
     } finally {
       this.deleting = false;
+    }
+  }
+
+  async onResetPassword(): Promise<void> {
+    if (!this.worker || !this.isPasswordFormValid) return;
+
+    this.resettingPassword = true;
+    try {
+      const result: any = await apolloClient.mutate({
+        mutation: RESET_PASSWORD_MUTATION,
+        variables: {
+          workerId: this.worker.id,
+          newPassword: this.resetPasswordForm.newPassword,
+          requesterId: this.authService.currentUser!.id
+        }
+      });
+
+      if (result.data.resetPassword.success) {
+        this.snackBar.open('Password reset successfully', 'Close', { duration: 3000 });
+        this.resetPasswordForm = { newPassword: '', confirmPassword: '' };
+      } else {
+        this.snackBar.open(result.data.resetPassword.message || 'Failed to reset password', 'Close', { duration: 5000 });
+      }
+    } catch (error: any) {
+      console.error('Failed to reset password:', error);
+      this.snackBar.open(error.message || 'Failed to reset password', 'Close', { duration: 5000 });
+    } finally {
+      this.resettingPassword = false;
     }
   }
 }
