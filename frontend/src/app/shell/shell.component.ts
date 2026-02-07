@@ -6,6 +6,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { filter } from 'rxjs/operators';
 import { AuthService } from '../shared/services/auth.service';
+import { APP_VERSION } from '../version';
 import { UserPreferencesService } from '../shared/services/user-preferences.service';
 import { AccountLoginComponent } from '../features/account/account-login.component';
 import { AccountProfileComponent } from '../features/account/account-profile.component';
@@ -144,6 +145,7 @@ interface NavItem {
             <span>Sign out</span>
           </button>
         </div>
+        <div class="nav-version">v{{ version }}</div>
       </nav>
 
       <!-- Management Nav Bar -->
@@ -169,6 +171,7 @@ interface NavItem {
             <span>Settings</span>
           </button>
         </div>
+        <div class="nav-version">v{{ version }}</div>
       </nav>
 
       <!-- Main Content Area -->
@@ -290,6 +293,14 @@ interface NavItem {
       display: flex;
       flex-direction: column;
       gap: 4px;
+    }
+
+    .nav-version {
+      text-align: center;
+      font-size: 11px;
+      color: var(--mat-sys-on-surface-variant);
+      opacity: 0.5;
+      padding: 8px 12px;
     }
 
     .nav-item {
@@ -544,6 +555,7 @@ export class ShellComponent {
   managementModeEnabled = true;
   activeNavBar: NavBarType | null = null;
   activePanel: PanelType | null = null;
+  version = APP_VERSION;
 
   constructor(
     private router: Router,
