@@ -180,12 +180,13 @@ interface NavItem {
       </main>
     </div>
 
-    <!-- Panel Overlay -->
-    <div class="panel-overlay" *ngIf="activePanel" (click)="closePanel()">
-      <div class="panel-dialog" [class.panel-dialog-wide]="isWidePanel" (click)="$event.stopPropagation()">
-        <button class="panel-close" (click)="closePanel()">
-          <mat-icon>close</mat-icon>
-        </button>
+    <!-- Slide-in Panel -->
+    <div class="slide-in-backdrop" *ngIf="activePanel" (click)="closePanel()"></div>
+    <div class="slide-in-shell-panel" *ngIf="activePanel" [style.left.px]="panelLeftOffset">
+      <button class="panel-close" (click)="closePanel()">
+        <mat-icon>close</mat-icon>
+      </button>
+      <div class="slide-in-content">
         <app-account-login *ngIf="activePanel === 'login'" (loginSuccess)="onLoginSuccess()"></app-account-login>
         <app-account-profile *ngIf="activePanel === 'profile'"></app-account-profile>
         <app-account-holidays *ngIf="activePanel === 'holidays'"></app-account-holidays>
@@ -410,35 +411,47 @@ interface NavItem {
       height: 20px;
     }
 
-    /* Panel Overlay */
-    .panel-overlay {
+    /* Slide-in Panel */
+    .slide-in-backdrop {
       position: fixed;
       top: 0;
       left: 0;
       right: 0;
       bottom: 0;
-      background: rgba(0, 0, 0, 0.4);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 200;
+      background: rgba(0, 0, 0, 0.3);
+      z-index: 199;
+      animation: fadeIn 200ms ease;
     }
 
-    .panel-dialog {
-      position: relative;
-      max-width: 560px;
-      width: 90%;
-      max-height: 85vh;
-      overflow-y: auto;
-      border-radius: 16px;
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
     }
 
-    .panel-dialog-wide {
-      max-width: 1100px;
-      width: 95%;
-      height: 80vh;
-      overflow-y: hidden;
+    .slide-in-shell-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
       background: var(--mat-sys-surface);
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      animation: slideInFromRight 300ms ease;
+      box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
+    }
+
+    @keyframes slideInFromRight {
+      from { transform: translateX(100%); }
+      to { transform: translateX(0); }
+    }
+
+    .slide-in-content {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      justify-content: center;
+      padding: 24px;
     }
 
     .panel-close {
@@ -593,9 +606,10 @@ export class ShellComponent {
     return this.authService.isManager && this.managementModeEnabled;
   }
 
-  get isWidePanel(): boolean {
-    return this.activePanel === 'manage-teams'
-        || this.activePanel === 'manage-workers';
+  get panelLeftOffset(): number {
+    const railWidth = this.isExpanded ? 220 : 80;
+    const barWidth = this.activeNavBar ? 200 : 0;
+    return railWidth + barWidth;
   }
 
   @HostListener('document:keydown.escape')
