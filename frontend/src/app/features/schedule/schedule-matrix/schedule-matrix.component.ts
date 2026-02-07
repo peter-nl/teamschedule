@@ -1,4 +1,4 @@
-import { Component, OnInit, AfterViewInit, OnDestroy, ViewChild, ElementRef, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, AfterViewInit, OnDestroy, ViewChild, ElementRef, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -23,6 +23,7 @@ import { HolidayDialogComponent, HolidayDialogData, HolidayDialogResult } from '
 
 interface DateColumn {
   date: Date;
+  dateKey: string; // Pre-computed 'YYYY-MM-DD' for O(1) lookups
   dayName: string;
   dayNumber: number;
   monthName: string;
@@ -42,6 +43,13 @@ interface DateColumn {
   daysInWeek?: number;
 }
 
+interface CellRenderData {
+  bgColor: string | null;
+  bgImage: string | null;
+  tooltip: string;
+  hasHoliday: boolean;
+}
+
 @Component({
   selector: 'app-schedule-matrix',
   standalone: true,
@@ -55,6 +63,7 @@ interface DateColumn {
     MatTooltipModule,
     MatButtonModule
   ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="schedule-container">
       <!-- Header with Team Filter -->
@@ -102,10 +111,10 @@ interface DateColumn {
             <div class="month-header-cell">{{ visibleMonth }}</div>
             <div class="week-header-cell"></div>
             <div class="day-header-cell" [style.height.px]="rowHeight"></div>
-            <div *ngFor="let worker of filteredWorkers; let rowIndex = index"
+            <div *ngFor="let worker of filteredWorkers; let rowIndex = index; trackBy: trackByWorkerId"
                  class="worker-name-cell"
                  [class.odd-row]="rowIndex % 2 === 1"
-                 [class.my-row]="isCurrentUser(worker)"
+                 [class.my-row]="currentUserId === worker.id"
                  [style.height.px]="rowHeight">
               {{ worker.firstName }}{{ worker.particles ? ' ' + worker.particles + ' ' : ' ' }}{{ worker.lastName }}
             </div>
@@ -120,7 +129,7 @@ interface DateColumn {
                (scroll)="onScroll()">
             <!-- Year Header Row -->
             <div class="year-row">
-              <ng-container *ngFor="let col of dateColumns">
+              <ng-container *ngFor="let col of dateColumns; trackBy: trackByDateKey">
                 <div *ngIf="col.isFirstOfYear"
                      class="year-cell"
                      [style.width.px]="col.daysInYear! * cellWidth">
@@ -131,7 +140,7 @@ interface DateColumn {
 
             <!-- Month Header Row -->
             <div class="month-row">
-              <ng-container *ngFor="let col of dateColumns">
+              <ng-container *ngFor="let col of dateColumns; trackBy: trackByDateKey">
                 <div *ngIf="col.isFirstOfMonth"
                      class="month-cell"
                      [style.width.px]="col.daysInMonth! * cellWidth">
@@ -142,7 +151,7 @@ interface DateColumn {
 
             <!-- Week Header Row -->
             <div class="week-row">
-              <ng-container *ngFor="let col of dateColumns">
+              <ng-container *ngFor="let col of dateColumns; trackBy: trackByDateKey">
                 <div *ngIf="col.isFirstOfWeek"
                      class="week-cell"
                      [style.width.px]="col.daysInWeek! * cellWidth">
@@ -153,7 +162,7 @@ interface DateColumn {
 
             <!-- Day Header Row -->
             <div class="day-row" [style.height.px]="rowHeight">
-              <div *ngFor="let col of dateColumns"
+              <div *ngFor="let col of dateColumns; trackBy: trackByDateKey"
                    class="day-cell"
                    [class.non-working]="col.isNonWorkingDay"
                    [class.holiday]="col.isHoliday"
@@ -168,23 +177,23 @@ interface DateColumn {
             </div>
 
             <!-- Worker Rows -->
-            <div *ngFor="let worker of filteredWorkers; let rowIndex = index"
+            <div *ngFor="let worker of filteredWorkers; let rowIndex = index; trackBy: trackByWorkerId"
                  class="worker-row">
-              <div *ngFor="let col of dateColumns"
+              <div *ngFor="let col of dateColumns; trackBy: trackByDateKey"
                    class="schedule-cell"
                    [class.non-working]="col.isNonWorkingDay"
                    [class.holiday]="col.isHoliday"
-                   [class.worker-holiday]="hasWorkerHoliday(worker, col)"
+                   [class.worker-holiday]="cellRenderMap.has(worker.id + ':' + col.dateKey)"
                    [class.today]="col.isToday"
                    [class.odd-row]="rowIndex % 2 === 1"
-                   [class.my-row]="isCurrentUser(worker)"
-                   [class.editable]="canEditCell(worker)"
+                   [class.my-row]="currentUserId === worker.id"
+                   [class.editable]="editableWorkerIds.has(worker.id)"
                    [style.width.px]="cellWidth"
                    [style.height.px]="rowHeight"
-                   [style.background-color]="getWorkerCellBgColor(col, worker)"
-                   [style.background-image]="getWorkerCellBgImage(col, worker)"
-                   [matTooltip]="getWorkerCellTooltip(col, worker)"
-                   [matTooltipDisabled]="!col.isHoliday && !hasWorkerHoliday(worker, col)"
+                   [style.background-color]="cellRenderMap.get(worker.id + ':' + col.dateKey)?.bgColor ?? getCellColor(col)"
+                   [style.background-image]="cellRenderMap.get(worker.id + ':' + col.dateKey)?.bgImage"
+                   [matTooltip]="cellRenderMap.get(worker.id + ':' + col.dateKey)?.tooltip || col.holidayName"
+                   [matTooltipDisabled]="!col.isHoliday && !cellRenderMap.has(worker.id + ':' + col.dateKey)"
                    (dblclick)="onCellDblClick(worker, col)"
                    (touchstart)="onCellTouchStart($event, worker, col)"
                    (touchend)="onCellTouchEnd()">
@@ -532,6 +541,13 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
   loading = true;
   error: string | null = null;
 
+  // Pre-computed render data for worker×date cells (only cells with worker holidays)
+  cellRenderMap = new Map<string, CellRenderData>();
+  // Pre-computed set of worker IDs that the current user can edit
+  editableWorkerIds = new Set<string>();
+  // Current user ID cached for template comparisons
+  currentUserId: string | null = null;
+
   // Zoom
   cellWidth = 40;
   private readonly ZOOM_MIN = 16;
@@ -605,19 +621,25 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
       this.holidayColorLight = settings.holidayColorLight;
       this.holidayColorDark = settings.holidayColorDark;
       this.updateNonWorkingDays();
+      this.rebuildCellRenderMap();
+      this.cdr.markForCheck();
     });
 
     // Track dark/light theme for holiday type colors
     this.userPreferencesService.isDarkTheme$.subscribe(isDark => {
       this.isDark = isDark;
+      this.rebuildCellRenderMap();
+      this.cdr.markForCheck();
     });
 
     // Track management mode and react to zoom changes from preferences
     this.userPreferencesService.preferences$.subscribe(prefs => {
       this.managementModeEnabled = prefs.managementMode;
+      this.rebuildEditableWorkerIds();
       if (prefs.scheduleZoom >= this.ZOOM_MIN && prefs.scheduleZoom <= this.ZOOM_MAX && prefs.scheduleZoom !== this.cellWidth) {
         this.cellWidth = prefs.scheduleZoom;
       }
+      this.cdr.markForCheck();
     });
 
     // Bind event handlers for drag-to-scroll
@@ -628,6 +650,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   ngOnInit(): void {
+    this.currentUserId = this.authService.currentUser?.id || null;
     this.generateDateColumns();
     this.loadHolidays();
     this.loadData();
@@ -636,10 +659,12 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     // Subscribe to holiday data changes
     this.holidayService.holidays$.subscribe(() => {
       this.updateHolidays();
+      this.cdr.markForCheck();
     });
 
-    // Subscribe to worker holiday changes for reactive updates
+    // Subscribe to worker holiday changes - rebuild cell render map
     this.workerHolidayService.holidays$.subscribe(() => {
+      this.rebuildCellRenderMap();
       this.cdr.markForCheck();
     });
   }
@@ -759,13 +784,18 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
       // Monday = first of ISO week, or first column in the range
       const isFirstOfWeek = dayOfWeek === 1 || this.dateColumns.length === 0;
 
+      const year = currentDate.getFullYear();
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const day = String(currentDate.getDate()).padStart(2, '0');
+
       this.dateColumns.push({
         date: new Date(currentDate),
+        dateKey: `${year}-${month}-${day}`,
         dayName: this.getDayName(currentDate),
         dayNumber: currentDate.getDate(),
         monthName: this.getMonthName(currentDate),
         monthFullName: this.getMonthFullName(currentDate),
-        year: currentDate.getFullYear(),
+        year,
         dayOfWeek,
         isNonWorkingDay,
         isHoliday: !!holiday,
@@ -863,12 +893,14 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
         this.teams = result.teams;
         this.filterWorkers();
         this.loading = false;
+        this.cdr.markForCheck();
         this.scrollToToday();
         this.loadWorkerHolidays();
       },
       error: (error) => {
         this.error = error.message || 'Failed to load schedule';
         this.loading = false;
+        this.cdr.markForCheck();
       }
     });
   }
@@ -876,7 +908,9 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
   onTeamSelectionChange(): void {
     this.selectedTeamIds = new Set(this.selectedTeamIdsArray);
     this.filterWorkers();
+    this.rebuildCellRenderMap();
     this.saveSettings();
+    this.cdr.markForCheck();
   }
 
   private saveSettings(): void {
@@ -900,6 +934,15 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
         });
       });
     }
+    this.rebuildEditableWorkerIds();
+  }
+
+  trackByWorkerId(_index: number, worker: Worker): string {
+    return worker.id;
+  }
+
+  trackByDateKey(_index: number, col: DateColumn): string {
+    return col.dateKey;
   }
 
   getWorkerCountForTeam(teamId: string): number {
@@ -985,56 +1028,55 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
 
   private loadWorkerHolidays(): void {
     if (this.dateColumns.length === 0) return;
-    const startDate = this.formatDateKey(this.dateColumns[0].date);
-    const endDate = this.formatDateKey(this.dateColumns[this.dateColumns.length - 1].date);
+    const startDate = this.dateColumns[0].dateKey;
+    const endDate = this.dateColumns[this.dateColumns.length - 1].dateKey;
     this.workerHolidayService.loadAllHolidays(startDate, endDate).subscribe();
   }
 
-  private formatDateKey(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
+  /** Pre-compute render data for all worker×date cells that have worker holidays */
+  private rebuildCellRenderMap(): void {
+    this.cellRenderMap.clear();
+    for (const worker of this.filteredWorkers) {
+      for (const col of this.dateColumns) {
+        const holiday = this.workerHolidayService.getHoliday(worker.id, col.dateKey);
+        if (holiday) {
+          const color = this.getHolidayColor(holiday);
+          let bgColor: string | null = null;
+          let bgImage: string | null = null;
 
-  isCurrentUser(worker: Worker): boolean {
-    return this.authService.currentUser?.id === worker.id;
-  }
+          if (holiday.dayPart === 'full') {
+            bgColor = color;
+          } else if (holiday.dayPart === 'morning') {
+            bgImage = `linear-gradient(to bottom right, ${color} 50%, transparent 50%)`;
+          } else if (holiday.dayPart === 'afternoon') {
+            bgImage = `linear-gradient(to bottom right, transparent 50%, ${color} 50%)`;
+          }
 
-  hasWorkerHoliday(worker: Worker, col: DateColumn): boolean {
-    return this.workerHolidayService.hasHoliday(worker.id, this.formatDateKey(col.date));
-  }
+          const typeName = holiday.holidayType?.name || 'Vakantie';
+          const partLabel = holiday.dayPart === 'morning' ? ' (morning)'
+                          : holiday.dayPart === 'afternoon' ? ' (afternoon)'
+                          : '';
+          const desc = holiday.description ? `: ${holiday.description}` : '';
 
-  getWorkerCellBgColor(col: DateColumn, worker: Worker): string | null {
-    const workerHoliday = this.workerHolidayService.getHoliday(worker.id, this.formatDateKey(col.date));
-    if (workerHoliday) {
-      // Full day: solid background color
-      if (workerHoliday.dayPart === 'full') {
-        return this.getHolidayColor(workerHoliday);
-      }
-      // Half day: no background-color — let CSS default show through the transparent half
-      return null;
-    }
-    if (col.isToday) return null;
-    if (col.isHoliday) return this.holidayColor;
-    if (col.isNonWorkingDay) return this.nonWorkingDayColor;
-    return null;
-  }
-
-  getWorkerCellBgImage(col: DateColumn, worker: Worker): string | null {
-    const workerHoliday = this.workerHolidayService.getHoliday(worker.id, this.formatDateKey(col.date));
-    if (workerHoliday && workerHoliday.dayPart !== 'full') {
-      const color = this.getHolidayColor(workerHoliday);
-      if (workerHoliday.dayPart === 'morning') {
-        // Morning = \ pattern (top-left triangle colored)
-        return `linear-gradient(to bottom right, ${color} 50%, transparent 50%)`;
-      }
-      if (workerHoliday.dayPart === 'afternoon') {
-        // Afternoon = \ pattern (bottom-right triangle colored)
-        return `linear-gradient(to bottom right, transparent 50%, ${color} 50%)`;
+          this.cellRenderMap.set(`${worker.id}:${col.dateKey}`, {
+            bgColor,
+            bgImage,
+            tooltip: `${typeName}${partLabel}${desc}`,
+            hasHoliday: true
+          });
+        }
       }
     }
-    return null;
+  }
+
+  private rebuildEditableWorkerIds(): void {
+    this.editableWorkerIds.clear();
+    const isManager = this.authService.isManager && this.managementModeEnabled;
+    for (const worker of this.filteredWorkers) {
+      if (isManager || worker.id === this.currentUserId) {
+        this.editableWorkerIds.add(worker.id);
+      }
+    }
   }
 
   private getHolidayColor(workerHoliday: ExpandedDayEntry): string {
@@ -1048,37 +1090,15 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     return '#c8e6c9';
   }
 
-  getWorkerCellTooltip(col: DateColumn, worker: Worker): string {
-    const workerHoliday = this.workerHolidayService.getHoliday(worker.id, this.formatDateKey(col.date));
-    if (workerHoliday) {
-      const typeName = workerHoliday.holidayType?.name || 'Vakantie';
-      const partLabel = workerHoliday.dayPart === 'morning' ? ' (morning)'
-                      : workerHoliday.dayPart === 'afternoon' ? ' (afternoon)'
-                      : '';
-      const desc = workerHoliday.description ? `: ${workerHoliday.description}` : '';
-      return `${typeName}${partLabel}${desc}`;
-    }
-    return col.holidayName;
-  }
-
-  private get isManagerMode(): boolean {
-    return this.authService.isManager && this.managementModeEnabled;
-  }
-
-  canEditCell(worker: Worker): boolean {
-    return this.isCurrentUser(worker) || this.isManagerMode;
-  }
-
-  isEditableCell(worker: Worker, col: DateColumn): boolean {
-    if (!this.canEditCell(worker)) return false;
-    return this.hasWorkerHoliday(worker, col);
+  private canEditCell(worker: Worker): boolean {
+    return this.editableWorkerIds.has(worker.id);
   }
 
   onCellDblClick(worker: Worker, col: DateColumn): void {
     if (!this.canEditCell(worker)) return;
 
-    if (this.hasWorkerHoliday(worker, col)) {
-      const dayEntry = this.workerHolidayService.getHoliday(worker.id, this.formatDateKey(col.date));
+    if (this.workerHolidayService.hasHoliday(worker.id, col.dateKey)) {
+      const dayEntry = this.workerHolidayService.getHoliday(worker.id, col.dateKey);
       if (!dayEntry) return;
 
       const period = this.workerHolidayService.getPeriod(dayEntry.periodId);
@@ -1096,8 +1116,8 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     this.longPressTimer = setTimeout(() => {
       this.longPressTimer = null;
 
-      if (this.hasWorkerHoliday(worker, col)) {
-        const dayEntry = this.workerHolidayService.getHoliday(worker.id, this.formatDateKey(col.date));
+      if (this.workerHolidayService.hasHoliday(worker.id, col.dateKey)) {
+        const dayEntry = this.workerHolidayService.getHoliday(worker.id, col.dateKey);
         if (!dayEntry) return;
 
         const period = this.workerHolidayService.getPeriod(dayEntry.periodId);
@@ -1128,7 +1148,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   private openAddHolidayDialog(date: Date, worker: Worker): void {
-    const isOther = !this.isCurrentUser(worker);
+    const isOther = worker.id !== this.currentUserId;
     const panelRef = this.panelService.open<HolidayDialogComponent, HolidayDialogData, HolidayDialogResult>(
       HolidayDialogComponent,
       {
@@ -1150,7 +1170,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   private openEditHolidayDialog(period: WorkerHolidayPeriod, worker: Worker): void {
-    const isOther = !this.isCurrentUser(worker);
+    const isOther = worker.id !== this.currentUserId;
     const panelRef = this.panelService.open<HolidayDialogComponent, HolidayDialogData, HolidayDialogResult>(
       HolidayDialogComponent,
       {
