@@ -241,7 +241,9 @@ const RESET_PASSWORD_MUTATION = gql`
       display: flex;
       flex-direction: column;
       gap: 4px;
-      min-width: 360px;
+      width: 100%;
+      max-width: 480px;
+      margin: 0 auto;
     }
 
     .full-width {

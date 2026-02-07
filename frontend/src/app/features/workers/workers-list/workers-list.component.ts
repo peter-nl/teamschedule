@@ -16,6 +16,8 @@ import { WorkersService } from '../services/workers.service';
 import { Worker, TeamBasic } from '../../../shared/models/worker.model';
 import { SettingsService } from '../../../shared/services/settings.service';
 import { ScheduleService } from '../../schedule/services/schedule.service';
+import { AuthService } from '../../../shared/services/auth.service';
+import { UserPreferencesService } from '../../../shared/services/user-preferences.service';
 import { SlideInPanelService } from '../../../shared/services/slide-in-panel.service';
 import { WorkerDetailDialogComponent } from '../../../shared/components/worker-detail-dialog.component';
 
@@ -108,9 +110,20 @@ import { WorkerDetailDialogComponent } from '../../../shared/components/worker-d
             </td>
           </ng-container>
 
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef></th>
+            <td mat-cell *matCellDef="let worker">
+              <button mat-icon-button
+                      *ngIf="canEditWorker(worker)"
+                      (click)="openWorkerDetail(worker); $event.stopPropagation()">
+                <mat-icon>edit</mat-icon>
+              </button>
+            </td>
+          </ng-container>
+
           <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
           <tr mat-row *matRowDef="let row; columns: displayedColumns;"
-              (dblclick)="onRowDblClick(row)"
+              (dblclick)="openWorkerDetail(row)"
               class="clickable-row"></tr>
 
           <tr class="mat-row" *matNoDataRow>
@@ -237,6 +250,11 @@ import { WorkerDetailDialogComponent } from '../../../shared/components/worker-d
       font-size: 13px;
     }
 
+    .mat-column-actions {
+      width: 48px;
+      text-align: center;
+    }
+
     .no-data {
       display: flex;
       flex-direction: column;
@@ -274,7 +292,7 @@ import { WorkerDetailDialogComponent } from '../../../shared/components/worker-d
   `]
 })
 export class WorkersListComponent implements OnInit {
-  displayedColumns: string[] = ['id', 'firstName', 'particles', 'lastName', 'teams'];
+  displayedColumns: string[] = ['id', 'firstName', 'particles', 'lastName', 'teams', 'actions'];
   dataSource = new MatTableDataSource<Worker>();
   allWorkers: Worker[] = [];
   teams: TeamBasic[] = [];
@@ -299,12 +317,23 @@ export class WorkersListComponent implements OnInit {
     }
   }
 
+  private managementModeEnabled = false;
+  private navigationExpanded = true;
+
   constructor(
     private workersService: WorkersService,
     private scheduleService: ScheduleService,
     private settingsService: SettingsService,
+    private authService: AuthService,
+    private userPreferencesService: UserPreferencesService,
     private panelService: SlideInPanelService
   ) {
+    this.managementModeEnabled = this.userPreferencesService.preferences.managementMode;
+    this.navigationExpanded = this.userPreferencesService.preferences.navigationExpanded;
+    this.userPreferencesService.preferences$.subscribe(prefs => {
+      this.managementModeEnabled = prefs.managementMode;
+      this.navigationExpanded = prefs.navigationExpanded;
+    });
     const settings = this.settingsService.getWorkersTableSettings();
     if (settings) {
       this.pageSize = settings.pageSize;
@@ -423,9 +452,16 @@ export class WorkersListComponent implements OnInit {
     ).length;
   }
 
-  onRowDblClick(worker: Worker): void {
+  canEditWorker(worker: Worker): boolean {
+    const isSelf = worker.id === this.authService.currentUser?.id;
+    const isManagerMode = this.authService.isManager && this.managementModeEnabled;
+    return isSelf || isManagerMode;
+  }
+
+  openWorkerDetail(worker: Worker): void {
+    const railWidth = this.navigationExpanded ? 220 : 80;
     const panelRef = this.panelService.open(WorkerDetailDialogComponent, {
-      width: '480px',
+      leftOffset: `${railWidth}px`,
       data: { workerId: worker.id }
     });
 

@@ -117,7 +117,6 @@ interface DateColumn {
                [class.dragging]="isDragging"
                (mousedown)="onMouseDown($event)"
                (touchstart)="onTouchStart($event)"
-               (wheel)="onWheel($event)"
                (scroll)="onScroll()">
             <!-- Year Header Row -->
             <div class="year-row">
@@ -936,25 +935,6 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
 
   zoomOut(): void {
     this.applyZoom(Math.max(this.cellWidth - this.ZOOM_STEP, this.ZOOM_MIN));
-  }
-
-  onWheel(event: WheelEvent): void {
-    event.preventDefault();
-    const container = this.scrollContainer.nativeElement;
-    const mouseX = event.clientX - container.getBoundingClientRect().left;
-    const oldWidth = this.cellWidth;
-    const newWidth = event.deltaY < 0
-      ? Math.min(oldWidth + this.ZOOM_STEP, this.ZOOM_MAX)
-      : Math.max(oldWidth - this.ZOOM_STEP, this.ZOOM_MIN);
-
-    if (newWidth === oldWidth) return;
-
-    // Keep the date under the cursor stable
-    const dateIndex = (container.scrollLeft + mouseX) / oldWidth;
-    this.cellWidth = newWidth;
-    container.scrollLeft = dateIndex * newWidth - mouseX;
-    this.updateVisibleDateInfo();
-    this.saveZoom();
   }
 
   private applyZoom(newWidth: number): void {

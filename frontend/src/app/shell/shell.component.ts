@@ -91,6 +91,7 @@ interface NavItem {
             <span class="nav-label">{{ authService.isLoggedIn ? 'Account' : 'Login' }}</span>
           </a>
         </div>
+        <div class="nav-version">v{{ version }}</div>
       </nav>
 
       <!-- Account Nav Bar -->
@@ -145,7 +146,6 @@ interface NavItem {
             <span>Sign out</span>
           </button>
         </div>
-        <div class="nav-version">v{{ version }}</div>
       </nav>
 
       <!-- Management Nav Bar -->
@@ -171,7 +171,6 @@ interface NavItem {
             <span>Settings</span>
           </button>
         </div>
-        <div class="nav-version">v{{ version }}</div>
       </nav>
 
       <!-- Main Content Area -->

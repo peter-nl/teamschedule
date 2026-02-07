@@ -9,6 +9,8 @@ export const SLIDE_IN_PANEL_DATA = new InjectionToken<any>('SLIDE_IN_PANEL_DATA'
 export interface SlideInPanelConfig<D = any> {
   data?: D;
   width?: string;
+  /** Left offset (e.g. '220px'). Panel fills from this offset to the right edge. Backdrop also starts here. */
+  leftOffset?: string;
   panelClass?: string | string[];
 }
 
@@ -60,6 +62,18 @@ export class SlideInPanelService {
     this.attachComponent(overlayRef, component, config, panelRef);
     this.panelStack.push(panelRef);
 
+    // When leftOffset is set, shift backdrop and overlay wrapper so navigation stays visible
+    if (config.leftOffset) {
+      const backdropEl = overlayRef.backdropElement;
+      if (backdropEl) {
+        backdropEl.style.left = config.leftOffset;
+      }
+      const wrapper = overlayRef.overlayElement.parentElement;
+      if (wrapper) {
+        wrapper.style.left = config.leftOffset;
+      }
+    }
+
     // Handle backdrop click
     overlayRef.backdropClick().subscribe(() => {
       panelRef.close();
@@ -93,17 +107,25 @@ export class SlideInPanelService {
       }
     }
 
+    const useFullWidth = !!config.leftOffset;
+
+    const positionStrategy = this.overlay.position()
+      .global()
+      .top('0')
+      .bottom('0')
+      .right('0');
+
+    if (useFullWidth) {
+      positionStrategy.left(config.leftOffset!);
+    }
+
     const overlayConfig = new OverlayConfig({
       hasBackdrop: true,
       backdropClass: ['slide-in-panel-backdrop', `panel-level-${this.panelStack.length}`],
-      positionStrategy: this.overlay.position()
-        .global()
-        .right('0')
-        .top('0')
-        .bottom('0'),
+      positionStrategy,
       scrollStrategy: this.overlay.scrollStrategies.block(),
-      width: config.width || '480px',
-      maxWidth: '95vw',
+      width: useFullWidth ? '100%' : (config.width || '480px'),
+      maxWidth: useFullWidth ? '100%' : '95vw',
       panelClass: panelClasses
     });
 
