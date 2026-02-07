@@ -10,11 +10,11 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatDividerModule } from '@angular/material/divider';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog.component';
+import { SlideInPanelService } from '../../shared/services/slide-in-panel.service';
 import { AuthService } from '../../shared/services/auth.service';
 
 interface Team {
@@ -117,7 +117,6 @@ const REMOVE_WORKER_FROM_TEAM_MUTATION = gql`
     MatSelectModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
-    MatDialogModule,
     MatDividerModule
   ],
   template: `
@@ -483,7 +482,7 @@ export class ManageWorkersComponent implements OnInit {
   constructor(
     private authService: AuthService,
     private snackBar: MatSnackBar,
-    private dialog: MatDialog
+    private panelService: SlideInPanelService
   ) {}
 
   get isSelectedWorkerSelf(): boolean {
@@ -684,7 +683,8 @@ export class ManageWorkersComponent implements OnInit {
   confirmDelete(): void {
     if (!this.selectedWorker) return;
 
-    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+    const panelRef = this.panelService.open(ConfirmDialogComponent, {
+      width: '400px',
       data: {
         title: 'Delete Worker',
         message: `Are you sure you want to delete "${this.selectedWorker.firstName} ${this.selectedWorker.lastName}"?`,
@@ -693,7 +693,7 @@ export class ManageWorkersComponent implements OnInit {
       }
     });
 
-    dialogRef.afterClosed().subscribe(confirmed => {
+    panelRef.afterClosed().subscribe(confirmed => {
       if (confirmed) {
         this.deleteWorker();
       }

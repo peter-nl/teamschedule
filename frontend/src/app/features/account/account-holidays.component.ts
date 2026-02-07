@@ -5,10 +5,10 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { AuthService } from '../../shared/services/auth.service';
 import { WorkerHolidayService, WorkerHolidayPeriod } from '../../core/services/worker-holiday.service';
 import { UserPreferencesService } from '../../shared/services/user-preferences.service';
+import { SlideInPanelService } from '../../shared/services/slide-in-panel.service';
 import { HolidayDialogComponent, HolidayDialogData, HolidayDialogResult } from '../../shared/components/holiday-dialog.component';
 
 @Component({
@@ -20,8 +20,7 @@ import { HolidayDialogComponent, HolidayDialogData, HolidayDialogResult } from '
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule,
-    MatDialogModule
+    MatSnackBarModule
   ],
   template: `
     <mat-card class="holidays-card">
@@ -186,7 +185,7 @@ export class AccountHolidaysComponent {
     private workerHolidayService: WorkerHolidayService,
     private userPreferencesService: UserPreferencesService,
     private snackBar: MatSnackBar,
-    private dialog: MatDialog
+    private panelService: SlideInPanelService
   ) {
     this.userPreferencesService.isDarkTheme$.subscribe(isDark => {
       this.isDark = isDark;
@@ -219,16 +218,15 @@ export class AccountHolidaysComponent {
     const user = this.authService.currentUser;
     if (!user) return;
 
-    const dialogRef = this.dialog.open<HolidayDialogComponent, HolidayDialogData, HolidayDialogResult>(
+    const panelRef = this.panelService.open<HolidayDialogComponent, HolidayDialogData, HolidayDialogResult>(
       HolidayDialogComponent,
       {
         width: '480px',
-        maxWidth: '95vw',
         data: { mode: 'add', workerId: user.id }
       }
     );
 
-    dialogRef.afterClosed().subscribe(result => {
+    panelRef.afterClosed().subscribe(result => {
       if (result) this.loadMyHolidays(user.id);
     });
   }
@@ -237,16 +235,15 @@ export class AccountHolidaysComponent {
     const user = this.authService.currentUser;
     if (!user) return;
 
-    const dialogRef = this.dialog.open<HolidayDialogComponent, HolidayDialogData, HolidayDialogResult>(
+    const panelRef = this.panelService.open<HolidayDialogComponent, HolidayDialogData, HolidayDialogResult>(
       HolidayDialogComponent,
       {
         width: '480px',
-        maxWidth: '95vw',
         data: { mode: 'edit', workerId: user.id, period: holiday }
       }
     );
 
-    dialogRef.afterClosed().subscribe(result => {
+    panelRef.afterClosed().subscribe(result => {
       if (result) this.loadMyHolidays(user.id);
     });
   }

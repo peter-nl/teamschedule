@@ -1,8 +1,8 @@
 import { Component, Inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { SlideInPanelRef, SLIDE_IN_PANEL_DATA } from '../services/slide-in-panel.service';
 
 export interface ConfirmDialogData {
   title: string;
@@ -17,59 +17,54 @@ export interface ConfirmDialogData {
   standalone: true,
   imports: [
     CommonModule,
-    MatDialogModule,
     MatButtonModule,
     MatIconModule
   ],
   template: `
-    <h2 mat-dialog-title>
-      <mat-icon>warning</mat-icon>
-      {{ data.title }}
-    </h2>
-    <mat-dialog-content>
-      <p>{{ data.message }}</p>
-    </mat-dialog-content>
-    <mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close>{{ data.cancelText || 'Cancel' }}</button>
-      <button mat-raised-button [color]="data.confirmColor || 'primary'" (click)="confirm()">
-        {{ data.confirmText || 'Confirm' }}
-      </button>
-    </mat-dialog-actions>
+    <div class="slide-in-panel">
+      <div class="panel-header">
+        <h2>
+          <mat-icon class="warning-icon">warning</mat-icon>
+          {{ data.title }}
+        </h2>
+        <button class="panel-close" (click)="panelRef.close()">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+
+      <div class="panel-content">
+        <p class="message">{{ data.message }}</p>
+      </div>
+
+      <div class="panel-actions">
+        <span class="spacer"></span>
+        <button mat-button (click)="panelRef.close()">{{ data.cancelText || 'Cancel' }}</button>
+        <button mat-raised-button [color]="data.confirmColor || 'primary'" (click)="confirm()">
+          {{ data.confirmText || 'Confirm' }}
+        </button>
+      </div>
+    </div>
   `,
   styles: [`
-    h2[mat-dialog-title] {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin: 0;
-      padding: 16px 24px;
+    .warning-icon {
+      color: var(--mat-sys-error) !important;
     }
 
-    h2[mat-dialog-title] mat-icon {
-      color: var(--mat-sys-error);
-    }
-
-    mat-dialog-content {
-      padding: 0 24px 16px;
-    }
-
-    mat-dialog-content p {
+    .message {
       margin: 0;
       color: var(--mat-sys-on-surface-variant);
-    }
-
-    mat-dialog-actions {
-      padding: 16px 24px;
+      font-size: 14px;
+      line-height: 1.5;
     }
   `]
 })
 export class ConfirmDialogComponent {
   constructor(
-    public dialogRef: MatDialogRef<ConfirmDialogComponent>,
-    @Inject(MAT_DIALOG_DATA) public data: ConfirmDialogData
+    public panelRef: SlideInPanelRef<ConfirmDialogComponent>,
+    @Inject(SLIDE_IN_PANEL_DATA) public data: ConfirmDialogData
   ) {}
 
   confirm(): void {
-    this.dialogRef.close(true);
+    this.panelRef.close(true);
   }
 }

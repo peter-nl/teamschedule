@@ -1,7 +1,6 @@
 import { Component, Inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -14,6 +13,7 @@ import { provideNativeDateAdapter } from '@angular/material/core';
 import { WorkerHolidayService, WorkerHolidayPeriod, WorkerHolidayInput, DayPart } from '../../core/services/worker-holiday.service';
 import { HolidayTypeService, HolidayType } from '../../core/services/holiday-type.service';
 import { UserPreferencesService } from '../services/user-preferences.service';
+import { SlideInPanelRef, SLIDE_IN_PANEL_DATA } from '../services/slide-in-panel.service';
 
 export interface HolidayDialogData {
   mode: 'add' | 'edit';
@@ -33,7 +33,6 @@ export interface HolidayDialogResult {
   imports: [
     CommonModule,
     FormsModule,
-    MatDialogModule,
     MatButtonModule,
     MatIconModule,
     MatFormFieldModule,
@@ -45,129 +44,120 @@ export interface HolidayDialogResult {
   ],
   providers: [provideNativeDateAdapter()],
   template: `
-    <h2 mat-dialog-title>
-      <mat-icon>{{ data.mode === 'add' ? 'add_circle' : 'edit' }}</mat-icon>
-      {{ data.mode === 'add' ? 'Add Holiday' : 'Edit Holiday' }}
-    </h2>
-
-    <mat-dialog-content>
-      <div *ngIf="data.workerName" class="worker-warning">
-        <mat-icon>warning</mat-icon>
-        <span>You are editing the data of worker <strong>{{ data.workerName }}</strong></span>
+    <div class="slide-in-panel">
+      <div class="panel-header">
+        <h2>
+          <mat-icon>{{ data.mode === 'add' ? 'add_circle' : 'edit' }}</mat-icon>
+          {{ data.mode === 'add' ? 'Add Holiday' : 'Edit Holiday' }}
+        </h2>
+        <button class="panel-close" (click)="panelRef.close()" [disabled]="saving || deleting">
+          <mat-icon>close</mat-icon>
+        </button>
       </div>
-      <div class="form-content">
-        <div class="date-row">
-          <mat-form-field appearance="outline" class="date-field">
-            <mat-label>Start Date</mat-label>
-            <input matInput
-                   [matDatepicker]="startPicker"
-                   [(ngModel)]="form.startDate"
-                   name="startDate"
-                   required>
-            <mat-datepicker-toggle matSuffix [for]="startPicker"></mat-datepicker-toggle>
-            <mat-datepicker #startPicker></mat-datepicker>
+
+      <div class="panel-content">
+        <div *ngIf="data.workerName" class="worker-warning">
+          <mat-icon>warning</mat-icon>
+          <span>You are editing the data of worker <strong>{{ data.workerName }}</strong></span>
+        </div>
+        <div class="form-content">
+          <div class="date-row">
+            <mat-form-field appearance="outline" class="date-field">
+              <mat-label>Start Date</mat-label>
+              <input matInput
+                     [matDatepicker]="startPicker"
+                     [(ngModel)]="form.startDate"
+                     name="startDate"
+                     required>
+              <mat-datepicker-toggle matSuffix [for]="startPicker"></mat-datepicker-toggle>
+              <mat-datepicker #startPicker></mat-datepicker>
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="date-field">
+              <mat-label>End Date</mat-label>
+              <input matInput
+                     [matDatepicker]="endPicker"
+                     [(ngModel)]="form.endDate"
+                     name="endDate"
+                     [min]="form.startDate"
+                     (ngModelChange)="onEndDateChange()">
+              <mat-datepicker-toggle matSuffix [for]="endPicker"></mat-datepicker-toggle>
+              <mat-datepicker #endPicker></mat-datepicker>
+            </mat-form-field>
+          </div>
+
+          <div class="day-part-row">
+            <!-- Single date: all 3 options -->
+            <mat-form-field appearance="outline" class="day-part-field" *ngIf="!isDateRange">
+              <mat-label>Day Part</mat-label>
+              <mat-select [(ngModel)]="form.startDayPart" name="startDayPart">
+                <mat-option value="full">Full day</mat-option>
+                <mat-option value="morning">Morning</mat-option>
+                <mat-option value="afternoon">Afternoon</mat-option>
+              </mat-select>
+            </mat-form-field>
+
+            <!-- Range: first day -->
+            <mat-form-field appearance="outline" class="day-part-field" *ngIf="isDateRange">
+              <mat-label>First day</mat-label>
+              <mat-select [(ngModel)]="form.startDayPart" name="startDayPartRange">
+                <mat-option value="full">Full day</mat-option>
+                <mat-option value="afternoon">Afternoon only</mat-option>
+              </mat-select>
+            </mat-form-field>
+
+            <!-- Range: last day -->
+            <mat-form-field appearance="outline" class="day-part-field" *ngIf="isDateRange">
+              <mat-label>Last day</mat-label>
+              <mat-select [(ngModel)]="form.endDayPart" name="endDayPart">
+                <mat-option value="full">Full day</mat-option>
+                <mat-option value="morning">Morning only</mat-option>
+              </mat-select>
+            </mat-form-field>
+          </div>
+
+          <mat-form-field appearance="outline" class="full-width" *ngIf="holidayTypes.length > 0">
+            <mat-label>Type</mat-label>
+            <mat-select [(ngModel)]="form.holidayTypeId" name="holidayTypeId">
+              <mat-option *ngFor="let type of holidayTypes" [value]="type.id">
+                {{ type.name }}
+              </mat-option>
+            </mat-select>
           </mat-form-field>
-          <mat-form-field appearance="outline" class="date-field">
-            <mat-label>End Date</mat-label>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Description (optional)</mat-label>
             <input matInput
-                   [matDatepicker]="endPicker"
-                   [(ngModel)]="form.endDate"
-                   name="endDate"
-                   [min]="form.startDate"
-                   (ngModelChange)="onEndDateChange()">
-            <mat-datepicker-toggle matSuffix [for]="endPicker"></mat-datepicker-toggle>
-            <mat-datepicker #endPicker></mat-datepicker>
+                   [(ngModel)]="form.description"
+                   name="description"
+                   placeholder="e.g., Vacation, Day off">
           </mat-form-field>
         </div>
-
-        <div class="day-part-row">
-          <!-- Single date: all 3 options -->
-          <mat-form-field appearance="outline" class="day-part-field" *ngIf="!isDateRange">
-            <mat-label>Day Part</mat-label>
-            <mat-select [(ngModel)]="form.startDayPart" name="startDayPart">
-              <mat-option value="full">Full day</mat-option>
-              <mat-option value="morning">Morning</mat-option>
-              <mat-option value="afternoon">Afternoon</mat-option>
-            </mat-select>
-          </mat-form-field>
-
-          <!-- Range: first day -->
-          <mat-form-field appearance="outline" class="day-part-field" *ngIf="isDateRange">
-            <mat-label>First day</mat-label>
-            <mat-select [(ngModel)]="form.startDayPart" name="startDayPartRange">
-              <mat-option value="full">Full day</mat-option>
-              <mat-option value="afternoon">Afternoon only</mat-option>
-            </mat-select>
-          </mat-form-field>
-
-          <!-- Range: last day -->
-          <mat-form-field appearance="outline" class="day-part-field" *ngIf="isDateRange">
-            <mat-label>Last day</mat-label>
-            <mat-select [(ngModel)]="form.endDayPart" name="endDayPart">
-              <mat-option value="full">Full day</mat-option>
-              <mat-option value="morning">Morning only</mat-option>
-            </mat-select>
-          </mat-form-field>
-        </div>
-
-        <mat-form-field appearance="outline" class="full-width" *ngIf="holidayTypes.length > 0">
-          <mat-label>Type</mat-label>
-          <mat-select [(ngModel)]="form.holidayTypeId" name="holidayTypeId">
-            <mat-option *ngFor="let type of holidayTypes" [value]="type.id">
-              {{ type.name }}
-            </mat-option>
-          </mat-select>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Description (optional)</mat-label>
-          <input matInput
-                 [(ngModel)]="form.description"
-                 name="description"
-                 placeholder="e.g., Vacation, Day off">
-        </mat-form-field>
       </div>
-    </mat-dialog-content>
 
-    <mat-dialog-actions>
-      <button mat-button
-              color="warn"
-              *ngIf="data.mode === 'edit'"
-              (click)="onDelete()"
-              [disabled]="saving || deleting"
-              class="delete-button">
-        <mat-spinner *ngIf="deleting" diameter="18"></mat-spinner>
-        <mat-icon *ngIf="!deleting">delete</mat-icon>
-        <span *ngIf="!deleting">Delete</span>
-      </button>
-      <span class="spacer"></span>
-      <button mat-button mat-dialog-close [disabled]="saving || deleting">Cancel</button>
-      <button mat-raised-button
-              color="primary"
-              (click)="onSave()"
-              [disabled]="saving || deleting || !form.startDate">
-        <mat-spinner *ngIf="saving" diameter="18"></mat-spinner>
-        <span *ngIf="!saving">{{ data.mode === 'add' ? 'Add' : 'Save' }}</span>
-      </button>
-    </mat-dialog-actions>
+      <div class="panel-actions">
+        <button mat-button
+                color="warn"
+                *ngIf="data.mode === 'edit'"
+                (click)="onDelete()"
+                [disabled]="saving || deleting"
+                class="delete-button">
+          <mat-spinner *ngIf="deleting" diameter="18"></mat-spinner>
+          <mat-icon *ngIf="!deleting">delete</mat-icon>
+          <span *ngIf="!deleting">Delete</span>
+        </button>
+        <span class="spacer"></span>
+        <button mat-button (click)="panelRef.close()" [disabled]="saving || deleting">Cancel</button>
+        <button mat-raised-button
+                color="primary"
+                (click)="onSave()"
+                [disabled]="saving || deleting || !form.startDate">
+          <mat-spinner *ngIf="saving" diameter="18"></mat-spinner>
+          <span *ngIf="!saving">{{ data.mode === 'add' ? 'Add' : 'Save' }}</span>
+        </button>
+      </div>
+    </div>
   `,
   styles: [`
-    h2[mat-dialog-title] {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin: 0;
-      padding: 16px 24px;
-    }
-
-    h2[mat-dialog-title] mat-icon {
-      color: var(--mat-sys-primary);
-    }
-
-    mat-dialog-content {
-      padding: 0 24px 16px;
-    }
-
     .worker-warning {
       display: flex;
       align-items: center;
@@ -216,20 +206,10 @@ export interface HolidayDialogResult {
       width: 100%;
     }
 
-    mat-dialog-actions {
-      padding: 16px 24px;
-      display: flex;
-      align-items: center;
-    }
-
     .delete-button {
       display: flex;
       align-items: center;
       gap: 4px;
-    }
-
-    .spacer {
-      flex: 1;
     }
 
     button mat-spinner {
@@ -254,8 +234,8 @@ export class HolidayDialogComponent implements OnInit {
   deleting = false;
 
   constructor(
-    public dialogRef: MatDialogRef<HolidayDialogComponent, HolidayDialogResult>,
-    @Inject(MAT_DIALOG_DATA) public data: HolidayDialogData,
+    public panelRef: SlideInPanelRef<HolidayDialogComponent, HolidayDialogResult>,
+    @Inject(SLIDE_IN_PANEL_DATA) public data: HolidayDialogData,
     private workerHolidayService: WorkerHolidayService,
     private holidayTypeService: HolidayTypeService,
     private userPreferencesService: UserPreferencesService,
@@ -343,7 +323,7 @@ export class HolidayDialogComponent implements OnInit {
         next: () => {
           this.saving = false;
           this.snackBar.open('Holiday added', 'Close', { duration: 3000 });
-          this.dialogRef.close({ action: 'saved' });
+          this.panelRef.close({ action: 'saved' });
         },
         error: (error) => {
           this.saving = false;
@@ -356,7 +336,7 @@ export class HolidayDialogComponent implements OnInit {
         next: () => {
           this.saving = false;
           this.snackBar.open('Holiday updated', 'Close', { duration: 3000 });
-          this.dialogRef.close({ action: 'saved' });
+          this.panelRef.close({ action: 'saved' });
         },
         error: (error) => {
           this.saving = false;
@@ -375,7 +355,7 @@ export class HolidayDialogComponent implements OnInit {
       next: () => {
         this.deleting = false;
         this.snackBar.open('Holiday removed', 'Close', { duration: 3000 });
-        this.dialogRef.close({ action: 'deleted' });
+        this.panelRef.close({ action: 'deleted' });
       },
       error: (error) => {
         this.deleting = false;

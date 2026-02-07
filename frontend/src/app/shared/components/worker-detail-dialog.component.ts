@@ -1,7 +1,6 @@
 import { Component, Inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA, MatDialog } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -13,6 +12,7 @@ import { MatDividerModule } from '@angular/material/divider';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
 import { AuthService } from '../services/auth.service';
+import { SlideInPanelRef, SlideInPanelService, SLIDE_IN_PANEL_DATA } from '../services/slide-in-panel.service';
 import { ConfirmDialogComponent } from './confirm-dialog.component';
 
 interface WorkerFull {
@@ -92,7 +92,6 @@ const RESET_PASSWORD_MUTATION = gql`
   imports: [
     CommonModule,
     FormsModule,
-    MatDialogModule,
     MatButtonModule,
     MatIconModule,
     MatFormFieldModule,
@@ -103,144 +102,135 @@ const RESET_PASSWORD_MUTATION = gql`
     MatDividerModule
   ],
   template: `
-    <h2 mat-dialog-title>
-      <mat-icon>person</mat-icon>
-      Worker Details
-    </h2>
-
-    <mat-dialog-content>
-      <div *ngIf="loadingData" class="loading">
-        <mat-progress-spinner mode="indeterminate" diameter="40"></mat-progress-spinner>
+    <div class="slide-in-panel">
+      <div class="panel-header">
+        <h2>
+          <mat-icon>person</mat-icon>
+          Worker Details
+        </h2>
+        <button class="panel-close" (click)="panelRef.close()">
+          <mat-icon>close</mat-icon>
+        </button>
       </div>
 
-      <div *ngIf="!loadingData && worker" class="form-content">
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Worker ID</mat-label>
-          <input matInput [value]="worker.id" disabled>
-        </mat-form-field>
+      <div class="panel-content">
+        <div *ngIf="loadingData" class="loading">
+          <mat-progress-spinner mode="indeterminate" diameter="40"></mat-progress-spinner>
+        </div>
 
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>First Name</mat-label>
-          <input matInput [(ngModel)]="editForm.firstName" name="firstName" [disabled]="!isEditing">
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Particles</mat-label>
-          <input matInput [(ngModel)]="editForm.particles" name="particles" [disabled]="!isEditing"
-                 placeholder="e.g., van, de">
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Last Name</mat-label>
-          <input matInput [(ngModel)]="editForm.lastName" name="lastName" [disabled]="!isEditing">
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Role</mat-label>
-          <mat-select [(ngModel)]="editForm.role" name="role"
-                      [disabled]="!isEditing || !canEditRole">
-            <mat-option value="user">User</mat-option>
-            <mat-option value="manager">Manager</mat-option>
-          </mat-select>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Teams</mat-label>
-          <mat-select [(ngModel)]="editForm.teamIds" name="teams" multiple
-                      [disabled]="!isEditing || !canEditTeams">
-            <mat-option *ngFor="let team of allTeams" [value]="team.id">
-              {{ team.name }}
-            </mat-option>
-          </mat-select>
-        </mat-form-field>
-
-        <!-- Reset Password Section (managers only, for other workers) -->
-        <ng-container *ngIf="isEditing && canResetPassword">
-          <mat-divider style="margin: 16px 0;"></mat-divider>
-
-          <h4 style="margin: 0 0 12px 0; color: var(--mat-sys-primary); display: flex; align-items: center; gap: 8px;">
-            <mat-icon>lock_reset</mat-icon>
-            Reset Password
-          </h4>
-
+        <div *ngIf="!loadingData && worker" class="form-content">
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>New Password</mat-label>
-            <input matInput
-                   [(ngModel)]="resetPasswordForm.newPassword"
-                   name="newPassword"
-                   [type]="hideNewPassword ? 'password' : 'text'">
-            <button mat-icon-button matSuffix type="button" (click)="hideNewPassword = !hideNewPassword">
-              <mat-icon>{{ hideNewPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
-            </button>
+            <mat-label>Worker ID</mat-label>
+            <input matInput [value]="worker.id" disabled>
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Confirm New Password</mat-label>
-            <input matInput
-                   [(ngModel)]="resetPasswordForm.confirmPassword"
-                   name="confirmNewPassword"
-                   [type]="hideConfirmPassword ? 'password' : 'text'">
-            <button mat-icon-button matSuffix type="button" (click)="hideConfirmPassword = !hideConfirmPassword">
-              <mat-icon>{{ hideConfirmPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
-            </button>
+            <mat-label>First Name</mat-label>
+            <input matInput [(ngModel)]="editForm.firstName" name="firstName" [disabled]="!isEditing">
           </mat-form-field>
 
-          <button mat-stroked-button
-                  color="primary"
-                  type="button"
-                  (click)="onResetPassword()"
-                  [disabled]="resettingPassword || !isPasswordFormValid"
-                  style="margin-top: 8px;">
-            <mat-spinner *ngIf="resettingPassword" diameter="18"></mat-spinner>
-            <mat-icon *ngIf="!resettingPassword">lock_reset</mat-icon>
-            <span *ngIf="!resettingPassword">Reset Password</span>
-          </button>
-        </ng-container>
-      </div>
-    </mat-dialog-content>
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Particles</mat-label>
+            <input matInput [(ngModel)]="editForm.particles" name="particles" [disabled]="!isEditing"
+                   placeholder="e.g., van, de">
+          </mat-form-field>
 
-    <mat-dialog-actions *ngIf="!loadingData && worker">
-      <button mat-button color="warn"
-              *ngIf="canDelete && !isEditing"
-              (click)="onDelete()"
-              [disabled]="saving || deleting"
-              class="delete-button">
-        <mat-spinner *ngIf="deleting" diameter="18"></mat-spinner>
-        <mat-icon *ngIf="!deleting">delete</mat-icon>
-        <span *ngIf="!deleting">Delete</span>
-      </button>
-      <span class="spacer"></span>
-      <button mat-button mat-dialog-close [disabled]="saving || deleting">
-        {{ isEditing ? 'Cancel' : 'Close' }}
-      </button>
-      <button *ngIf="!isEditing && canEdit" mat-raised-button color="primary" (click)="startEdit()">
-        <mat-icon>edit</mat-icon> Edit
-      </button>
-      <button *ngIf="isEditing" mat-raised-button color="primary"
-              (click)="onSave()"
-              [disabled]="saving || deleting || !isFormValid">
-        <mat-spinner *ngIf="saving" diameter="18"></mat-spinner>
-        <span *ngIf="!saving">Save</span>
-      </button>
-    </mat-dialog-actions>
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Last Name</mat-label>
+            <input matInput [(ngModel)]="editForm.lastName" name="lastName" [disabled]="!isEditing">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Role</mat-label>
+            <mat-select [(ngModel)]="editForm.role" name="role"
+                        [disabled]="!isEditing || !canEditRole">
+              <mat-option value="user">User</mat-option>
+              <mat-option value="manager">Manager</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Teams</mat-label>
+            <mat-select [(ngModel)]="editForm.teamIds" name="teams" multiple
+                        [disabled]="!isEditing || !canEditTeams">
+              <mat-option *ngFor="let team of allTeams" [value]="team.id">
+                {{ team.name }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <!-- Reset Password Section (managers only, for other workers) -->
+          <ng-container *ngIf="isEditing && canResetPassword">
+            <mat-divider style="margin: 16px 0;"></mat-divider>
+
+            <h4 style="margin: 0 0 12px 0; color: var(--mat-sys-primary); display: flex; align-items: center; gap: 8px;">
+              <mat-icon>lock_reset</mat-icon>
+              Reset Password
+            </h4>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>New Password</mat-label>
+              <input matInput
+                     [(ngModel)]="resetPasswordForm.newPassword"
+                     name="newPassword"
+                     [type]="hideNewPassword ? 'password' : 'text'">
+              <button mat-icon-button matSuffix type="button" (click)="hideNewPassword = !hideNewPassword">
+                <mat-icon>{{ hideNewPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+              </button>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Confirm New Password</mat-label>
+              <input matInput
+                     [(ngModel)]="resetPasswordForm.confirmPassword"
+                     name="confirmNewPassword"
+                     [type]="hideConfirmPassword ? 'password' : 'text'">
+              <button mat-icon-button matSuffix type="button" (click)="hideConfirmPassword = !hideConfirmPassword">
+                <mat-icon>{{ hideConfirmPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+              </button>
+            </mat-form-field>
+
+            <button mat-stroked-button
+                    color="primary"
+                    type="button"
+                    (click)="onResetPassword()"
+                    [disabled]="resettingPassword || !isPasswordFormValid"
+                    style="margin-top: 8px;">
+              <mat-spinner *ngIf="resettingPassword" diameter="18"></mat-spinner>
+              <mat-icon *ngIf="!resettingPassword">lock_reset</mat-icon>
+              <span *ngIf="!resettingPassword">Reset Password</span>
+            </button>
+          </ng-container>
+        </div>
+      </div>
+
+      <div class="panel-actions" *ngIf="!loadingData && worker">
+        <button mat-button color="warn"
+                *ngIf="canDelete && !isEditing"
+                (click)="onDelete()"
+                [disabled]="saving || deleting"
+                class="delete-button">
+          <mat-spinner *ngIf="deleting" diameter="18"></mat-spinner>
+          <mat-icon *ngIf="!deleting">delete</mat-icon>
+          <span *ngIf="!deleting">Delete</span>
+        </button>
+        <span class="spacer"></span>
+        <button mat-button (click)="panelRef.close()" [disabled]="saving || deleting">
+          {{ isEditing ? 'Cancel' : 'Close' }}
+        </button>
+        <button *ngIf="!isEditing && canEdit" mat-raised-button color="primary" (click)="startEdit()">
+          <mat-icon>edit</mat-icon> Edit
+        </button>
+        <button *ngIf="isEditing" mat-raised-button color="primary"
+                (click)="onSave()"
+                [disabled]="saving || deleting || !isFormValid">
+          <mat-spinner *ngIf="saving" diameter="18"></mat-spinner>
+          <span *ngIf="!saving">Save</span>
+        </button>
+      </div>
+    </div>
   `,
   styles: [`
-    h2[mat-dialog-title] {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin: 0;
-      padding: 16px 24px;
-    }
-
-    h2[mat-dialog-title] mat-icon {
-      color: var(--mat-sys-primary);
-    }
-
-    mat-dialog-content {
-      padding: 0 24px 16px;
-    }
-
     .loading {
       display: flex;
       justify-content: center;
@@ -258,20 +248,10 @@ const RESET_PASSWORD_MUTATION = gql`
       width: 100%;
     }
 
-    mat-dialog-actions {
-      padding: 16px 24px;
-      display: flex;
-      align-items: center;
-    }
-
     .delete-button {
       display: flex;
       align-items: center;
       gap: 4px;
-    }
-
-    .spacer {
-      flex: 1;
     }
 
     button mat-spinner {
@@ -305,11 +285,11 @@ export class WorkerDetailDialogComponent implements OnInit {
   resettingPassword = false;
 
   constructor(
-    public dialogRef: MatDialogRef<WorkerDetailDialogComponent, WorkerDetailDialogResult>,
-    @Inject(MAT_DIALOG_DATA) public data: WorkerDetailDialogData,
+    public panelRef: SlideInPanelRef<WorkerDetailDialogComponent, WorkerDetailDialogResult>,
+    @Inject(SLIDE_IN_PANEL_DATA) public data: WorkerDetailDialogData,
     private authService: AuthService,
     private snackBar: MatSnackBar,
-    private dialog: MatDialog
+    private panelService: SlideInPanelService
   ) {}
 
   ngOnInit(): void {
@@ -454,7 +434,7 @@ export class WorkerDetailDialogComponent implements OnInit {
       }
 
       this.snackBar.open('Worker updated', 'Close', { duration: 3000 });
-      this.dialogRef.close({ action: 'saved' });
+      this.panelRef.close({ action: 'saved' });
     } catch (error: any) {
       console.error('Failed to update worker:', error);
       this.snackBar.open(error.message || 'Failed to update worker', 'Close', { duration: 5000 });
@@ -470,7 +450,8 @@ export class WorkerDetailDialogComponent implements OnInit {
       ? `${this.worker.firstName} ${this.worker.particles} ${this.worker.lastName}`
       : `${this.worker.firstName} ${this.worker.lastName}`;
 
-    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+    const confirmRef = this.panelService.open(ConfirmDialogComponent, {
+      width: '400px',
       data: {
         title: 'Delete Worker',
         message: `Are you sure you want to delete "${name}"?`,
@@ -479,7 +460,7 @@ export class WorkerDetailDialogComponent implements OnInit {
       }
     });
 
-    dialogRef.afterClosed().subscribe(confirmed => {
+    confirmRef.afterClosed().subscribe(confirmed => {
       if (confirmed) {
         this.deleteWorker();
       }
@@ -497,7 +478,7 @@ export class WorkerDetailDialogComponent implements OnInit {
       });
 
       this.snackBar.open('Worker deleted', 'Close', { duration: 3000 });
-      this.dialogRef.close({ action: 'deleted' });
+      this.panelRef.close({ action: 'deleted' });
     } catch (error: any) {
       console.error('Failed to delete worker:', error);
       this.snackBar.open(error.message || 'Failed to delete worker', 'Close', { duration: 5000 });

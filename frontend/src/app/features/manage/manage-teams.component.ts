@@ -10,11 +10,11 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatDividerModule } from '@angular/material/divider';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog.component';
+import { SlideInPanelService } from '../../shared/services/slide-in-panel.service';
 
 interface Worker {
   id: string;
@@ -101,7 +101,6 @@ const REMOVE_WORKER_FROM_TEAM_MUTATION = gql`
     MatSelectModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
-    MatDialogModule,
     MatDividerModule
   ],
   template: `
@@ -422,7 +421,7 @@ export class ManageTeamsComponent implements OnInit {
 
   constructor(
     private snackBar: MatSnackBar,
-    private dialog: MatDialog
+    private panelService: SlideInPanelService
   ) {}
 
   ngOnInit(): void {
@@ -585,7 +584,8 @@ export class ManageTeamsComponent implements OnInit {
   confirmDelete(): void {
     if (!this.selectedTeam) return;
 
-    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+    const panelRef = this.panelService.open(ConfirmDialogComponent, {
+      width: '400px',
       data: {
         title: 'Delete Team',
         message: `Are you sure you want to delete "${this.selectedTeam.name}"?`,
@@ -594,7 +594,7 @@ export class ManageTeamsComponent implements OnInit {
       }
     });
 
-    dialogRef.afterClosed().subscribe(confirmed => {
+    panelRef.afterClosed().subscribe(confirmed => {
       if (confirmed) {
         this.deleteTeam();
       }

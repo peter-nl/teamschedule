@@ -7,7 +7,6 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatButtonModule } from '@angular/material/button';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { forkJoin } from 'rxjs';
 import { ScheduleService } from '../services/schedule.service';
 import { Worker } from '../../../shared/models/worker.model';
@@ -19,6 +18,7 @@ import { WorkerHolidayService, ExpandedDayEntry, WorkerHolidayPeriod } from '../
 import { HolidayTypeService } from '../../../core/services/holiday-type.service';
 import { UserPreferencesService } from '../../../shared/services/user-preferences.service';
 import { AuthService } from '../../../shared/services/auth.service';
+import { SlideInPanelService } from '../../../shared/services/slide-in-panel.service';
 import { HolidayDialogComponent, HolidayDialogData, HolidayDialogResult } from '../../../shared/components/holiday-dialog.component';
 
 interface DateColumn {
@@ -53,8 +53,7 @@ interface DateColumn {
     MatProgressSpinnerModule,
     MatIconModule,
     MatTooltipModule,
-    MatButtonModule,
-    MatDialogModule
+    MatButtonModule
   ],
   template: `
     <div class="schedule-container">
@@ -592,7 +591,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     private userPreferencesService: UserPreferencesService,
     private authService: AuthService,
     private cdr: ChangeDetectorRef,
-    private dialog: MatDialog
+    private panelService: SlideInPanelService
   ) {
     const settings = this.settingsService.getScheduleSettings();
     if (settings?.selectedTeamIds) {
@@ -1150,11 +1149,10 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
 
   private openAddHolidayDialog(date: Date, worker: Worker): void {
     const isOther = !this.isCurrentUser(worker);
-    const dialogRef = this.dialog.open<HolidayDialogComponent, HolidayDialogData, HolidayDialogResult>(
+    const panelRef = this.panelService.open<HolidayDialogComponent, HolidayDialogData, HolidayDialogResult>(
       HolidayDialogComponent,
       {
         width: '480px',
-        maxWidth: '95vw',
         data: {
           mode: 'add',
           workerId: worker.id,
@@ -1164,7 +1162,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
       }
     );
 
-    dialogRef.afterClosed().subscribe(result => {
+    panelRef.afterClosed().subscribe(result => {
       if (result) {
         this.loadWorkerHolidays();
       }
@@ -1173,11 +1171,10 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
 
   private openEditHolidayDialog(period: WorkerHolidayPeriod, worker: Worker): void {
     const isOther = !this.isCurrentUser(worker);
-    const dialogRef = this.dialog.open<HolidayDialogComponent, HolidayDialogData, HolidayDialogResult>(
+    const panelRef = this.panelService.open<HolidayDialogComponent, HolidayDialogData, HolidayDialogResult>(
       HolidayDialogComponent,
       {
         width: '480px',
-        maxWidth: '95vw',
         data: {
           mode: 'edit',
           workerId: worker.id,
@@ -1187,7 +1184,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
       }
     );
 
-    dialogRef.afterClosed().subscribe(result => {
+    panelRef.afterClosed().subscribe(result => {
       if (result) {
         this.loadWorkerHolidays();
       }

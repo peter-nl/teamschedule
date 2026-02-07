@@ -9,7 +9,6 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatSelectModule } from '@angular/material/select';
 import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
@@ -17,6 +16,7 @@ import { WorkersService } from '../services/workers.service';
 import { Worker, TeamBasic } from '../../../shared/models/worker.model';
 import { SettingsService } from '../../../shared/services/settings.service';
 import { ScheduleService } from '../../schedule/services/schedule.service';
+import { SlideInPanelService } from '../../../shared/services/slide-in-panel.service';
 import { WorkerDetailDialogComponent } from '../../../shared/components/worker-detail-dialog.component';
 
 @Component({
@@ -33,7 +33,6 @@ import { WorkerDetailDialogComponent } from '../../../shared/components/worker-d
     MatButtonModule,
     MatIconModule,
     MatChipsModule,
-    MatDialogModule,
     MatSelectModule,
     FormsModule
   ],
@@ -304,7 +303,7 @@ export class WorkersListComponent implements OnInit {
     private workersService: WorkersService,
     private scheduleService: ScheduleService,
     private settingsService: SettingsService,
-    private dialog: MatDialog
+    private panelService: SlideInPanelService
   ) {
     const settings = this.settingsService.getWorkersTableSettings();
     if (settings) {
@@ -425,13 +424,12 @@ export class WorkersListComponent implements OnInit {
   }
 
   onRowDblClick(worker: Worker): void {
-    const dialogRef = this.dialog.open(WorkerDetailDialogComponent, {
+    const panelRef = this.panelService.open(WorkerDetailDialogComponent, {
       width: '480px',
-      maxWidth: '95vw',
       data: { workerId: worker.id }
     });
 
-    dialogRef.afterClosed().subscribe(result => {
+    panelRef.afterClosed().subscribe(result => {
       if (result) {
         this.loadWorkers();
       }
