@@ -9,6 +9,9 @@ export interface TableSettings {
 
 export interface ScheduleSettings {
   selectedTeamIds: string[];
+  searchText?: string;
+  sortColumn?: string;
+  sortDirection?: 'asc' | 'desc';
 }
 
 export interface WorkersFilterSettings {

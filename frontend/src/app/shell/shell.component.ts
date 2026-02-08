@@ -8,17 +8,17 @@ import { filter } from 'rxjs/operators';
 import { AuthService } from '../shared/services/auth.service';
 import { APP_VERSION } from '../version';
 import { UserPreferencesService } from '../shared/services/user-preferences.service';
+import { SlideInPanelService } from '../shared/services/slide-in-panel.service';
 import { AccountLoginComponent } from '../features/account/account-login.component';
 import { AccountProfileComponent } from '../features/account/account-profile.component';
 import { AccountHolidaysComponent } from '../features/account/account-holidays.component';
 import { AccountPasswordComponent } from '../features/account/account-password.component';
-import { PreferencesComponent } from '../features/preferences/preferences.component';
 import { ManageTeamsComponent } from '../features/manage/manage-teams.component';
 import { ManageWorkersComponent } from '../features/manage/manage-workers.component';
 import { ManageSettingsComponent } from '../features/manage/manage-settings.component';
 
 type NavBarType = 'account' | 'management';
-type PanelType = 'login' | 'profile' | 'holidays' | 'password' | 'preferences'
+type PanelType = 'login' | 'profile' | 'holidays' | 'password'
               | 'manage-teams' | 'manage-workers' | 'manage-settings';
 
 interface NavItem {
@@ -41,7 +41,6 @@ interface NavItem {
     AccountProfileComponent,
     AccountHolidaysComponent,
     AccountPasswordComponent,
-    PreferencesComponent,
     ManageTeamsComponent,
     ManageWorkersComponent,
     ManageSettingsComponent
@@ -62,6 +61,7 @@ interface NavItem {
              class="nav-item"
              [class.active]="isActive(item.path)"
              [routerLink]="item.path"
+             (click)="onNavItemClick()"
              [matTooltip]="isExpanded ? '' : item.label"
              matTooltipPosition="right">
             <mat-icon>{{ item.icon }}</mat-icon>
@@ -103,6 +103,13 @@ interface NavItem {
             <span>{{ isDark ? 'Light theme' : 'Dark theme' }}</span>
           </button>
 
+          <button *ngIf="authService.isManager"
+                  class="nav-bar-item"
+                  (click)="onManagementModeToggle(!managementModeEnabled)">
+            <mat-icon>{{ managementModeEnabled ? 'person' : 'admin_panel_settings' }}</mat-icon>
+            <span>{{ managementModeEnabled ? 'Worker mode' : 'Manager mode' }}</span>
+          </button>
+
           <button *ngIf="!authService.isLoggedIn"
                   class="nav-bar-item"
                   [class.active]="activePanel === 'login'"
@@ -111,13 +118,6 @@ interface NavItem {
             <span>Sign in</span>
           </button>
 
-          <button *ngIf="authService.isLoggedIn"
-                  class="nav-bar-item"
-                  [class.active]="activePanel === 'preferences'"
-                  (click)="openPanel('preferences')">
-            <mat-icon>tune</mat-icon>
-            <span>Preferences</span>
-          </button>
           <button *ngIf="authService.isLoggedIn"
                   class="nav-bar-item"
                   [class.active]="activePanel === 'profile'"
@@ -190,7 +190,6 @@ interface NavItem {
         <app-account-profile *ngIf="activePanel === 'profile'"></app-account-profile>
         <app-account-holidays *ngIf="activePanel === 'holidays'"></app-account-holidays>
         <app-account-password *ngIf="activePanel === 'password'"></app-account-password>
-        <app-preferences *ngIf="activePanel === 'preferences'"></app-preferences>
         <app-manage-teams *ngIf="activePanel === 'manage-teams'"></app-manage-teams>
         <app-manage-workers *ngIf="activePanel === 'manage-workers'"></app-manage-workers>
         <app-manage-settings *ngIf="activePanel === 'manage-settings'"></app-manage-settings>
@@ -484,8 +483,10 @@ interface NavItem {
     /* Main Content */
     .main-content {
       flex: 1;
-      overflow: auto;
+      overflow: hidden;
       min-width: 0;
+      display: flex;
+      flex-direction: column;
     }
 
     /* Responsive: Convert to bottom navigation on mobile */
@@ -557,8 +558,7 @@ interface NavItem {
 })
 export class ShellComponent {
   navItems: NavItem[] = [
-    { path: '/schedule', icon: 'calendar_month', label: 'Schedule' },
-    { path: '/workers', icon: 'person', label: 'Workers' }
+    { path: '/schedule', icon: 'calendar_month', label: 'Schedule' }
   ];
 
   currentPath = '';
@@ -573,7 +573,8 @@ export class ShellComponent {
     private router: Router,
     public authService: AuthService,
     private userPreferencesService: UserPreferencesService,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private panelService: SlideInPanelService
   ) {
     this.isExpanded = this.userPreferencesService.preferences.navigationExpanded;
     this.managementModeEnabled = this.userPreferencesService.preferences.managementMode;
@@ -598,6 +599,7 @@ export class ShellComponent {
       this.currentPath = event.urlAfterRedirects;
       this.activeNavBar = null;
       this.activePanel = null;
+      this.panelService.closeAll();
     });
   }
 
@@ -620,6 +622,12 @@ export class ShellComponent {
     }
   }
 
+  onNavItemClick(): void {
+    this.activeNavBar = null;
+    this.activePanel = null;
+    this.panelService.closeAll();
+  }
+
   isActive(path: string): boolean {
     return this.currentPath.startsWith(path);
   }
@@ -629,24 +637,27 @@ export class ShellComponent {
   }
 
   toggleNavBar(type: NavBarType): void {
+    this.panelService.closeAll();
     if (this.activeNavBar === type) {
       this.activeNavBar = null;
       this.activePanel = null;
     } else {
       this.activeNavBar = type;
-      this.activePanel = null;
     }
   }
 
   openPanel(panel: PanelType): void {
+    this.panelService.closeAll();
     this.activePanel = this.activePanel === panel ? null : panel;
   }
 
   closePanel(): void {
+    this.panelService.closeAll();
     this.activePanel = null;
   }
 
   openLoginPanel(): void {
+    this.panelService.closeAll();
     if (this.activePanel === 'login') {
       this.activePanel = null;
       this.activeNavBar = null;
@@ -667,6 +678,10 @@ export class ShellComponent {
     } else {
       this.userPreferencesService.setTheme('light');
     }
+  }
+
+  onManagementModeToggle(enabled: boolean): void {
+    this.userPreferencesService.setManagementMode(enabled);
   }
 
   onSignOut(): void {

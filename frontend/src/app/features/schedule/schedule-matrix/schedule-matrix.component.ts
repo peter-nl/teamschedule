@@ -1,12 +1,10 @@
 import { Component, OnInit, AfterViewInit, OnDestroy, ViewChild, ElementRef, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatButtonModule } from '@angular/material/button';
+import { MatBadgeModule } from '@angular/material/badge';
 import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { forkJoin } from 'rxjs';
 import { ScheduleService } from '../services/schedule.service';
@@ -17,11 +15,13 @@ import { AppSettingsService } from '../../../core/services/app-settings.service'
 import { HolidayService } from '../../../core/services/holiday.service';
 import { WorkerHolidayService, ExpandedDayEntry, WorkerHolidayPeriod } from '../../../core/services/worker-holiday.service';
 import { HolidayTypeService } from '../../../core/services/holiday-type.service';
-import { UserPreferencesService, NameColumnField } from '../../../shared/services/user-preferences.service';
+import { UserPreferencesService, NameColumnField, TeamFilterMode } from '../../../shared/services/user-preferences.service';
 import { AuthService } from '../../../shared/services/auth.service';
 import { SlideInPanelService } from '../../../shared/services/slide-in-panel.service';
 import { HolidayDialogComponent, HolidayDialogData, HolidayDialogResult } from '../../../shared/components/holiday-dialog.component';
 import { WorkerDetailDialogComponent } from '../../../shared/components/worker-detail-dialog.component';
+import { ScheduleFilterPanelComponent, ScheduleFilterPanelData, ScheduleFilterPanelResult } from '../schedule-filter/schedule-filter-panel.component';
+import { ScheduleSearchPanelComponent, ScheduleSearchPanelData, ScheduleSearchPanelResult } from '../schedule-filter/schedule-search-panel.component';
 
 interface DateColumn {
   date: Date;
@@ -57,32 +57,38 @@ interface CellRenderData {
   standalone: true,
   imports: [
     CommonModule,
-    FormsModule,
-    MatFormFieldModule,
-    MatSelectModule,
     MatProgressSpinnerModule,
     MatIconModule,
     MatTooltipModule,
     MatButtonModule,
+    MatBadgeModule,
     DragDropModule
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="schedule-container">
-      <!-- Header with Team Filter -->
+      <!-- Search & Filter Buttons -->
       <div class="header">
-        <h1>Schedule</h1>
-        <mat-form-field appearance="outline" class="team-select">
-          <mat-label>Filter by Teams</mat-label>
-          <mat-select [(ngModel)]="selectedTeamIdsArray" multiple (selectionChange)="onTeamSelectionChange()">
-            <mat-option value="__no_team__">
-              [geen team] ({{ getWorkerCountWithoutTeam() }})
-            </mat-option>
-            <mat-option *ngFor="let team of teams" [value]="team.id">
-              {{ team.name }} ({{ getWorkerCountForTeam(team.id) }})
-            </mat-option>
-          </mat-select>
-        </mat-form-field>
+        <button mat-icon-button
+                (click)="openSearchPanel()"
+                matTooltip="Search workers"
+                [class.filter-active]="searchText.length > 0"
+                [matBadge]="searchText ? '!' : ''"
+                [matBadgeHidden]="!searchText"
+                matBadgeSize="small"
+                matBadgeColor="accent">
+          <mat-icon>search</mat-icon>
+        </button>
+        <button mat-icon-button
+                (click)="openFilterPanel()"
+                matTooltip="Filter by teams"
+                [class.filter-active]="selectedTeamIds.size > 0"
+                [matBadge]="selectedTeamIds.size > 0 ? '' + selectedTeamIds.size : ''"
+                [matBadgeHidden]="selectedTeamIds.size === 0"
+                matBadgeSize="small"
+                matBadgeColor="primary">
+          <mat-icon>filter_list</mat-icon>
+        </button>
       </div>
 
       <!-- Loading State -->
@@ -99,127 +105,150 @@ interface CellRenderData {
 
       <!-- Schedule Matrix -->
       <div *ngIf="!loading && !error" class="matrix-wrapper">
-        <div class="zoom-controls">
-          <button mat-icon-button (click)="zoomIn()" [disabled]="cellWidth >= 48" matTooltip="Zoom in">
-            <mat-icon>add</mat-icon>
-          </button>
-          <button mat-icon-button (click)="zoomOut()" [disabled]="cellWidth <= 16" matTooltip="Zoom out">
-            <mat-icon>remove</mat-icon>
-          </button>
+        <div class="floating-controls top-right">
+          <div class="control-group">
+            <button mat-icon-button (click)="zoomIn()" [disabled]="cellWidth >= 48" matTooltip="Zoom in">
+              <mat-icon>add</mat-icon>
+            </button>
+            <button mat-icon-button (click)="zoomOut()" [disabled]="cellWidth <= 16" matTooltip="Zoom out">
+              <mat-icon>remove</mat-icon>
+            </button>
+          </div>
+        </div>
+        <div class="floating-controls bottom-right">
+          <div class="control-group">
+            <button mat-icon-button (click)="scrollToMyRow()" *ngIf="currentUserId" matTooltip="Go to my row">
+              <mat-icon>person_pin</mat-icon>
+            </button>
+            <button mat-icon-button (click)="scrollToToday(true)" matTooltip="Go to today">
+              <mat-icon>today</mat-icon>
+            </button>
+          </div>
         </div>
         <div class="matrix-grid">
-          <!-- Fixed Worker Names Column -->
-          <div class="worker-names-column">
-            <div class="year-header-cell">{{ visibleYear }}</div>
-            <div class="month-header-cell">{{ visibleMonth }}</div>
-            <div class="week-header-cell"></div>
-            <div class="day-header-cell name-columns-header"
-                 [style.height.px]="rowHeight"
-                 cdkDropList
-                 cdkDropListOrientation="horizontal"
-                 (cdkDropListDropped)="onColumnDrop($event)">
-              <div *ngFor="let col of nameColumnOrder"
-                   cdkDrag
-                   class="name-col-header"
-                   [class.sort-active]="sortColumn === col"
-                   [class.particles-col]="col === 'particles'"
-                   (click)="onSortClick(col)">
-                <span>{{ getColumnLabel(col) }}</span>
-                <mat-icon *ngIf="sortColumn === col" class="sort-icon">
-                  {{ sortDirection === 'asc' ? 'arrow_upward' : 'arrow_downward' }}
-                </mat-icon>
+          <!-- Fixed Header Section -->
+          <div class="matrix-header">
+            <div class="worker-names-column">
+              <div class="year-header-cell">{{ visibleYear }}</div>
+              <div class="month-header-cell">{{ visibleMonth }}</div>
+              <div class="week-header-cell"></div>
+              <div class="day-header-cell name-columns-header"
+                   [style.height.px]="rowHeight"
+                   cdkDropList
+                   cdkDropListOrientation="horizontal"
+                   (cdkDropListDropped)="onColumnDrop($event)">
+                <div *ngFor="let col of nameColumnOrder"
+                     cdkDrag
+                     class="name-col-header"
+                     [class.sort-active]="sortColumn === col"
+                     [class.particles-col]="col === 'particles'"
+                     (click)="onSortClick(col)">
+                  <span>{{ getColumnLabel(col) }}</span>
+                  <mat-icon *ngIf="sortColumn === col" class="sort-icon">
+                    {{ sortDirection === 'asc' ? 'arrow_upward' : 'arrow_downward' }}
+                  </mat-icon>
+                  <span class="header-spacer"></span>
+                  <mat-icon class="drag-handle">drag_indicator</mat-icon>
+                </div>
               </div>
             </div>
-            <div *ngFor="let worker of filteredWorkers; let rowIndex = index; trackBy: trackByWorkerId"
-                 class="worker-name-cell"
-                 [class.odd-row]="rowIndex % 2 === 1"
-                 [class.my-row]="currentUserId === worker.id"
-                 [style.height.px]="rowHeight"
-                 (dblclick)="openWorkerDetail(worker)">
-              <span *ngFor="let col of nameColumnOrder"
-                    class="name-col-value"
-                    [class.particles-col]="col === 'particles'"
-                    >{{ getNameField(worker, col) }}</span>
+            <div class="date-header-scroll"
+                 #headerScrollContainer>
+              <!-- Year Header Row -->
+              <div class="year-row">
+                <ng-container *ngFor="let col of dateColumns; trackBy: trackByDateKey">
+                  <div *ngIf="col.isFirstOfYear"
+                       class="year-cell"
+                       [style.width.px]="col.daysInYear! * cellWidth">
+                    {{ col.year }}
+                  </div>
+                </ng-container>
+              </div>
+
+              <!-- Month Header Row -->
+              <div class="month-row">
+                <ng-container *ngFor="let col of dateColumns; trackBy: trackByDateKey">
+                  <div *ngIf="col.isFirstOfMonth"
+                       class="month-cell"
+                       [style.width.px]="col.daysInMonth! * cellWidth">
+                    {{ col.monthFullName }}
+                  </div>
+                </ng-container>
+              </div>
+
+              <!-- Week Header Row -->
+              <div class="week-row">
+                <ng-container *ngFor="let col of dateColumns; trackBy: trackByDateKey">
+                  <div *ngIf="col.isFirstOfWeek"
+                       class="week-cell"
+                       [style.width.px]="col.daysInWeek! * cellWidth">
+                    {{ col.weekNumber }}
+                  </div>
+                </ng-container>
+              </div>
+
+              <!-- Day Header Row -->
+              <div class="day-row" [style.height.px]="rowHeight">
+                <div *ngFor="let col of dateColumns; trackBy: trackByDateKey"
+                     class="day-cell"
+                     [class.non-working]="col.isNonWorkingDay"
+                     [class.holiday]="col.isHoliday"
+                     [class.today]="col.isToday"
+                     [style.width.px]="cellWidth"
+                     [style.background-color]="getCellColor(col)"
+                     [matTooltip]="col.holidayName"
+                     [matTooltipDisabled]="!col.isHoliday">
+                  <div class="day-name">{{ col.dayName }}</div>
+                  <div class="day-number">{{ col.dayNumber }}</div>
+                </div>
+              </div>
             </div>
           </div>
 
-          <!-- Scrollable Date Area -->
-          <div class="date-scroll-container"
-               #scrollContainer
-               [class.dragging]="isDragging"
-               (mousedown)="onMouseDown($event)"
-               (touchstart)="onTouchStart($event)"
-               (scroll)="onScroll()">
-            <!-- Year Header Row -->
-            <div class="year-row">
-              <ng-container *ngFor="let col of dateColumns; trackBy: trackByDateKey">
-                <div *ngIf="col.isFirstOfYear"
-                     class="year-cell"
-                     [style.width.px]="col.daysInYear! * cellWidth">
-                  {{ col.year }}
-                </div>
-              </ng-container>
-            </div>
-
-            <!-- Month Header Row -->
-            <div class="month-row">
-              <ng-container *ngFor="let col of dateColumns; trackBy: trackByDateKey">
-                <div *ngIf="col.isFirstOfMonth"
-                     class="month-cell"
-                     [style.width.px]="col.daysInMonth! * cellWidth">
-                  {{ col.monthFullName }}
-                </div>
-              </ng-container>
-            </div>
-
-            <!-- Week Header Row -->
-            <div class="week-row">
-              <ng-container *ngFor="let col of dateColumns; trackBy: trackByDateKey">
-                <div *ngIf="col.isFirstOfWeek"
-                     class="week-cell"
-                     [style.width.px]="col.daysInWeek! * cellWidth">
-                  {{ col.weekNumber }}
-                </div>
-              </ng-container>
-            </div>
-
-            <!-- Day Header Row -->
-            <div class="day-row" [style.height.px]="rowHeight">
-              <div *ngFor="let col of dateColumns; trackBy: trackByDateKey"
-                   class="day-cell"
-                   [class.non-working]="col.isNonWorkingDay"
-                   [class.holiday]="col.isHoliday"
-                   [class.today]="col.isToday"
-                   [style.width.px]="cellWidth"
-                   [style.background-color]="getCellColor(col)"
-                   [matTooltip]="col.holidayName"
-                   [matTooltipDisabled]="!col.isHoliday">
-                <div class="day-name">{{ col.dayName }}</div>
-                <div class="day-number">{{ col.dayNumber }}</div>
-              </div>
-            </div>
-
-            <!-- Worker Rows -->
-            <div *ngFor="let worker of filteredWorkers; let rowIndex = index; trackBy: trackByWorkerId"
-                 class="worker-row">
-              <div *ngFor="let col of dateColumns; trackBy: trackByDateKey"
-                   class="schedule-cell"
-                   [class.non-working]="col.isNonWorkingDay"
-                   [class.holiday]="col.isHoliday"
-                   [class.worker-holiday]="cellRenderMap.has(worker.id + ':' + col.dateKey)"
-                   [class.today]="col.isToday"
+          <!-- Scrollable Body Section -->
+          <div class="matrix-body">
+            <!-- Fixed name column -->
+            <div class="body-names-column" #bodyNamesContainer>
+              <div *ngFor="let worker of filteredWorkers; let rowIndex = index; trackBy: trackByWorkerId"
+                   class="worker-name-cell"
                    [class.odd-row]="rowIndex % 2 === 1"
                    [class.my-row]="currentUserId === worker.id"
-                   [class.editable]="editableWorkerIds.has(worker.id)"
-                   [style.width.px]="cellWidth"
                    [style.height.px]="rowHeight"
-                   [style.background-color]="cellRenderMap.get(worker.id + ':' + col.dateKey)?.bgColor ?? getCellColor(col)"
-                   [style.background-image]="cellRenderMap.get(worker.id + ':' + col.dateKey)?.bgImage"
-                   [matTooltip]="cellRenderMap.get(worker.id + ':' + col.dateKey)?.tooltip || col.holidayName"
-                   [matTooltipDisabled]="!col.isHoliday && !cellRenderMap.has(worker.id + ':' + col.dateKey)"
-                   (dblclick)="onCellDblClick(worker, col)"
-                   (touchstart)="onCellTouchStart($event, worker, col)"
-                   (touchend)="onCellTouchEnd()">
+                   (dblclick)="openWorkerDetail(worker)">
+                <span *ngFor="let col of nameColumnOrder"
+                      class="name-col-value"
+                      [class.particles-col]="col === 'particles'"
+                      >{{ getNameField(worker, col) }}</span>
+              </div>
+            </div>
+            <!-- Scrollable date area -->
+            <div class="body-dates-scroll"
+                 #scrollContainer
+                 [class.dragging]="isDragging"
+                 (mousedown)="onMouseDown($event)"
+                 (touchstart)="onTouchStart($event)"
+                 (scroll)="onScroll()">
+              <div *ngFor="let worker of filteredWorkers; let rowIndex = index; trackBy: trackByWorkerId"
+                   class="worker-row">
+                <div *ngFor="let col of dateColumns; trackBy: trackByDateKey"
+                     class="schedule-cell"
+                     [class.non-working]="col.isNonWorkingDay"
+                     [class.holiday]="col.isHoliday"
+                     [class.worker-holiday]="cellRenderMap.has(worker.id + ':' + col.dateKey)"
+                     [class.today]="col.isToday"
+                     [class.odd-row]="rowIndex % 2 === 1"
+                     [class.my-row]="currentUserId === worker.id"
+                     [class.editable]="editableWorkerIds.has(worker.id)"
+                     [style.width.px]="cellWidth"
+                     [style.height.px]="rowHeight"
+                     [style.background-color]="cellRenderMap.get(worker.id + ':' + col.dateKey)?.bgColor ?? getCellColor(col)"
+                     [style.background-image]="cellRenderMap.get(worker.id + ':' + col.dateKey)?.bgImage"
+                     [matTooltip]="cellRenderMap.get(worker.id + ':' + col.dateKey)?.tooltip || col.holidayName"
+                     [matTooltipDisabled]="!col.isHoliday && !cellRenderMap.has(worker.id + ':' + col.dateKey)"
+                     (dblclick)="onCellDblClick(worker, col)"
+                     (touchstart)="onCellTouchStart($event, worker, col)"
+                     (touchend)="onCellTouchEnd()">
+                </div>
               </div>
             </div>
           </div>
@@ -230,28 +259,30 @@ interface CellRenderData {
     </div>
   `,
   styles: [`
+    :host {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
     .schedule-container {
       max-width: 100%;
       padding: 24px;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
     }
 
     .header {
       display: flex;
-      justify-content: space-between;
+      justify-content: flex-end;
       align-items: center;
-      margin-bottom: 24px;
-      gap: 24px;
+      margin-bottom: 8px;
     }
 
-    h1 {
-      margin: 0;
-      font-size: 32px;
-      font-weight: 400;
-      color: var(--mat-sys-on-surface);
-    }
-
-    .team-select {
-      min-width: 250px;
+    .filter-active {
+      color: var(--mat-sys-primary) !important;
     }
 
     .loading-container,
@@ -276,39 +307,93 @@ interface CellRenderData {
       border: 1px solid var(--mat-sys-outline-variant);
       border-radius: 12px;
       overflow: hidden;
+      flex: 1;
+      min-height: 0;
     }
 
-    .zoom-controls {
+    .floating-controls {
       position: absolute;
-      top: 8px;
       right: 20px;
       z-index: 20;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      opacity: 0.5;
+      transition: opacity 0.15s;
+    }
+
+    .floating-controls:hover {
+      opacity: 1;
+    }
+
+    .floating-controls.top-right {
+      top: 8px;
+    }
+
+    .floating-controls.bottom-right {
+      bottom: 8px;
+    }
+
+    .control-group {
       display: flex;
       flex-direction: column;
       gap: 2px;
       background: var(--mat-sys-surface-container);
       border-radius: 12px;
       padding: 2px;
-      opacity: 0.5;
-      transition: opacity 0.15s;
-    }
-
-    .zoom-controls:hover {
-      opacity: 1;
     }
 
     .matrix-grid {
       display: flex;
+      flex-direction: column;
+      height: 100%;
     }
 
-    .worker-names-column {
+    .matrix-header {
+      display: flex;
       flex-shrink: 0;
-      width: 240px;
+      border-bottom: 2px solid var(--mat-sys-outline-variant);
+    }
+
+    .matrix-body {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+    }
+
+    .body-names-column {
+      flex: 0 0 260px;
+      overflow: hidden;
       border-right: 2px solid var(--mat-sys-outline-variant);
+    }
+
+    .body-dates-scroll {
+      flex: 1;
+      min-width: 0;
+      overflow: auto;
+      cursor: grab;
+      user-select: none;
+    }
+
+    .body-dates-scroll.dragging {
+      cursor: grabbing;
+    }
+
+    .matrix-header > .worker-names-column {
+      flex-shrink: 0;
+      width: 260px;
+      border-right: 2px solid var(--mat-sys-outline-variant);
+    }
+
+    .date-header-scroll {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
     }
 
     .year-header-cell,
     .month-header-cell,
+    .week-header-cell,
     .day-header-cell {
       background: var(--mat-sys-surface-variant);
       border-bottom: 1px solid var(--mat-sys-outline-variant);
@@ -342,12 +427,10 @@ interface CellRenderData {
       padding-left: 8px;
       font-size: 11px;
       color: var(--mat-sys-on-surface-variant);
-      background: var(--mat-sys-surface-variant);
-      border-bottom: 1px solid var(--mat-sys-outline-variant);
     }
 
     .day-header-cell {
-      border-bottom: 2px solid var(--mat-sys-outline-variant);
+      border-bottom: none;
     }
 
     .name-columns-header {
@@ -384,6 +467,24 @@ interface CellRenderData {
       color: var(--mat-sys-primary);
     }
 
+    .drag-handle {
+      font-size: 14px;
+      width: 14px;
+      height: 14px;
+      opacity: 0;
+      transition: opacity 0.15s;
+      color: var(--mat-sys-on-surface-variant);
+      cursor: grab;
+    }
+
+    .name-col-header:hover .drag-handle {
+      opacity: 0.6;
+    }
+
+    .header-spacer {
+      flex: 1;
+    }
+
     .sort-icon {
       font-size: 14px;
       width: 14px;
@@ -404,10 +505,11 @@ interface CellRenderData {
     .worker-name-cell {
       padding: 0;
       display: flex;
-      align-items: center;
+      align-items: stretch;
       justify-content: flex-start;
       font-size: 13px;
       font-weight: 500;
+      color: var(--mat-sys-on-surface);
       border-bottom: 1px solid var(--mat-sys-outline-variant);
       background: var(--mat-sys-surface);
       cursor: pointer;
@@ -425,12 +527,19 @@ interface CellRenderData {
       white-space: nowrap;
       padding: 0 6px;
       text-align: left;
+      display: flex;
+      align-items: center;
+      border-right: 1px solid var(--mat-sys-outline-variant);
+    }
+
+    .name-col-value:last-child {
+      border-right: none;
     }
 
     .name-col-value.particles-col,
     .name-col-header.particles-col {
-      flex: 0 0 50px;
-      max-width: 50px;
+      flex: 0 0 70px;
+      max-width: 70px;
     }
 
     .worker-name-cell.odd-row {
@@ -441,19 +550,8 @@ interface CellRenderData {
       background: var(--mat-sys-primary-container);
     }
 
-    .date-scroll-container {
-      overflow-x: auto;
-      overflow-y: hidden;
-      position: relative;
-      cursor: grab;
-      user-select: none;
-    }
-
-    .date-scroll-container.dragging {
-      cursor: grabbing;
-    }
-
-    .date-scroll-container::-webkit-scrollbar {
+    .body-dates-scroll::-webkit-scrollbar {
+      width: 12px;
       height: 12px;
     }
 
@@ -464,26 +562,18 @@ interface CellRenderData {
       display: flex;
       background: var(--mat-sys-surface-variant);
       border-bottom: 1px solid var(--mat-sys-outline-variant);
-      position: sticky;
-      z-index: 10;
     }
 
     .year-row {
       height: 30px;
-      top: 0;
-      border-bottom: 1px solid var(--mat-sys-outline-variant);
     }
 
     .month-row {
       height: 30px;
-      top: 30px;
-      border-bottom: 1px solid var(--mat-sys-outline-variant);
     }
 
     .week-row {
       height: 20px;
-      top: 60px;
-      border-bottom: 1px solid var(--mat-sys-outline-variant);
     }
 
     .week-cell {
@@ -499,8 +589,7 @@ interface CellRenderData {
     }
 
     .day-row {
-      top: 80px;
-      border-bottom: 2px solid var(--mat-sys-outline-variant);
+      border-bottom: none;
     }
 
     .year-cell,
@@ -605,18 +694,15 @@ interface CellRenderData {
 
     @media (max-width: 768px) {
       .header {
-        flex-direction: column;
-        align-items: stretch;
-      }
-
-      h1 {
-        font-size: 24px;
+        margin-bottom: 4px;
       }
     }
   `]
 })
 export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('scrollContainer') scrollContainer!: ElementRef<HTMLDivElement>;
+  @ViewChild('headerScrollContainer') headerScrollContainer!: ElementRef<HTMLDivElement>;
+  @ViewChild('bodyNamesContainer') bodyNamesContainer!: ElementRef<HTMLDivElement>;
 
   workers: Worker[] = [];
   filteredWorkers: Worker[] = [];
@@ -624,6 +710,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
   dateColumns: DateColumn[] = [];
   selectedTeamIds: Set<string> = new Set();
   selectedTeamIdsArray: string[] = [];
+  searchText = '';
   loading = true;
   error: string | null = null;
 
@@ -633,6 +720,9 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
   editableWorkerIds = new Set<string>();
   // Current user ID cached for template comparisons
   currentUserId: string | null = null;
+
+  // Team filter mode
+  teamFilterMode: TeamFilterMode = 'and';
 
   // Name column ordering and sorting
   nameColumnOrder: NameColumnField[] = ['lastName', 'firstName', 'particles'];
@@ -705,6 +795,13 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
       this.selectedTeamIds = new Set(settings.selectedTeamIds);
       this.selectedTeamIdsArray = settings.selectedTeamIds;
     }
+    if (settings?.searchText) {
+      this.searchText = settings.searchText;
+    }
+    if (settings?.sortColumn) {
+      this.sortColumn = settings.sortColumn as NameColumnField;
+      this.sortDirection = settings.sortDirection || 'asc';
+    }
 
     // Subscribe to app settings changes to update non-working days and colors
     this.appSettingsService.settings$.subscribe(settings => {
@@ -724,10 +821,11 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
       this.cdr.markForCheck();
     });
 
-    // Track management mode, zoom, column order, and nav state from preferences
+    // Track management mode, zoom, column order, filter mode, and nav state from preferences
     this.userPreferencesService.preferences$.subscribe(prefs => {
       this.managementModeEnabled = prefs.managementMode;
       this.navigationExpanded = prefs.navigationExpanded;
+      this.teamFilterMode = prefs.teamFilterMode || 'and';
       this.rebuildEditableWorkerIds();
       if (prefs.scheduleZoom >= this.ZOOM_MIN && prefs.scheduleZoom <= this.ZOOM_MAX && prefs.scheduleZoom !== this.cellWidth) {
         this.cellWidth = prefs.scheduleZoom;
@@ -857,8 +955,14 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     document.removeEventListener('touchmove', this.boundTouchMove);
   }
 
-  // Scroll handler to update visible year/month
+  // Scroll handler to sync header horizontal scroll, body names vertical scroll, and update visible year/month
   onScroll(): void {
+    if (this.headerScrollContainer) {
+      this.headerScrollContainer.nativeElement.scrollLeft = this.scrollContainer.nativeElement.scrollLeft;
+    }
+    if (this.bodyNamesContainer) {
+      this.bodyNamesContainer.nativeElement.scrollTop = this.scrollContainer.nativeElement.scrollTop;
+    }
     this.updateVisibleDateInfo();
   }
 
@@ -1019,28 +1123,91 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     });
   }
 
-  onTeamSelectionChange(): void {
-    this.selectedTeamIds = new Set(this.selectedTeamIdsArray);
-    this.filterWorkers();
-    this.rebuildCellRenderMap();
-    this.saveSettings();
-    this.cdr.markForCheck();
+  openFilterPanel(): void {
+    const panelRef = this.panelService.open<ScheduleFilterPanelComponent, ScheduleFilterPanelData, ScheduleFilterPanelResult>(
+      ScheduleFilterPanelComponent,
+      {
+        width: '360px',
+        data: {
+          teams: this.teams,
+          selectedTeamIds: new Set(this.selectedTeamIds),
+          teamFilterMode: this.teamFilterMode,
+          getWorkerCountForTeam: (teamId: string) => this.getWorkerCountForTeam(teamId),
+          getWorkerCountWithoutTeam: () => this.getWorkerCountWithoutTeam(),
+          onSelectionChange: (ids: string[]) => {
+            this.selectedTeamIds = new Set(ids);
+            this.selectedTeamIdsArray = ids;
+            this.filterWorkers();
+            this.rebuildCellRenderMap();
+            this.cdr.markForCheck();
+          },
+          onFilterModeChange: (mode: TeamFilterMode) => {
+            this.teamFilterMode = mode;
+            this.userPreferencesService.setTeamFilterMode(mode);
+            this.filterWorkers();
+            this.rebuildCellRenderMap();
+            this.cdr.markForCheck();
+          }
+        }
+      }
+    );
+    panelRef.afterClosed().subscribe(result => {
+      if (result) {
+        this.selectedTeamIds = new Set(result.selectedTeamIds);
+        this.selectedTeamIdsArray = result.selectedTeamIds;
+        this.filterWorkers();
+        this.rebuildCellRenderMap();
+        this.saveSettings();
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  openSearchPanel(): void {
+    const panelRef = this.panelService.open<ScheduleSearchPanelComponent, ScheduleSearchPanelData, ScheduleSearchPanelResult>(
+      ScheduleSearchPanelComponent,
+      {
+        width: '360px',
+        data: {
+          searchText: this.searchText,
+          onSearchChange: (text: string) => {
+            this.searchText = text;
+            this.filterWorkers();
+            this.rebuildCellRenderMap();
+            this.cdr.markForCheck();
+          }
+        }
+      }
+    );
+    panelRef.afterClosed().subscribe(result => {
+      if (result) {
+        this.searchText = result.searchText;
+        this.filterWorkers();
+        this.rebuildCellRenderMap();
+        this.saveSettings();
+        this.cdr.markForCheck();
+      }
+    });
   }
 
   private saveSettings(): void {
     this.settingsService.setScheduleSettings({
-      selectedTeamIds: this.selectedTeamIdsArray
+      selectedTeamIds: this.selectedTeamIdsArray,
+      searchText: this.searchText || undefined,
+      sortColumn: this.sortColumn || undefined,
+      sortDirection: this.sortColumn ? this.sortDirection : undefined
     });
   }
 
   filterWorkers(): void {
-    if (this.selectedTeamIds.size === 0) {
-      this.filteredWorkers = this.workers;
-    } else {
-      // AND logic: worker must match ALL selected filters
-      this.filteredWorkers = this.workers.filter(worker => {
+    let result = this.workers;
+
+    // Team filter (AND or OR logic based on mode)
+    if (this.selectedTeamIds.size > 0) {
+      const matchFn = this.teamFilterMode === 'and' ? 'every' : 'some';
+      result = result.filter(worker => {
         const workerTeamIds = new Set(worker.teams?.map(team => team.id) || []);
-        return Array.from(this.selectedTeamIds).every(teamId => {
+        return Array.from(this.selectedTeamIds)[matchFn](teamId => {
           if (teamId === '__no_team__') {
             return !worker.teams || worker.teams.length === 0;
           }
@@ -1048,6 +1215,18 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
         });
       });
     }
+
+    // Search filter
+    if (this.searchText) {
+      const term = this.searchText.toLowerCase();
+      result = result.filter(worker =>
+        worker.firstName.toLowerCase().includes(term) ||
+        worker.lastName.toLowerCase().includes(term) ||
+        (worker.particles || '').toLowerCase().includes(term)
+      );
+    }
+
+    this.filteredWorkers = result;
     this.applySorting();
     this.rebuildEditableWorkerIds();
   }
@@ -1081,6 +1260,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     }
     this.applySorting();
     this.rebuildCellRenderMap();
+    this.saveSettings();
     this.cdr.markForCheck();
 
     // Sync to workers table
@@ -1115,16 +1295,53 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     return col.dateKey;
   }
 
+  private workerMatchesTeam(worker: Worker, teamId: string): boolean {
+    if (teamId === '__no_team__') {
+      return !worker.teams || worker.teams.length === 0;
+    }
+    return worker.teams?.some(team => team.id === teamId) || false;
+  }
+
+  private workerMatchesSelection(worker: Worker, selection: Set<string>, mode: TeamFilterMode): boolean {
+    const matchFn = mode === 'and' ? 'every' : 'some';
+    return Array.from(selection)[matchFn](teamId => this.workerMatchesTeam(worker, teamId));
+  }
+
   getWorkerCountForTeam(teamId: string): number {
-    return this.workers.filter(worker =>
-      worker.teams?.some(team => team.id === teamId)
-    ).length;
+    if (this.selectedTeamIds.size === 0 || this.selectedTeamIds.has(teamId)) {
+      // No filters active or this team already selected: show total membership
+      return this.workers.filter(w => this.workerMatchesTeam(w, teamId)).length;
+    }
+
+    if (this.teamFilterMode === 'and') {
+      // AND: how many workers match when this team is ADDED to current selection
+      const testSelection = new Set([...this.selectedTeamIds, teamId]);
+      return this.workers.filter(w => this.workerMatchesSelection(w, testSelection, 'and')).length;
+    } else {
+      // OR: how many ADDITIONAL workers this team would contribute
+      return this.workers.filter(w =>
+        this.workerMatchesTeam(w, teamId) && !this.workerMatchesSelection(w, this.selectedTeamIds, 'or')
+      ).length;
+    }
   }
 
   getWorkerCountWithoutTeam(): number {
-    return this.workers.filter(worker =>
-      !worker.teams || worker.teams.length === 0
-    ).length;
+    const teamId = '__no_team__';
+    if (this.selectedTeamIds.size === 0 || this.selectedTeamIds.has(teamId)) {
+      return this.workers.filter(w => this.workerMatchesTeam(w, teamId)).length;
+    }
+
+    if (this.teamFilterMode === 'and') {
+      // AND + real teams: no worker can be teamless AND in a team
+      const hasRealTeams = Array.from(this.selectedTeamIds).some(id => id !== '__no_team__');
+      if (hasRealTeams) return 0;
+      return this.workers.filter(w => this.workerMatchesTeam(w, teamId)).length;
+    } else {
+      // OR: additional teamless workers not already matched
+      return this.workers.filter(w =>
+        this.workerMatchesTeam(w, teamId) && !this.workerMatchesSelection(w, this.selectedTeamIds, 'or')
+      ).length;
+    }
   }
 
   scrollToToday(animate = false): void {
@@ -1142,6 +1359,16 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     }, 100);
   }
 
+  scrollToMyRow(): void {
+    if (!this.currentUserId) return;
+    const myIndex = this.filteredWorkers.findIndex(w => w.id === this.currentUserId);
+    if (myIndex === -1 || !this.scrollContainer) return;
+
+    const targetRow = Math.max(0, myIndex - 3);
+    const scrollTop = targetRow * this.rowHeight;
+    this.scrollContainer.nativeElement.scrollTo({ top: scrollTop, behavior: 'smooth' });
+  }
+
   zoomIn(): void {
     this.applyZoom(Math.min(this.cellWidth + this.ZOOM_STEP, this.ZOOM_MAX));
   }
@@ -1154,10 +1381,10 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     if (newWidth === this.cellWidth || !this.scrollContainer) return;
 
     const container = this.scrollContainer.nativeElement;
-    const centerX = container.clientWidth / 2;
-    const dateIndex = (container.scrollLeft + centerX) / this.cellWidth;
+    const centerOffset = container.clientWidth / 2;
+    const dateIndex = (container.scrollLeft + centerOffset) / this.cellWidth;
     this.cellWidth = newWidth;
-    container.scrollLeft = dateIndex * newWidth - centerX;
+    container.scrollLeft = dateIndex * newWidth - centerOffset;
     this.updateVisibleDateInfo();
     this.saveZoom();
   }

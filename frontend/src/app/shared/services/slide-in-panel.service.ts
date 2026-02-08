@@ -151,6 +151,10 @@ export class SlideInPanelService {
     panelRef.componentInstance = componentRef.instance;
   }
 
+  closeAll(): void {
+    [...this.panelStack].forEach(ref => ref.close());
+  }
+
   private isTopmost(panelRef: SlideInPanelRef<any>): boolean {
     return this.panelStack.length > 0 &&
            this.panelStack[this.panelStack.length - 1] === panelRef;

@@ -3,6 +3,8 @@ import { BehaviorSubject, map } from 'rxjs';
 
 export type NameColumnField = 'firstName' | 'particles' | 'lastName';
 
+export type TeamFilterMode = 'and' | 'or';
+
 export interface UserPreferences {
   theme: 'system' | 'light' | 'dark';
   navigationExpanded: boolean;
@@ -10,6 +12,7 @@ export interface UserPreferences {
   managementMode: boolean;
   scheduleZoom: number;
   scheduleNameColumnOrder: NameColumnField[];
+  teamFilterMode: TeamFilterMode;
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
@@ -18,7 +21,8 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   defaultView: 'schedule',
   managementMode: true,
   scheduleZoom: 40,
-  scheduleNameColumnOrder: ['lastName', 'firstName', 'particles'] as NameColumnField[]
+  scheduleNameColumnOrder: ['lastName', 'firstName', 'particles'] as NameColumnField[],
+  teamFilterMode: 'and' as TeamFilterMode
 };
 
 const STORAGE_KEY = 'teamschedule-user-preferences';
@@ -102,6 +106,12 @@ export class UserPreferencesService {
   setScheduleNameColumnOrder(order: NameColumnField[]): void {
     const current = this.preferencesSubject.value;
     this.preferencesSubject.next({ ...current, scheduleNameColumnOrder: order });
+    this.savePreferences();
+  }
+
+  setTeamFilterMode(mode: TeamFilterMode): void {
+    const current = this.preferencesSubject.value;
+    this.preferencesSubject.next({ ...current, teamFilterMode: mode });
     this.savePreferences();
   }
 

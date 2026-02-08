@@ -37,11 +37,12 @@ $teamschedule-dark-theme: mat.define-theme((
 ));
 
 // Mixin to generate light theme CSS custom properties
+// Contrast-enhanced overrides for better readability
 @mixin light-theme-tokens {
-  --mat-sys-primary: #{mat.get-theme-color($teamschedule-light-theme, primary)};
+  --mat-sys-primary: #0b57a0;
   --mat-sys-on-primary: #{mat.get-theme-color($teamschedule-light-theme, on-primary)};
   --mat-sys-primary-container: #{mat.get-theme-color($teamschedule-light-theme, primary-container)};
-  --mat-sys-on-primary-container: #{mat.get-theme-color($teamschedule-light-theme, on-primary-container)};
+  --mat-sys-on-primary-container: #0b2d4f;
   --mat-sys-secondary: #{mat.get-theme-color($teamschedule-light-theme, secondary)};
   --mat-sys-on-secondary: #{mat.get-theme-color($teamschedule-light-theme, on-secondary)};
   --mat-sys-secondary-container: #{mat.get-theme-color($teamschedule-light-theme, secondary-container)};
@@ -50,33 +51,34 @@ $teamschedule-dark-theme: mat.define-theme((
   --mat-sys-on-tertiary: #{mat.get-theme-color($teamschedule-light-theme, on-tertiary)};
   --mat-sys-tertiary-container: #{mat.get-theme-color($teamschedule-light-theme, tertiary-container)};
   --mat-sys-on-tertiary-container: #{mat.get-theme-color($teamschedule-light-theme, on-tertiary-container)};
-  --mat-sys-error: #{mat.get-theme-color($teamschedule-light-theme, error)};
+  --mat-sys-error: #ba1a1a;
   --mat-sys-on-error: #{mat.get-theme-color($teamschedule-light-theme, on-error)};
   --mat-sys-error-container: #{mat.get-theme-color($teamschedule-light-theme, error-container)};
   --mat-sys-on-error-container: #{mat.get-theme-color($teamschedule-light-theme, on-error-container)};
-  --mat-sys-background: #{mat.get-theme-color($teamschedule-light-theme, background)};
-  --mat-sys-on-background: #{mat.get-theme-color($teamschedule-light-theme, on-background)};
-  --mat-sys-surface: #{mat.get-theme-color($teamschedule-light-theme, surface)};
-  --mat-sys-on-surface: #{mat.get-theme-color($teamschedule-light-theme, on-surface)};
-  --mat-sys-surface-variant: #{mat.get-theme-color($teamschedule-light-theme, surface-variant)};
-  --mat-sys-on-surface-variant: #{mat.get-theme-color($teamschedule-light-theme, on-surface-variant)};
-  --mat-sys-outline: #{mat.get-theme-color($teamschedule-light-theme, outline)};
-  --mat-sys-outline-variant: #{mat.get-theme-color($teamschedule-light-theme, outline-variant)};
-  --mat-sys-surface-container: #{mat.get-theme-color($teamschedule-light-theme, surface-container)};
-  --mat-sys-surface-container-low: #{mat.get-theme-color($teamschedule-light-theme, surface-container-low)};
-  --mat-sys-surface-container-high: #{mat.get-theme-color($teamschedule-light-theme, surface-container-high)};
-  --mat-sys-surface-container-highest: #{mat.get-theme-color($teamschedule-light-theme, surface-container-highest)};
+  --mat-sys-background: #fafafa;
+  --mat-sys-on-background: #1a1a1a;
+  --mat-sys-surface: #ffffff;
+  --mat-sys-on-surface: #1a1a1a;
+  --mat-sys-surface-variant: #e0e4ea;
+  --mat-sys-on-surface-variant: #3a3f47;
+  --mat-sys-outline: #6b7280;
+  --mat-sys-outline-variant: #9ca3af;
+  --mat-sys-surface-container: #f0f1f3;
+  --mat-sys-surface-container-low: #f5f5f6;
+  --mat-sys-surface-container-high: #e8e9ec;
+  --mat-sys-surface-container-highest: #dfe0e3;
   --mat-sys-inverse-surface: #{mat.get-theme-color($teamschedule-light-theme, inverse-surface)};
   --mat-sys-inverse-on-surface: #{mat.get-theme-color($teamschedule-light-theme, inverse-on-surface)};
   --mat-sys-inverse-primary: #{mat.get-theme-color($teamschedule-light-theme, inverse-primary)};
 }
 
 // Mixin to generate dark theme CSS custom properties
+// Contrast-enhanced overrides for better readability
 @mixin dark-theme-tokens {
-  --mat-sys-primary: #{mat.get-theme-color($teamschedule-dark-theme, primary)};
+  --mat-sys-primary: #8ab4f8;
   --mat-sys-on-primary: #{mat.get-theme-color($teamschedule-dark-theme, on-primary)};
   --mat-sys-primary-container: #{mat.get-theme-color($teamschedule-dark-theme, primary-container)};
-  --mat-sys-on-primary-container: #{mat.get-theme-color($teamschedule-dark-theme, on-primary-container)};
+  --mat-sys-on-primary-container: #d4e4fc;
   --mat-sys-secondary: #{mat.get-theme-color($teamschedule-dark-theme, secondary)};
   --mat-sys-on-secondary: #{mat.get-theme-color($teamschedule-dark-theme, on-secondary)};
   --mat-sys-secondary-container: #{mat.get-theme-color($teamschedule-dark-theme, secondary-container)};
@@ -85,31 +87,163 @@ $teamschedule-dark-theme: mat.define-theme((
   --mat-sys-on-tertiary: #{mat.get-theme-color($teamschedule-dark-theme, on-tertiary)};
   --mat-sys-tertiary-container: #{mat.get-theme-color($teamschedule-dark-theme, tertiary-container)};
   --mat-sys-on-tertiary-container: #{mat.get-theme-color($teamschedule-dark-theme, on-tertiary-container)};
-  --mat-sys-error: #{mat.get-theme-color($teamschedule-dark-theme, error)};
+  --mat-sys-error: #f28b82;
   --mat-sys-on-error: #{mat.get-theme-color($teamschedule-dark-theme, on-error)};
   --mat-sys-error-container: #{mat.get-theme-color($teamschedule-dark-theme, error-container)};
   --mat-sys-on-error-container: #{mat.get-theme-color($teamschedule-dark-theme, on-error-container)};
-  --mat-sys-background: #{mat.get-theme-color($teamschedule-dark-theme, background)};
-  --mat-sys-on-background: #{mat.get-theme-color($teamschedule-dark-theme, on-background)};
-  --mat-sys-surface: #{mat.get-theme-color($teamschedule-dark-theme, surface)};
-  --mat-sys-on-surface: #{mat.get-theme-color($teamschedule-dark-theme, on-surface)};
-  --mat-sys-surface-variant: #{mat.get-theme-color($teamschedule-dark-theme, surface-variant)};
-  --mat-sys-on-surface-variant: #{mat.get-theme-color($teamschedule-dark-theme, on-surface-variant)};
-  --mat-sys-outline: #{mat.get-theme-color($teamschedule-dark-theme, outline)};
-  --mat-sys-outline-variant: #{mat.get-theme-color($teamschedule-dark-theme, outline-variant)};
-  --mat-sys-surface-container: #{mat.get-theme-color($teamschedule-dark-theme, surface-container)};
-  --mat-sys-surface-container-low: #{mat.get-theme-color($teamschedule-dark-theme, surface-container-low)};
-  --mat-sys-surface-container-high: #{mat.get-theme-color($teamschedule-dark-theme, surface-container-high)};
-  --mat-sys-surface-container-highest: #{mat.get-theme-color($teamschedule-dark-theme, surface-container-highest)};
+  --mat-sys-background: #121212;
+  --mat-sys-on-background: #e8e8e8;
+  --mat-sys-surface: #1e1e1e;
+  --mat-sys-on-surface: #e8e8e8;
+  --mat-sys-surface-variant: #3a3f47;
+  --mat-sys-on-surface-variant: #c4c7cd;
+  --mat-sys-outline: #8b919a;
+  --mat-sys-outline-variant: #5a6069;
+  --mat-sys-surface-container: #252628;
+  --mat-sys-surface-container-low: #1c1d1f;
+  --mat-sys-surface-container-high: #2e3033;
+  --mat-sys-surface-container-highest: #383a3d;
   --mat-sys-inverse-surface: #{mat.get-theme-color($teamschedule-dark-theme, inverse-surface)};
   --mat-sys-inverse-on-surface: #{mat.get-theme-color($teamschedule-dark-theme, inverse-on-surface)};
   --mat-sys-inverse-primary: #{mat.get-theme-color($teamschedule-dark-theme, inverse-primary)};
+}
+
+// Mixin for high-contrast light mode component overrides
+// Applied AFTER mat.all-component-themes/colors to win specificity
+@mixin light-component-overrides {
+  // Outlined text fields
+  --mdc-outlined-text-field-outline-color: #6b7280;
+  --mdc-outlined-text-field-hover-outline-color: #1a1a1a;
+  --mdc-outlined-text-field-focus-outline-color: #0b57a0;
+  --mdc-outlined-text-field-label-text-color: #3a3f47;
+  --mdc-outlined-text-field-hover-label-text-color: #1a1a1a;
+  --mdc-outlined-text-field-focus-label-text-color: #0b57a0;
+  --mdc-outlined-text-field-input-text-color: #1a1a1a;
+  --mdc-outlined-text-field-input-text-placeholder-color: #6b7280;
+  --mdc-outlined-text-field-disabled-outline-color: #9ca3af;
+  --mdc-outlined-text-field-disabled-label-text-color: #6b7280;
+  --mdc-outlined-text-field-disabled-input-text-color: #4b5563;
+
+  // Filled text fields
+  --mdc-filled-text-field-label-text-color: #3a3f47;
+  --mdc-filled-text-field-hover-label-text-color: #1a1a1a;
+  --mdc-filled-text-field-focus-label-text-color: #0b57a0;
+  --mdc-filled-text-field-input-text-color: #1a1a1a;
+  --mdc-filled-text-field-input-text-placeholder-color: #6b7280;
+  --mdc-filled-text-field-active-indicator-color: #6b7280;
+  --mdc-filled-text-field-hover-active-indicator-color: #1a1a1a;
+  --mdc-filled-text-field-focus-active-indicator-color: #0b57a0;
+  --mdc-filled-text-field-disabled-active-indicator-color: #9ca3af;
+  --mdc-filled-text-field-disabled-label-text-color: #6b7280;
+  --mdc-filled-text-field-disabled-input-text-color: #4b5563;
+  --mdc-filled-text-field-disabled-container-color: #f0f1f3;
+
+  // Select
+  --mat-select-trigger-text-color: #1a1a1a;
+  --mat-select-enabled-arrow-color: #3a3f47;
+  --mat-select-disabled-trigger-text-color: #4b5563;
+  --mat-select-disabled-arrow-color: #9ca3af;
+
+  // Option / menu
+  --mat-option-label-text-color: #1a1a1a;
+  --mat-optgroup-label-text-color: #3a3f47;
+
+  // Checkbox
+  --mdc-checkbox-unselected-icon-color: #4b5563;
+
+  // Slide toggle
+  --mdc-switch-unselected-track-color: #6b7280;
+
+  // Table
+  --mat-table-header-headline-color: #1a1a1a;
+  --mat-table-row-item-label-text-color: #1a1a1a;
+
+  // Buttons
+  --mdc-filled-button-disabled-label-text-color: #6b7280;
+  --mdc-filled-button-disabled-container-color: #e0e4ea;
+  --mdc-outlined-button-disabled-label-text-color: #6b7280;
+  --mdc-outlined-button-disabled-outline-color: #9ca3af;
+  --mdc-text-button-disabled-label-text-color: #6b7280;
+  --mdc-icon-button-disabled-icon-color: #9ca3af;
+
+  // List items
+  --mdc-list-list-item-disabled-label-text-color: #6b7280;
+  --mdc-list-list-item-disabled-label-text-opacity: 1;
+
+  // Form field hint / helper text
+  --mat-form-field-subscript-text-color: #4b5563;
+}
+
+// Mixin for high-contrast dark mode component overrides
+@mixin dark-component-overrides {
+  // Outlined text fields
+  --mdc-outlined-text-field-outline-color: #8b919a;
+  --mdc-outlined-text-field-hover-outline-color: #e8e8e8;
+  --mdc-outlined-text-field-focus-outline-color: #8ab4f8;
+  --mdc-outlined-text-field-label-text-color: #c4c7cd;
+  --mdc-outlined-text-field-hover-label-text-color: #e8e8e8;
+  --mdc-outlined-text-field-focus-label-text-color: #8ab4f8;
+  --mdc-outlined-text-field-input-text-color: #e8e8e8;
+  --mdc-outlined-text-field-input-text-placeholder-color: #8b919a;
+  --mdc-outlined-text-field-disabled-outline-color: #5a6069;
+  --mdc-outlined-text-field-disabled-label-text-color: #8b919a;
+  --mdc-outlined-text-field-disabled-input-text-color: #9ca3af;
+
+  // Filled text fields
+  --mdc-filled-text-field-label-text-color: #c4c7cd;
+  --mdc-filled-text-field-hover-label-text-color: #e8e8e8;
+  --mdc-filled-text-field-focus-label-text-color: #8ab4f8;
+  --mdc-filled-text-field-input-text-color: #e8e8e8;
+  --mdc-filled-text-field-input-text-placeholder-color: #8b919a;
+  --mdc-filled-text-field-active-indicator-color: #8b919a;
+  --mdc-filled-text-field-hover-active-indicator-color: #e8e8e8;
+  --mdc-filled-text-field-focus-active-indicator-color: #8ab4f8;
+  --mdc-filled-text-field-disabled-active-indicator-color: #5a6069;
+  --mdc-filled-text-field-disabled-label-text-color: #8b919a;
+  --mdc-filled-text-field-disabled-input-text-color: #9ca3af;
+  --mdc-filled-text-field-disabled-container-color: #252628;
+
+  // Select
+  --mat-select-trigger-text-color: #e8e8e8;
+  --mat-select-enabled-arrow-color: #c4c7cd;
+  --mat-select-disabled-trigger-text-color: #9ca3af;
+  --mat-select-disabled-arrow-color: #5a6069;
+
+  // Option / menu
+  --mat-option-label-text-color: #e8e8e8;
+  --mat-optgroup-label-text-color: #c4c7cd;
+
+  // Checkbox
+  --mdc-checkbox-unselected-icon-color: #9ca3af;
+
+  // Slide toggle
+  --mdc-switch-unselected-track-color: #5a6069;
+
+  // Table
+  --mat-table-header-headline-color: #e8e8e8;
+  --mat-table-row-item-label-text-color: #e8e8e8;
+
+  // Buttons
+  --mdc-filled-button-disabled-label-text-color: #8b919a;
+  --mdc-filled-button-disabled-container-color: #383a3d;
+  --mdc-outlined-button-disabled-label-text-color: #8b919a;
+  --mdc-outlined-button-disabled-outline-color: #5a6069;
+  --mdc-text-button-disabled-label-text-color: #8b919a;
+  --mdc-icon-button-disabled-icon-color: #5a6069;
+
+  // List items
+  --mdc-list-list-item-disabled-label-text-color: #8b919a;
+  --mdc-list-list-item-disabled-label-text-opacity: 1;
+
+  // Form field hint / helper text
+  --mat-form-field-subscript-text-color: #9ca3af;
 }
 
 // Default: Apply light theme with CSS custom properties
 :root {
   @include light-theme-tokens;
   @include mat.all-component-themes($teamschedule-light-theme);
+  @include light-component-overrides;
 }
 
 // System preference: Apply dark theme when prefers-color-scheme is dark
@@ -118,6 +252,7 @@ $teamschedule-dark-theme: mat.define-theme((
   @media (prefers-color-scheme: dark) {
     @include dark-theme-tokens;
     @include mat.all-component-colors($teamschedule-dark-theme);
+    @include dark-component-overrides;
   }
 }
 
@@ -125,10 +260,12 @@ $teamschedule-dark-theme: mat.define-theme((
 :root.light-theme {
   @include light-theme-tokens;
   @include mat.all-component-colors($teamschedule-light-theme);
+  @include light-component-overrides;
 }
 
 // Manual override: Force dark theme
 :root.dark-theme {
   @include dark-theme-tokens;
   @include mat.all-component-colors($teamschedule-dark-theme);
+  @include dark-component-overrides;
 }
