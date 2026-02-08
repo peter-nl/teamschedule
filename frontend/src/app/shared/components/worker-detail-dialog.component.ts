@@ -12,6 +12,7 @@ import { MatDividerModule } from '@angular/material/divider';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
 import { AuthService } from '../services/auth.service';
+import { UserPreferencesService } from '../services/user-preferences.service';
 import { SlideInPanelRef, SlideInPanelService, SLIDE_IN_PANEL_DATA } from '../services/slide-in-panel.service';
 import { ConfirmDialogComponent } from './confirm-dialog.component';
 
@@ -285,14 +286,21 @@ export class WorkerDetailDialogComponent implements OnInit {
   hideNewPassword = true;
   hideConfirmPassword = true;
   resettingPassword = false;
+  private managementModeEnabled = false;
 
   constructor(
     public panelRef: SlideInPanelRef<WorkerDetailDialogComponent, WorkerDetailDialogResult>,
     @Inject(SLIDE_IN_PANEL_DATA) public data: WorkerDetailDialogData,
     private authService: AuthService,
+    private userPreferencesService: UserPreferencesService,
     private snackBar: MatSnackBar,
     private panelService: SlideInPanelService
-  ) {}
+  ) {
+    this.managementModeEnabled = this.userPreferencesService.preferences.managementMode;
+    this.userPreferencesService.preferences$.subscribe(prefs => {
+      this.managementModeEnabled = prefs.managementMode;
+    });
+  }
 
   ngOnInit(): void {
     this.loadData();
@@ -303,7 +311,7 @@ export class WorkerDetailDialogComponent implements OnInit {
   }
 
   private get isManager(): boolean {
-    return this.authService.isManager;
+    return this.authService.isManager && this.managementModeEnabled;
   }
 
   get canEdit(): boolean {

@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { BehaviorSubject } from 'rxjs';
 
 export interface TableSettings {
   sortColumn: string;
@@ -29,8 +30,12 @@ const STORAGE_KEY = 'teamschedule-settings';
 export class SettingsService {
   private settings: AppSettings = {};
 
+  private workersTableSubject = new BehaviorSubject<TableSettings | undefined>(undefined);
+  public workersTable$ = this.workersTableSubject.asObservable();
+
   constructor() {
     this.loadSettings();
+    this.workersTableSubject.next(this.settings.workersTable);
   }
 
   private loadSettings(): void {
@@ -69,6 +74,7 @@ export class SettingsService {
   setWorkersTableSettings(settings: TableSettings): void {
     this.settings.workersTable = settings;
     this.saveSettings();
+    this.workersTableSubject.next(settings);
   }
 
   getWorkersFilterSettings(): WorkersFilterSettings | undefined {

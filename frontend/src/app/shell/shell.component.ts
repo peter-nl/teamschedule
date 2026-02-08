@@ -83,8 +83,8 @@ interface NavItem {
             <span class="nav-label">Management</span>
           </a>
           <a class="nav-item"
-             [class.active]="activeNavBar === 'account'"
-             (click)="toggleNavBar('account')"
+             [class.active]="activeNavBar === 'account' || activePanel === 'login'"
+             (click)="authService.isLoggedIn ? toggleNavBar('account') : openLoginPanel()"
              [matTooltip]="isExpanded ? '' : (authService.isLoggedIn ? 'Account' : 'Login')"
              matTooltipPosition="right">
             <mat-icon>{{ authService.isLoggedIn ? 'account_circle' : 'login' }}</mat-icon>
@@ -644,6 +644,16 @@ export class ShellComponent {
 
   closePanel(): void {
     this.activePanel = null;
+  }
+
+  openLoginPanel(): void {
+    if (this.activePanel === 'login') {
+      this.activePanel = null;
+      this.activeNavBar = null;
+    } else {
+      this.activeNavBar = null;
+      this.activePanel = 'login';
+    }
   }
 
   onLoginSuccess(): void {

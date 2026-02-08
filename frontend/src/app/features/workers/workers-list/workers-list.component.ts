@@ -344,6 +344,17 @@ export class WorkersListComponent implements OnInit {
       this.selectedTeamIdsArray = filterSettings.selectedTeamIds;
     }
 
+    // Sync sort from schedule view (or other sources)
+    this.settingsService.workersTable$.subscribe(settings => {
+      if (settings && this.sortRef) {
+        if (settings.sortColumn !== this.sortRef.active || settings.sortDirection !== this.sortRef.direction) {
+          this.sortRef.active = settings.sortColumn;
+          this.sortRef.direction = settings.sortDirection as 'asc' | 'desc' | '';
+          this.dataSource.sort = this.sortRef;
+        }
+      }
+    });
+
     // Custom filter for searching across multiple fields including teams
     this.dataSource.filterPredicate = (data: Worker, filter: string) => {
       const searchStr = filter.toLowerCase();

@@ -1,12 +1,15 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, map } from 'rxjs';
 
+export type NameColumnField = 'firstName' | 'particles' | 'lastName';
+
 export interface UserPreferences {
   theme: 'system' | 'light' | 'dark';
   navigationExpanded: boolean;
   defaultView: 'schedule' | 'teams' | 'workers';
   managementMode: boolean;
   scheduleZoom: number;
+  scheduleNameColumnOrder: NameColumnField[];
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
@@ -14,7 +17,8 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   navigationExpanded: true,
   defaultView: 'schedule',
   managementMode: true,
-  scheduleZoom: 40
+  scheduleZoom: 40,
+  scheduleNameColumnOrder: ['lastName', 'firstName', 'particles'] as NameColumnField[]
 };
 
 const STORAGE_KEY = 'teamschedule-user-preferences';
@@ -92,6 +96,12 @@ export class UserPreferencesService {
   setScheduleZoom(zoom: number): void {
     const current = this.preferencesSubject.value;
     this.preferencesSubject.next({ ...current, scheduleZoom: zoom });
+    this.savePreferences();
+  }
+
+  setScheduleNameColumnOrder(order: NameColumnField[]): void {
+    const current = this.preferencesSubject.value;
+    this.preferencesSubject.next({ ...current, scheduleNameColumnOrder: order });
     this.savePreferences();
   }
 

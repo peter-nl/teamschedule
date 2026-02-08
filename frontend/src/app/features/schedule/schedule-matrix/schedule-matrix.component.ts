@@ -7,6 +7,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatButtonModule } from '@angular/material/button';
+import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { forkJoin } from 'rxjs';
 import { ScheduleService } from '../services/schedule.service';
 import { Worker } from '../../../shared/models/worker.model';
@@ -16,10 +17,11 @@ import { AppSettingsService } from '../../../core/services/app-settings.service'
 import { HolidayService } from '../../../core/services/holiday.service';
 import { WorkerHolidayService, ExpandedDayEntry, WorkerHolidayPeriod } from '../../../core/services/worker-holiday.service';
 import { HolidayTypeService } from '../../../core/services/holiday-type.service';
-import { UserPreferencesService } from '../../../shared/services/user-preferences.service';
+import { UserPreferencesService, NameColumnField } from '../../../shared/services/user-preferences.service';
 import { AuthService } from '../../../shared/services/auth.service';
 import { SlideInPanelService } from '../../../shared/services/slide-in-panel.service';
 import { HolidayDialogComponent, HolidayDialogData, HolidayDialogResult } from '../../../shared/components/holiday-dialog.component';
+import { WorkerDetailDialogComponent } from '../../../shared/components/worker-detail-dialog.component';
 
 interface DateColumn {
   date: Date;
@@ -61,7 +63,8 @@ interface CellRenderData {
     MatProgressSpinnerModule,
     MatIconModule,
     MatTooltipModule,
-    MatButtonModule
+    MatButtonModule,
+    DragDropModule
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -110,13 +113,33 @@ interface CellRenderData {
             <div class="year-header-cell">{{ visibleYear }}</div>
             <div class="month-header-cell">{{ visibleMonth }}</div>
             <div class="week-header-cell"></div>
-            <div class="day-header-cell" [style.height.px]="rowHeight"></div>
+            <div class="day-header-cell name-columns-header"
+                 [style.height.px]="rowHeight"
+                 cdkDropList
+                 cdkDropListOrientation="horizontal"
+                 (cdkDropListDropped)="onColumnDrop($event)">
+              <div *ngFor="let col of nameColumnOrder"
+                   cdkDrag
+                   class="name-col-header"
+                   [class.sort-active]="sortColumn === col"
+                   [class.particles-col]="col === 'particles'"
+                   (click)="onSortClick(col)">
+                <span>{{ getColumnLabel(col) }}</span>
+                <mat-icon *ngIf="sortColumn === col" class="sort-icon">
+                  {{ sortDirection === 'asc' ? 'arrow_upward' : 'arrow_downward' }}
+                </mat-icon>
+              </div>
+            </div>
             <div *ngFor="let worker of filteredWorkers; let rowIndex = index; trackBy: trackByWorkerId"
                  class="worker-name-cell"
                  [class.odd-row]="rowIndex % 2 === 1"
                  [class.my-row]="currentUserId === worker.id"
-                 [style.height.px]="rowHeight">
-              {{ worker.firstName }}{{ worker.particles ? ' ' + worker.particles + ' ' : ' ' }}{{ worker.lastName }}
+                 [style.height.px]="rowHeight"
+                 (dblclick)="openWorkerDetail(worker)">
+              <span *ngFor="let col of nameColumnOrder"
+                    class="name-col-value"
+                    [class.particles-col]="col === 'particles'"
+                    >{{ getNameField(worker, col) }}</span>
             </div>
           </div>
 
@@ -204,9 +227,6 @@ interface CellRenderData {
 
       </div>
 
-      <button mat-fab class="today-fab" (click)="scrollToToday(true)" matTooltip="Go to today">
-        <mat-icon>today</mat-icon>
-      </button>
     </div>
   `,
   styles: [`
@@ -283,7 +303,7 @@ interface CellRenderData {
 
     .worker-names-column {
       flex-shrink: 0;
-      width: 200px;
+      width: 240px;
       border-right: 2px solid var(--mat-sys-outline-variant);
     }
 
@@ -298,8 +318,8 @@ interface CellRenderData {
       height: 30px;
       display: flex;
       align-items: center;
-      justify-content: flex-end;
-      padding-right: 12px;
+      justify-content: flex-start;
+      padding-left: 8px;
       font-size: 13px;
       font-weight: 600;
     }
@@ -308,8 +328,8 @@ interface CellRenderData {
       height: 30px;
       display: flex;
       align-items: center;
-      justify-content: flex-end;
-      padding-right: 12px;
+      justify-content: flex-start;
+      padding-left: 8px;
       font-size: 13px;
       font-weight: 600;
     }
@@ -318,8 +338,8 @@ interface CellRenderData {
       height: 20px;
       display: flex;
       align-items: center;
-      justify-content: flex-end;
-      padding-right: 12px;
+      justify-content: flex-start;
+      padding-left: 8px;
       font-size: 11px;
       color: var(--mat-sys-on-surface-variant);
       background: var(--mat-sys-surface-variant);
@@ -330,14 +350,87 @@ interface CellRenderData {
       border-bottom: 2px solid var(--mat-sys-outline-variant);
     }
 
-    .worker-name-cell {
-      padding: 0 12px;
+    .name-columns-header {
+      display: flex;
+      align-items: stretch;
+      padding: 0;
+    }
+
+    .name-col-header {
+      flex: 1 1 0;
+      min-width: 0;
       display: flex;
       align-items: center;
+      justify-content: flex-start;
+      gap: 2px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--mat-sys-on-surface-variant);
+      user-select: none;
+      padding: 0 6px;
+      border-right: 1px solid var(--mat-sys-outline-variant);
+    }
+
+    .name-col-header:last-child {
+      border-right: none;
+    }
+
+    .name-col-header:hover {
+      background: var(--mat-sys-surface-container-highest);
+    }
+
+    .name-col-header.sort-active {
+      color: var(--mat-sys-primary);
+    }
+
+    .sort-icon {
       font-size: 14px;
+      width: 14px;
+      height: 14px;
+    }
+
+    .name-col-header.cdk-drag-preview {
+      background: var(--mat-sys-surface-container);
+      border-radius: 4px;
+      padding: 4px 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    .name-col-header.cdk-drag-placeholder {
+      opacity: 0.3;
+    }
+
+    .worker-name-cell {
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      font-size: 13px;
       font-weight: 500;
       border-bottom: 1px solid var(--mat-sys-outline-variant);
       background: var(--mat-sys-surface);
+      cursor: pointer;
+    }
+
+    .worker-name-cell:hover {
+      background: var(--mat-sys-surface-container-highest);
+    }
+
+    .name-col-value {
+      flex: 1 1 0;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      padding: 0 6px;
+      text-align: left;
+    }
+
+    .name-col-value.particles-col,
+    .name-col-header.particles-col {
+      flex: 0 0 50px;
+      max-width: 50px;
     }
 
     .worker-name-cell.odd-row {
@@ -510,13 +603,6 @@ interface CellRenderData {
       outline-offset: -2px;
     }
 
-    .today-fab {
-      position: fixed;
-      bottom: 24px;
-      right: 24px;
-      z-index: 1000;
-    }
-
     @media (max-width: 768px) {
       .header {
         flex-direction: column;
@@ -547,6 +633,11 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
   editableWorkerIds = new Set<string>();
   // Current user ID cached for template comparisons
   currentUserId: string | null = null;
+
+  // Name column ordering and sorting
+  nameColumnOrder: NameColumnField[] = ['lastName', 'firstName', 'particles'];
+  sortColumn: NameColumnField | null = null;
+  sortDirection: 'asc' | 'desc' = 'asc';
 
   // Zoom
   cellWidth = 40;
@@ -582,6 +673,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
 
   // Manager editing mode
   private managementModeEnabled = false;
+  private navigationExpanded = true;
 
   // Drag-to-scroll state
   isDragging = false;
@@ -632,14 +724,36 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
       this.cdr.markForCheck();
     });
 
-    // Track management mode and react to zoom changes from preferences
+    // Track management mode, zoom, column order, and nav state from preferences
     this.userPreferencesService.preferences$.subscribe(prefs => {
       this.managementModeEnabled = prefs.managementMode;
+      this.navigationExpanded = prefs.navigationExpanded;
       this.rebuildEditableWorkerIds();
       if (prefs.scheduleZoom >= this.ZOOM_MIN && prefs.scheduleZoom <= this.ZOOM_MAX && prefs.scheduleZoom !== this.cellWidth) {
         this.cellWidth = prefs.scheduleZoom;
       }
+      if (prefs.scheduleNameColumnOrder) {
+        this.nameColumnOrder = [...prefs.scheduleNameColumnOrder];
+      }
       this.cdr.markForCheck();
+    });
+
+    // Sync sort from workers table
+    const workersSortSettings = this.settingsService.getWorkersTableSettings();
+    if (workersSortSettings && workersSortSettings.sortColumn &&
+        ['firstName', 'particles', 'lastName'].includes(workersSortSettings.sortColumn)) {
+      this.sortColumn = workersSortSettings.sortColumn as NameColumnField;
+      this.sortDirection = workersSortSettings.sortDirection === 'desc' ? 'desc' : 'asc';
+    }
+
+    this.settingsService.workersTable$.subscribe(settings => {
+      if (settings && settings.sortColumn &&
+          ['firstName', 'particles', 'lastName'].includes(settings.sortColumn)) {
+        this.sortColumn = settings.sortColumn as NameColumnField;
+        this.sortDirection = settings.sortDirection === 'desc' ? 'desc' : 'asc';
+        this.applySorting();
+        this.cdr.markForCheck();
+      }
     });
 
     // Bind event handlers for drag-to-scroll
@@ -934,7 +1048,63 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
         });
       });
     }
+    this.applySorting();
     this.rebuildEditableWorkerIds();
+  }
+
+  getColumnLabel(col: NameColumnField): string {
+    switch (col) {
+      case 'firstName': return 'First';
+      case 'particles': return 'Part.';
+      case 'lastName': return 'Last';
+    }
+  }
+
+  getNameField(worker: Worker, col: NameColumnField): string {
+    switch (col) {
+      case 'firstName': return worker.firstName;
+      case 'particles': return worker.particles || '';
+      case 'lastName': return worker.lastName;
+    }
+  }
+
+  onSortClick(col: NameColumnField): void {
+    if (this.sortColumn === col) {
+      if (this.sortDirection === 'asc') {
+        this.sortDirection = 'desc';
+      } else {
+        this.sortColumn = null;
+      }
+    } else {
+      this.sortColumn = col;
+      this.sortDirection = 'asc';
+    }
+    this.applySorting();
+    this.rebuildCellRenderMap();
+    this.cdr.markForCheck();
+
+    // Sync to workers table
+    this.settingsService.setWorkersTableSettings({
+      sortColumn: this.sortColumn || '',
+      sortDirection: this.sortColumn ? this.sortDirection : '',
+      pageSize: this.settingsService.getWorkersTableSettings()?.pageSize || 10
+    });
+  }
+
+  onColumnDrop(event: CdkDragDrop<NameColumnField[]>): void {
+    moveItemInArray(this.nameColumnOrder, event.previousIndex, event.currentIndex);
+    this.userPreferencesService.setScheduleNameColumnOrder([...this.nameColumnOrder]);
+  }
+
+  private applySorting(): void {
+    if (!this.sortColumn) return;
+    const col = this.sortColumn;
+    const dir = this.sortDirection === 'asc' ? 1 : -1;
+    this.filteredWorkers = [...this.filteredWorkers].sort((a, b) => {
+      const aVal = this.getNameField(a, col).toLowerCase();
+      const bVal = this.getNameField(b, col).toLowerCase();
+      return aVal.localeCompare(bVal) * dir;
+    });
   }
 
   trackByWorkerId(_index: number, worker: Worker): string {
@@ -1187,6 +1357,20 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     panelRef.afterClosed().subscribe(result => {
       if (result) {
         this.loadWorkerHolidays();
+      }
+    });
+  }
+
+  openWorkerDetail(worker: Worker): void {
+    const railWidth = this.navigationExpanded ? 220 : 80;
+    const panelRef = this.panelService.open(WorkerDetailDialogComponent, {
+      leftOffset: `${railWidth}px`,
+      data: { workerId: worker.id }
+    });
+
+    panelRef.afterClosed().subscribe(result => {
+      if (result) {
+        this.loadData();
       }
     });
   }
