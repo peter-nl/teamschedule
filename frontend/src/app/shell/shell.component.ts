@@ -173,6 +173,9 @@ interface NavItem {
         </div>
       </nav>
 
+      <!-- Nav Bar Backdrop (mobile) -->
+      <div class="nav-bar-backdrop" *ngIf="activeNavBar" (click)="toggleNavBar(activeNavBar!)"></div>
+
       <!-- Main Content Area -->
       <main class="main-content">
         <router-outlet></router-outlet>
@@ -480,6 +483,18 @@ interface NavItem {
       height: 20px;
     }
 
+    /* Nav Bar Backdrop (mobile only) */
+    .nav-bar-backdrop {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.3);
+      z-index: 149;
+    }
+
     /* Main Content */
     .main-content {
       flex: 1;
@@ -489,74 +504,118 @@ interface NavItem {
       flex-direction: column;
     }
 
-    /* Responsive: Convert to bottom navigation on mobile */
+    /* Responsive: Bottom tab bar on small screens */
     @media (max-width: 600px) {
       .app-layout {
-        flex-direction: column-reverse;
+        flex-direction: column;
+        height: 100vh;
+        height: 100dvh;
       }
 
-      .nav-rail {
-        width: 100%;
-        min-width: unset;
-        height: auto;
-        flex-direction: row;
-        border-right: none;
-        border-top: 1px solid var(--mat-sys-outline-variant);
-        padding: 0;
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-      }
-
+      .nav-rail,
       .nav-rail.expanded {
         width: 100%;
         min-width: unset;
+        height: 56px;
+        min-height: 56px;
+        flex-direction: row;
+        flex-shrink: 0;
+        align-items: center;
+        justify-content: space-around;
+        border-right: none;
+        border-top: 1px solid var(--mat-sys-outline-variant);
+        padding: 0;
+        position: relative;
+        top: auto;
+        order: 2;
+        transition: none;
       }
 
-      .nav-header {
+      .nav-header,
+      .nav-spacer,
+      .nav-version {
         display: none;
       }
 
       .nav-items {
         flex-direction: row;
-        justify-content: space-around;
-        padding: 8px 0;
+        justify-content: center;
+        padding: 0;
         gap: 0;
         flex: 1;
       }
 
-      .nav-spacer {
-        display: none;
-      }
-
       .nav-account {
-        padding: 8px 0;
+        padding: 0;
         flex-direction: row;
+        gap: 0;
+        flex: 0 0 auto;
       }
 
       .nav-item {
-        padding: 8px 16px;
+        padding: 6px 16px;
         border-radius: 12px;
         flex-direction: column;
+        gap: 2px;
+        flex: 1;
+        max-width: 80px;
       }
 
       .nav-label {
-        font-size: 12px;
+        font-size: 11px;
         text-align: center;
       }
 
       .nav-bar {
+        position: fixed;
+        bottom: 56px;
+        left: 0;
+        right: 0;
+        width: 100%;
+        min-width: unset;
+        height: auto;
+        max-height: 60vh;
+        border-right: none;
+        border-top: 1px solid var(--mat-sys-outline-variant);
+        border-radius: 16px 16px 0 0;
+        box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.15);
+        z-index: 150;
+        animation: slideUp 200ms ease;
+      }
+
+      .nav-bar .nav-bar-spacer {
         display: none;
       }
 
+      .nav-bar .nav-bar-items {
+        padding: 16px;
+      }
+
+      @keyframes slideUp {
+        from { transform: translateY(100%); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
+
+      .nav-bar-backdrop {
+        display: block;
+      }
+
+      .slide-in-shell-panel {
+        left: 0 !important;
+      }
+
       .main-content {
-        padding-bottom: 80px;
+        flex: 1;
+        min-height: 0;
+        order: 1;
+        padding-bottom: 0;
       }
     }
   `]
 })
 export class ShellComponent {
+  private readonly TABLET_BREAKPOINT = 768;
+
   navItems: NavItem[] = [
     { path: '/schedule', icon: 'calendar_month', label: 'Schedule' }
   ];
@@ -576,10 +635,11 @@ export class ShellComponent {
     private snackBar: MatSnackBar,
     private panelService: SlideInPanelService
   ) {
-    this.isExpanded = this.userPreferencesService.preferences.navigationExpanded;
+    const isNarrow = window.innerWidth < this.TABLET_BREAKPOINT;
+    this.isExpanded = isNarrow ? false : this.userPreferencesService.preferences.navigationExpanded;
     this.managementModeEnabled = this.userPreferencesService.preferences.managementMode;
     this.userPreferencesService.preferences$.subscribe(prefs => {
-      this.isExpanded = prefs.navigationExpanded;
+      this.isExpanded = window.innerWidth < this.TABLET_BREAKPOINT ? false : prefs.navigationExpanded;
       this.managementModeEnabled = prefs.managementMode;
       // Close management nav bar if management mode gets disabled
       if (!prefs.managementMode && this.activeNavBar === 'management') {
@@ -613,6 +673,17 @@ export class ShellComponent {
     return railWidth + barWidth;
   }
 
+  @HostListener('window:resize')
+  onWindowResize(): void {
+    if (window.innerWidth < this.TABLET_BREAKPOINT) {
+      if (this.isExpanded) {
+        this.isExpanded = false;
+      }
+    } else {
+      this.isExpanded = this.userPreferencesService.preferences.navigationExpanded;
+    }
+  }
+
   @HostListener('document:keydown.escape')
   onEscapeKey(): void {
     if (this.activePanel) {
@@ -633,7 +704,12 @@ export class ShellComponent {
   }
 
   toggleExpanded(): void {
-    this.userPreferencesService.setNavigationExpanded(!this.isExpanded);
+    if (window.innerWidth < this.TABLET_BREAKPOINT) {
+      // On narrow screens, toggle locally without persisting
+      this.isExpanded = !this.isExpanded;
+    } else {
+      this.userPreferencesService.setNavigationExpanded(!this.isExpanded);
+    }
   }
 
   toggleNavBar(type: NavBarType): void {
@@ -646,9 +722,17 @@ export class ShellComponent {
     }
   }
 
+  get isMobile(): boolean {
+    return window.innerWidth <= 600;
+  }
+
   openPanel(panel: PanelType): void {
     this.panelService.closeAll();
     this.activePanel = this.activePanel === panel ? null : panel;
+    // On mobile, close the nav-bar overlay when opening a panel
+    if (this.isMobile && this.activePanel) {
+      this.activeNavBar = null;
+    }
   }
 
   closePanel(): void {
