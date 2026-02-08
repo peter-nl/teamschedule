@@ -11,14 +11,13 @@ import { UserPreferencesService } from '../shared/services/user-preferences.serv
 import { SlideInPanelService } from '../shared/services/slide-in-panel.service';
 import { AccountLoginComponent } from '../features/account/account-login.component';
 import { AccountProfileComponent } from '../features/account/account-profile.component';
-import { AccountHolidaysComponent } from '../features/account/account-holidays.component';
 import { AccountPasswordComponent } from '../features/account/account-password.component';
 import { ManageTeamsComponent } from '../features/manage/manage-teams.component';
 import { ManageWorkersComponent } from '../features/manage/manage-workers.component';
 import { ManageSettingsComponent } from '../features/manage/manage-settings.component';
 
 type NavBarType = 'account' | 'management';
-type PanelType = 'login' | 'profile' | 'holidays' | 'password'
+type PanelType = 'login' | 'profile' | 'password'
               | 'manage-teams' | 'manage-workers' | 'manage-settings';
 
 interface NavItem {
@@ -39,7 +38,6 @@ interface NavItem {
     MatSnackBarModule,
     AccountLoginComponent,
     AccountProfileComponent,
-    AccountHolidaysComponent,
     AccountPasswordComponent,
     ManageTeamsComponent,
     ManageWorkersComponent,
@@ -127,13 +125,6 @@ interface NavItem {
           </button>
           <button *ngIf="authService.isLoggedIn"
                   class="nav-bar-item"
-                  [class.active]="activePanel === 'holidays'"
-                  (click)="openPanel('holidays')">
-            <mat-icon>beach_access</mat-icon>
-            <span>Holidays</span>
-          </button>
-          <button *ngIf="authService.isLoggedIn"
-                  class="nav-bar-item"
                   [class.active]="activePanel === 'password'"
                   (click)="openPanel('password')">
             <mat-icon>lock</mat-icon>
@@ -191,7 +182,6 @@ interface NavItem {
       <div class="slide-in-content">
         <app-account-login *ngIf="activePanel === 'login'" (loginSuccess)="onLoginSuccess()"></app-account-login>
         <app-account-profile *ngIf="activePanel === 'profile'"></app-account-profile>
-        <app-account-holidays *ngIf="activePanel === 'holidays'"></app-account-holidays>
         <app-account-password *ngIf="activePanel === 'password'"></app-account-password>
         <app-manage-teams *ngIf="activePanel === 'manage-teams'"></app-manage-teams>
         <app-manage-workers *ngIf="activePanel === 'manage-workers'"></app-manage-workers>
