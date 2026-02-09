@@ -50,8 +50,8 @@ const REMOVE_WORKER_FROM_TEAM_MUTATION = gql`
 `;
 
 const RESET_PASSWORD_MUTATION = gql`
-  mutation ResetPassword($workerId: String!, $newPassword: String!, $requesterId: String!) {
-    resetPassword(workerId: $workerId, newPassword: $newPassword, requesterId: $requesterId) {
+  mutation ResetPassword($workerId: String!, $newPassword: String!) {
+    resetPassword(workerId: $workerId, newPassword: $newPassword) {
       success
       message
     }
@@ -348,8 +348,7 @@ export class WorkerEditDialogComponent {
         mutation: RESET_PASSWORD_MUTATION,
         variables: {
           workerId: this.data.worker.id,
-          newPassword: this.resetPasswordForm.newPassword,
-          requesterId: this.authService.currentUser!.id
+          newPassword: this.resetPasswordForm.newPassword
         }
       });
 

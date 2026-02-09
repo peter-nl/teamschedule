@@ -116,8 +116,8 @@ const ADD_WORKER_TO_TEAM_MUTATION = gql`
                    [(ngModel)]="workerForm.email"
                    name="email"
                    type="email"
+                   required
                    placeholder="e.g., john@example.com">
-            <mat-hint>Optional email address</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
@@ -175,7 +175,9 @@ const ADD_WORKER_TO_TEAM_MUTATION = gql`
       display: flex;
       flex-direction: column;
       gap: 8px;
-      min-width: 300px;
+      width: 100%;
+      max-width: 480px;
+      margin: 0 auto;
     }
 
     .full-width {
@@ -231,6 +233,7 @@ export class AddWorkerDialogComponent implements OnInit {
       this.workerForm.id &&
       this.workerForm.firstName &&
       this.workerForm.lastName &&
+      this.workerForm.email &&
       this.workerForm.password &&
       this.workerForm.password === this.workerForm.confirmPassword
     );

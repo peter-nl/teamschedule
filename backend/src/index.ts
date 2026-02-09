@@ -2,10 +2,34 @@ import { ApolloServer } from '@apollo/server';
 import { startStandaloneServer } from '@apollo/server/standalone';
 import { Pool } from 'pg';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import { runMigrations } from './db/migrate';
 
 dotenv.config();
+
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback-dev-secret';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+
+// Auth context type
+interface AuthContext {
+  user: { id: string; role: string } | null;
+}
+
+function generateToken(worker: { id: string; role: string }): string {
+  return jwt.sign({ id: worker.id, role: worker.role }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN as any });
+}
+
+function requireAuth(ctx: AuthContext): { id: string; role: string } {
+  if (!ctx.user) throw new Error('Authentication required');
+  return ctx.user;
+}
+
+function requireManager(ctx: AuthContext): { id: string; role: string } {
+  const user = requireAuth(ctx);
+  if (user.role !== 'manager') throw new Error('Manager access required');
+  return user;
+}
 
 // PostgreSQL connection pool
 const pool = new Pool({
@@ -79,6 +103,7 @@ const typeDefs = `#graphql
     success: Boolean!
     message: String
     worker: Worker
+    token: String
   }
 
   type Query {
@@ -105,8 +130,8 @@ const typeDefs = `#graphql
     login(workerId: String!, password: String!): AuthPayload!
     updateWorkerProfile(id: String!, firstName: String!, lastName: String!, particles: String, email: String): Worker
     changePassword(workerId: String!, currentPassword: String!, newPassword: String!): AuthPayload!
-    resetPassword(workerId: String!, newPassword: String!, requesterId: String!): AuthPayload!
-    updateWorkerRole(workerId: String!, role: String!, requesterId: String!): Worker
+    resetPassword(workerId: String!, newPassword: String!): AuthPayload!
+    updateWorkerRole(workerId: String!, role: String!): Worker
     addWorkerHoliday(workerId: String!, holiday: WorkerHolidayInput!): WorkerHoliday!
     removeWorkerHoliday(id: ID!): Boolean!
     updateWorkerHoliday(id: ID!, holiday: WorkerHolidayInput!): WorkerHoliday!
@@ -128,15 +153,18 @@ const resolvers = {
         return `Database error: ${error}`;
       }
     },
-    teams: async () => {
+    teams: async (_: any, __: any, ctx: AuthContext) => {
+      requireAuth(ctx);
       const result = await pool.query('SELECT * FROM team ORDER BY name');
       return result.rows;
     },
-    team: async (_: any, { id }: { id: number }) => {
+    team: async (_: any, { id }: { id: number }, ctx: AuthContext) => {
+      requireAuth(ctx);
       const result = await pool.query('SELECT * FROM team WHERE id = $1', [id]);
       return result.rows[0] || null;
     },
-    workers: async () => {
+    workers: async (_: any, __: any, ctx: AuthContext) => {
+      requireAuth(ctx);
       const result = await pool.query('SELECT * FROM worker ORDER BY last_name, first_name');
       return result.rows.map(row => ({
         id: row.id,
@@ -147,7 +175,8 @@ const resolvers = {
         role: row.role,
       }));
     },
-    worker: async (_: any, { id }: { id: string }) => {
+    worker: async (_: any, { id }: { id: string }, ctx: AuthContext) => {
+      requireAuth(ctx);
       const result = await pool.query('SELECT * FROM worker WHERE id = $1', [id]);
       if (result.rows.length === 0) return null;
       const row = result.rows[0];
@@ -160,7 +189,8 @@ const resolvers = {
         role: row.role,
       };
     },
-    holidayTypes: async () => {
+    holidayTypes: async (_: any, __: any, ctx: AuthContext) => {
+      requireAuth(ctx);
       const result = await pool.query('SELECT * FROM holiday_type ORDER BY sort_order, name');
       return result.rows.map(row => ({
         id: row.id,
@@ -170,7 +200,8 @@ const resolvers = {
         sortOrder: row.sort_order,
       }));
     },
-    workerHolidays: async (_: any, { workerId }: { workerId: string }) => {
+    workerHolidays: async (_: any, { workerId }: { workerId: string }, ctx: AuthContext) => {
+      requireAuth(ctx);
       const result = await pool.query(
         `SELECT wh.*, ht.id as ht_id, ht.name as ht_name, ht.color_light as ht_color_light,
                 ht.color_dark as ht_color_dark, ht.sort_order as ht_sort_order
@@ -193,7 +224,8 @@ const resolvers = {
         } : null,
       }));
     },
-    allWorkerHolidays: async (_: any, { startDate, endDate }: { startDate: string; endDate: string }) => {
+    allWorkerHolidays: async (_: any, { startDate, endDate }: { startDate: string; endDate: string }, ctx: AuthContext) => {
+      requireAuth(ctx);
       const result = await pool.query(
         `SELECT wh.*, ht.id as ht_id, ht.name as ht_name, ht.color_light as ht_color_light,
                 ht.color_dark as ht_color_dark, ht.sort_order as ht_sort_order
@@ -220,22 +252,24 @@ const resolvers = {
   },
   Mutation: {
     ping: () => 'pong',
-    createTeam: async (_: any, { name }: { name: string }) => {
+    createTeam: async (_: any, { name }: { name: string }, ctx: AuthContext) => {
+      requireManager(ctx);
       const result = await pool.query(
         'INSERT INTO team (name) VALUES ($1) RETURNING *',
         [name]
       );
       return result.rows[0];
     },
-    updateTeam: async (_: any, { id, name }: { id: number; name: string }) => {
+    updateTeam: async (_: any, { id, name }: { id: number; name: string }, ctx: AuthContext) => {
+      requireManager(ctx);
       const result = await pool.query(
         'UPDATE team SET name = $1 WHERE id = $2 RETURNING *',
         [name, id]
       );
       return result.rows[0] || null;
     },
-    createWorker: async (_: any, { id, firstName, lastName, particles, email, password }: { id: string; firstName: string; lastName: string; particles?: string; email?: string; password: string }) => {
-      // Hash the password with bcrypt (10 salt rounds)
+    createWorker: async (_: any, { id, firstName, lastName, particles, email, password }: { id: string; firstName: string; lastName: string; particles?: string; email?: string; password: string }, ctx: AuthContext) => {
+      requireManager(ctx);
       const hashedPassword = await bcrypt.hash(password, 10);
 
       const result = await pool.query(
@@ -252,7 +286,8 @@ const resolvers = {
         role: row.role,
       };
     },
-    addWorkerToTeam: async (_: any, { teamId, workerId }: { teamId: number; workerId: number }) => {
+    addWorkerToTeam: async (_: any, { teamId, workerId }: { teamId: number; workerId: number }, ctx: AuthContext) => {
+      requireManager(ctx);
       await pool.query(
         'INSERT INTO team_worker (team_id, worker_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
         [teamId, workerId]
@@ -260,7 +295,8 @@ const resolvers = {
       const result = await pool.query('SELECT * FROM team WHERE id = $1', [teamId]);
       return result.rows[0];
     },
-    removeWorkerFromTeam: async (_: any, { teamId, workerId }: { teamId: number; workerId: number }) => {
+    removeWorkerFromTeam: async (_: any, { teamId, workerId }: { teamId: number; workerId: number }, ctx: AuthContext) => {
+      requireManager(ctx);
       await pool.query(
         'DELETE FROM team_worker WHERE team_id = $1 AND worker_id = $2',
         [teamId, workerId]
@@ -268,11 +304,13 @@ const resolvers = {
       const result = await pool.query('SELECT * FROM team WHERE id = $1', [teamId]);
       return result.rows[0];
     },
-    deleteTeam: async (_: any, { id }: { id: number }) => {
+    deleteTeam: async (_: any, { id }: { id: number }, ctx: AuthContext) => {
+      requireManager(ctx);
       const result = await pool.query('DELETE FROM team WHERE id = $1', [id]);
       return (result.rowCount ?? 0) > 0;
     },
-    deleteWorker: async (_: any, { id }: { id: number }) => {
+    deleteWorker: async (_: any, { id }: { id: number }, ctx: AuthContext) => {
+      requireManager(ctx);
       const result = await pool.query('DELETE FROM worker WHERE id = $1', [id]);
       return (result.rowCount ?? 0) > 0;
     },
@@ -284,33 +322,42 @@ const resolvers = {
         );
 
         if (result.rows.length === 0) {
-          return { success: false, message: 'Worker not found', worker: null };
+          return { success: false, message: 'Worker not found', worker: null, token: null };
         }
 
         const row = result.rows[0];
 
-        // Verify password using bcrypt
         const passwordValid = await bcrypt.compare(password, row.password_hash);
         if (!passwordValid) {
-          return { success: false, message: 'Invalid password', worker: null };
+          return { success: false, message: 'Invalid password', worker: null, token: null };
         }
+
+        const worker = {
+          id: row.id,
+          firstName: row.first_name,
+          lastName: row.last_name,
+          particles: row.particles,
+          email: row.email,
+          role: row.role,
+        };
 
         return {
           success: true,
           message: 'Login successful',
-          worker: {
-            id: row.id,
-            firstName: row.first_name,
-            lastName: row.last_name,
-            particles: row.particles,
-            role: row.role,
-          }
+          worker,
+          token: generateToken(worker),
         };
       } catch (error) {
-        return { success: false, message: 'Login failed', worker: null };
+        return { success: false, message: 'Login failed', worker: null, token: null };
       }
     },
-    updateWorkerProfile: async (_: any, { id, firstName, lastName, particles, email }: { id: string; firstName: string; lastName: string; particles?: string; email?: string }) => {
+    updateWorkerProfile: async (_: any, { id, firstName, lastName, particles, email }: { id: string; firstName: string; lastName: string; particles?: string; email?: string }, ctx: AuthContext) => {
+      const user = requireAuth(ctx);
+      // Users can only update their own profile, managers can update anyone
+      if (user.id !== id && user.role !== 'manager') {
+        throw new Error('You can only update your own profile');
+      }
+
       const result = await pool.query(
         'UPDATE worker SET first_name = $2, last_name = $3, particles = $4, email = $5 WHERE id = $1 RETURNING *',
         [id, firstName, lastName, particles || null, email || null]
@@ -328,7 +375,13 @@ const resolvers = {
         role: row.role,
       };
     },
-    changePassword: async (_: any, { workerId, currentPassword, newPassword }: { workerId: string; currentPassword: string; newPassword: string }) => {
+    changePassword: async (_: any, { workerId, currentPassword, newPassword }: { workerId: string; currentPassword: string; newPassword: string }, ctx: AuthContext) => {
+      const user = requireAuth(ctx);
+      // Users can only change their own password
+      if (user.id !== workerId) {
+        throw new Error('You can only change your own password');
+      }
+
       try {
         const result = await pool.query(
           'SELECT * FROM worker WHERE id = $1',
@@ -336,18 +389,16 @@ const resolvers = {
         );
 
         if (result.rows.length === 0) {
-          return { success: false, message: 'Worker not found', worker: null };
+          return { success: false, message: 'Worker not found', worker: null, token: null };
         }
 
         const row = result.rows[0];
 
-        // Verify current password using bcrypt
         const passwordValid = await bcrypt.compare(currentPassword, row.password_hash);
         if (!passwordValid) {
-          return { success: false, message: 'Current password is incorrect', worker: null };
+          return { success: false, message: 'Current password is incorrect', worker: null, token: null };
         }
 
-        // Hash the new password with bcrypt (10 salt rounds)
         const hashedPassword = await bcrypt.hash(newPassword, 10);
         await pool.query(
           'UPDATE worker SET password_hash = $2 WHERE id = $1',
@@ -362,33 +413,28 @@ const resolvers = {
             firstName: row.first_name,
             lastName: row.last_name,
             particles: row.particles,
+            email: row.email,
             role: row.role,
-          }
+          },
+          token: null,
         };
       } catch (error) {
-        return { success: false, message: 'Failed to change password', worker: null };
+        return { success: false, message: 'Failed to change password', worker: null, token: null };
       }
     },
-    resetPassword: async (_: any, { workerId, newPassword, requesterId }: { workerId: string; newPassword: string; requesterId: string }) => {
-      try {
-        // Check if requester is a manager
-        const requesterResult = await pool.query('SELECT role FROM worker WHERE id = $1', [requesterId]);
-        if (requesterResult.rows.length === 0) {
-          return { success: false, message: 'Requester not found', worker: null };
-        }
-        if (requesterResult.rows[0].role !== 'manager') {
-          return { success: false, message: 'Only managers can reset passwords', worker: null };
-        }
+    resetPassword: async (_: any, { workerId, newPassword }: { workerId: string; newPassword: string }, ctx: AuthContext) => {
+      const manager = requireManager(ctx);
 
+      try {
         // Prevent managers from resetting their own password via this mutation
-        if (workerId === requesterId) {
-          return { success: false, message: 'Cannot reset your own password. Use change password instead.', worker: null };
+        if (workerId === manager.id) {
+          return { success: false, message: 'Cannot reset your own password. Use change password instead.', worker: null, token: null };
         }
 
         // Verify target worker exists
         const workerResult = await pool.query('SELECT * FROM worker WHERE id = $1', [workerId]);
         if (workerResult.rows.length === 0) {
-          return { success: false, message: 'Worker not found', worker: null };
+          return { success: false, message: 'Worker not found', worker: null, token: null };
         }
 
         // Hash and update password
@@ -404,14 +450,17 @@ const resolvers = {
             firstName: row.first_name,
             lastName: row.last_name,
             particles: row.particles,
+            email: row.email,
             role: row.role,
-          }
+          },
+          token: null,
         };
       } catch (error) {
-        return { success: false, message: 'Failed to reset password', worker: null };
+        return { success: false, message: 'Failed to reset password', worker: null, token: null };
       }
     },
-    addWorkerHoliday: async (_: any, { workerId, holiday }: { workerId: string; holiday: { startDate: string; endDate: string; startDayPart: string; endDayPart: string; description?: string; holidayTypeId?: string } }) => {
+    addWorkerHoliday: async (_: any, { workerId, holiday }: { workerId: string; holiday: { startDate: string; endDate: string; startDayPart: string; endDayPart: string; description?: string; holidayTypeId?: string } }, ctx: AuthContext) => {
+      requireAuth(ctx);
       const insertResult = await pool.query(
         `INSERT INTO worker_holiday (worker_id, start_date, end_date, start_day_part, end_day_part, description, holiday_type_id)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -442,14 +491,16 @@ const resolvers = {
         } : null,
       };
     },
-    removeWorkerHoliday: async (_: any, { id }: { id: string }) => {
+    removeWorkerHoliday: async (_: any, { id }: { id: string }, ctx: AuthContext) => {
+      requireAuth(ctx);
       const result = await pool.query(
         'DELETE FROM worker_holiday WHERE id = $1',
         [id]
       );
       return (result.rowCount ?? 0) > 0;
     },
-    updateWorkerHoliday: async (_: any, { id, holiday }: { id: string; holiday: { startDate: string; endDate: string; startDayPart: string; endDayPart: string; description?: string; holidayTypeId?: string } }) => {
+    updateWorkerHoliday: async (_: any, { id, holiday }: { id: string; holiday: { startDate: string; endDate: string; startDayPart: string; endDayPart: string; description?: string; holidayTypeId?: string } }, ctx: AuthContext) => {
+      requireAuth(ctx);
       await pool.query(
         `UPDATE worker_holiday
          SET start_date = $2, end_date = $3, start_day_part = $4, end_day_part = $5, description = $6, holiday_type_id = $7
@@ -479,7 +530,8 @@ const resolvers = {
         } : null,
       };
     },
-    createHolidayType: async (_: any, { name, colorLight, colorDark }: { name: string; colorLight: string; colorDark: string }) => {
+    createHolidayType: async (_: any, { name, colorLight, colorDark }: { name: string; colorLight: string; colorDark: string }, ctx: AuthContext) => {
+      requireManager(ctx);
       const maxOrder = await pool.query('SELECT COALESCE(MAX(sort_order), -1) + 1 as next_order FROM holiday_type');
       const sortOrder = maxOrder.rows[0].next_order;
       const result = await pool.query(
@@ -489,7 +541,8 @@ const resolvers = {
       const row = result.rows[0];
       return { id: row.id, name: row.name, colorLight: row.color_light, colorDark: row.color_dark, sortOrder: row.sort_order };
     },
-    updateHolidayType: async (_: any, { id, name, colorLight, colorDark, sortOrder }: { id: number; name?: string; colorLight?: string; colorDark?: string; sortOrder?: number }) => {
+    updateHolidayType: async (_: any, { id, name, colorLight, colorDark, sortOrder }: { id: number; name?: string; colorLight?: string; colorDark?: string; sortOrder?: number }, ctx: AuthContext) => {
+      requireManager(ctx);
       const current = await pool.query('SELECT * FROM holiday_type WHERE id = $1', [id]);
       if (current.rows.length === 0) throw new Error('Holiday type not found');
       const cur = current.rows[0];
@@ -500,26 +553,18 @@ const resolvers = {
       const row = result.rows[0];
       return { id: row.id, name: row.name, colorLight: row.color_light, colorDark: row.color_dark, sortOrder: row.sort_order };
     },
-    deleteHolidayType: async (_: any, { id }: { id: number }) => {
+    deleteHolidayType: async (_: any, { id }: { id: number }, ctx: AuthContext) => {
+      requireManager(ctx);
       const result = await pool.query('DELETE FROM holiday_type WHERE id = $1', [id]);
       return (result.rowCount ?? 0) > 0;
     },
-    updateWorkerRole: async (_: any, { workerId, role, requesterId }: { workerId: string; role: string; requesterId: string }) => {
-      // Validate role value
+    updateWorkerRole: async (_: any, { workerId, role }: { workerId: string; role: string }, ctx: AuthContext) => {
+      requireManager(ctx);
+
       if (role !== 'user' && role !== 'manager') {
         throw new Error('Invalid role. Must be "user" or "manager"');
       }
 
-      // Check if requester is a manager
-      const requesterResult = await pool.query('SELECT role FROM worker WHERE id = $1', [requesterId]);
-      if (requesterResult.rows.length === 0) {
-        throw new Error('Requester not found');
-      }
-      if (requesterResult.rows[0].role !== 'manager') {
-        throw new Error('Only managers can change roles');
-      }
-
-      // Update the worker's role
       const result = await pool.query(
         'UPDATE worker SET role = $2 WHERE id = $1 RETURNING *',
         [workerId, role]
@@ -581,6 +626,18 @@ const server = new ApolloServer({
 const startServer = async () => {
   const { url } = await startStandaloneServer(server, {
     listen: { port: Number(process.env.PORT) || 4000 },
+    context: async ({ req }): Promise<AuthContext> => {
+      const auth = req.headers.authorization || '';
+      if (auth.startsWith('Bearer ')) {
+        try {
+          const decoded = jwt.verify(auth.slice(7), JWT_SECRET) as { id: string; role: string };
+          return { user: { id: decoded.id, role: decoded.role } };
+        } catch {
+          return { user: null };
+        }
+      }
+      return { user: null };
+    },
   });
 
   console.log(`🚀 Apollo Server ready at: ${url}`);

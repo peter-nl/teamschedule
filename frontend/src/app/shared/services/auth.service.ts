@@ -16,6 +16,7 @@ export interface AuthPayload {
   success: boolean;
   message: string | null;
   worker: AuthWorker | null;
+  token: string | null;
 }
 
 const LOGIN_MUTATION = gql`
@@ -23,6 +24,7 @@ const LOGIN_MUTATION = gql`
     login(workerId: $workerId, password: $password) {
       success
       message
+      token
       worker {
         id
         firstName
@@ -49,8 +51,8 @@ const UPDATE_PROFILE_MUTATION = gql`
 `;
 
 const UPDATE_ROLE_MUTATION = gql`
-  mutation UpdateWorkerRole($workerId: String!, $role: String!, $requesterId: String!) {
-    updateWorkerRole(workerId: $workerId, role: $role, requesterId: $requesterId) {
+  mutation UpdateWorkerRole($workerId: String!, $role: String!) {
+    updateWorkerRole(workerId: $workerId, role: $role) {
       id
       firstName
       lastName
@@ -78,33 +80,46 @@ const STORAGE_KEY = 'teamschedule-auth';
 export class AuthService {
   private currentUserSubject = new BehaviorSubject<AuthWorker | null>(null);
   public currentUser$ = this.currentUserSubject.asObservable();
+  private token: string | null = null;
 
   constructor() {
-    this.loadStoredUser();
+    this.loadStoredAuth();
   }
 
-  private loadStoredUser(): void {
+  private loadStoredAuth(): void {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        const user = JSON.parse(stored);
-        this.currentUserSubject.next(user);
+        const parsed = JSON.parse(stored);
+        if (parsed.token && parsed.user) {
+          // New format: { user, token }
+          this.token = parsed.token;
+          this.currentUserSubject.next(parsed.user);
+        } else {
+          // Old format (raw user object without token) - force re-login
+          localStorage.removeItem(STORAGE_KEY);
+        }
       }
     } catch (e) {
-      console.warn('Failed to load stored user:', e);
+      console.warn('Failed to load stored auth:', e);
+      localStorage.removeItem(STORAGE_KEY);
     }
   }
 
-  private storeUser(user: AuthWorker | null): void {
+  private storeAuth(user: AuthWorker | null, token: string | null): void {
     try {
       if (user) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ user, token }));
       } else {
         localStorage.removeItem(STORAGE_KEY);
       }
     } catch (e) {
-      console.warn('Failed to store user:', e);
+      console.warn('Failed to store auth:', e);
     }
+  }
+
+  getToken(): string | null {
+    return this.token;
   }
 
   get isLoggedIn(): boolean {
@@ -125,8 +140,9 @@ export class AuthService {
       map((result: any) => {
         const payload: AuthPayload = result.data.login;
         if (payload.success && payload.worker) {
+          this.token = payload.token ?? null;
           this.currentUserSubject.next(payload.worker);
-          this.storeUser(payload.worker);
+          this.storeAuth(payload.worker, this.token);
         }
         return payload;
       })
@@ -134,8 +150,9 @@ export class AuthService {
   }
 
   logout(): void {
+    this.token = null;
     this.currentUserSubject.next(null);
-    this.storeUser(null);
+    this.storeAuth(null, null);
   }
 
   updateProfile(firstName: string, lastName: string, particles: string | null, email: string | null): Observable<AuthWorker | null> {
@@ -160,7 +177,7 @@ export class AuthService {
         const updatedWorker: AuthWorker = result.data.updateWorkerProfile;
         if (updatedWorker) {
           this.currentUserSubject.next(updatedWorker);
-          this.storeUser(updatedWorker);
+          this.storeAuth(updatedWorker, this.token);
         }
         return updatedWorker;
       })
@@ -202,8 +219,7 @@ export class AuthService {
         mutation: UPDATE_ROLE_MUTATION,
         variables: {
           workerId,
-          role,
-          requesterId: user.id
+          role
         }
       })
     ).pipe(
@@ -212,7 +228,7 @@ export class AuthService {
         // If updating own role, update current user
         if (updatedWorker && updatedWorker.id === user.id) {
           this.currentUserSubject.next(updatedWorker);
-          this.storeUser(updatedWorker);
+          this.storeAuth(updatedWorker, this.token);
         }
         return updatedWorker;
       })

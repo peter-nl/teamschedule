@@ -18,6 +18,7 @@ import { SlideInPanelService } from '../../shared/services/slide-in-panel.servic
 import { UserPreferencesService } from '../../shared/services/user-preferences.service';
 import { TeamEditDialogComponent, TeamEditDialogData } from '../../shared/components/team-edit-dialog.component';
 import { ScheduleSearchPanelComponent, ScheduleSearchPanelData, ScheduleSearchPanelResult } from '../schedule/schedule-filter/schedule-search-panel.component';
+import { AddTeamDialogComponent } from '../../shell/add-team-dialog.component';
 
 interface Worker {
   id: string;
@@ -98,6 +99,11 @@ const REMOVE_WORKER_FROM_TEAM_MUTATION = gql`
   template: `
     <div class="manage-container">
       <div class="header">
+        <button mat-icon-button
+                (click)="openAddTeam()"
+                matTooltip="Add team">
+          <mat-icon>group_add</mat-icon>
+        </button>
         <button mat-icon-button
                 (click)="openSearchPanel()"
                 matTooltip="Search teams"
@@ -470,5 +476,23 @@ export class ManageTeamsComponent implements OnInit {
     } finally {
       this.saving = false;
     }
+  }
+
+  openAddTeam(): void {
+    const isNarrow = window.innerWidth < 768;
+    const navExpanded = this.userPreferencesService.preferences.navigationExpanded;
+    const railWidth = isNarrow ? 0 : (navExpanded ? 220 : 80);
+    const leftOffset = railWidth > 0 ? `${railWidth}px` : undefined;
+
+    const addRef = this.panelService.open<AddTeamDialogComponent, void, boolean>(
+      AddTeamDialogComponent,
+      { leftOffset }
+    );
+
+    addRef.afterClosed().subscribe(saved => {
+      if (saved) {
+        this.loadData();
+      }
+    });
   }
 }

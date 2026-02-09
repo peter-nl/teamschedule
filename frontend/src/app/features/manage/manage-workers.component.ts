@@ -19,6 +19,7 @@ import { UserPreferencesService, TeamFilterMode } from '../../shared/services/us
 import { WorkerEditDialogComponent, WorkerEditDialogData } from '../../shared/components/worker-edit-dialog.component';
 import { ScheduleFilterPanelComponent, ScheduleFilterPanelData, ScheduleFilterPanelResult } from '../schedule/schedule-filter/schedule-filter-panel.component';
 import { ScheduleSearchPanelComponent, ScheduleSearchPanelData, ScheduleSearchPanelResult } from '../schedule/schedule-filter/schedule-search-panel.component';
+import { AddWorkerDialogComponent } from '../../shell/add-worker-dialog.component';
 
 interface Team {
   id: string;
@@ -81,6 +82,11 @@ const GET_TEAMS_QUERY = gql`
   template: `
     <div class="manage-container">
       <div class="header">
+        <button mat-icon-button
+                (click)="openAddWorker()"
+                matTooltip="Add worker">
+          <mat-icon>person_add</mat-icon>
+        </button>
         <button mat-icon-button
                 (click)="openSearchPanel()"
                 matTooltip="Search workers"
@@ -549,6 +555,24 @@ export class ManageWorkersComponent implements OnInit {
     );
 
     editRef.afterClosed().subscribe(saved => {
+      if (saved) {
+        this.loadData();
+      }
+    });
+  }
+
+  openAddWorker(): void {
+    const isNarrow = window.innerWidth < 768;
+    const navExpanded = this.userPreferencesService.preferences.navigationExpanded;
+    const railWidth = isNarrow ? 0 : (navExpanded ? 220 : 80);
+    const leftOffset = railWidth > 0 ? `${railWidth}px` : undefined;
+
+    const addRef = this.panelService.open<AddWorkerDialogComponent, void, boolean>(
+      AddWorkerDialogComponent,
+      { leftOffset }
+    );
+
+    addRef.afterClosed().subscribe(saved => {
       if (saved) {
         this.loadData();
       }

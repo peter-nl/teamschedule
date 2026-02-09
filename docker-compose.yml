@@ -45,6 +45,8 @@ services:
       NODE_ENV: development
       DATABASE_URL: postgresql://teamschedule_user:teamschedule_pass@postgres:5432/teamschedule
       PORT: 4000
+      JWT_SECRET: teamschedule-dev-secret-key
+      JWT_EXPIRES_IN: 7d
     ports:
       - "1200:4000"
     volumes:
