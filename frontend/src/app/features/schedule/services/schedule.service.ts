@@ -13,6 +13,7 @@ const GET_WORKERS_WITH_TEAMS = gql`
       firstName
       lastName
       particles
+      email
       teams {
         id
         name

@@ -10,5 +10,6 @@ export interface Worker {
   firstName: string;
   lastName: string;
   particles?: string | null;
+  email?: string | null;
   teams?: Team[];
 }

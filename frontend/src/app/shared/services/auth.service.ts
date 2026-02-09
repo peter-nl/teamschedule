@@ -8,6 +8,7 @@ export interface AuthWorker {
   firstName: string;
   lastName: string;
   particles: string | null;
+  email: string | null;
   role: 'user' | 'manager';
 }
 
@@ -27,6 +28,7 @@ const LOGIN_MUTATION = gql`
         firstName
         lastName
         particles
+        email
         role
       }
     }
@@ -34,12 +36,13 @@ const LOGIN_MUTATION = gql`
 `;
 
 const UPDATE_PROFILE_MUTATION = gql`
-  mutation UpdateWorkerProfile($id: String!, $firstName: String!, $lastName: String!, $particles: String) {
-    updateWorkerProfile(id: $id, firstName: $firstName, lastName: $lastName, particles: $particles) {
+  mutation UpdateWorkerProfile($id: String!, $firstName: String!, $lastName: String!, $particles: String, $email: String) {
+    updateWorkerProfile(id: $id, firstName: $firstName, lastName: $lastName, particles: $particles, email: $email) {
       id
       firstName
       lastName
       particles
+      email
       role
     }
   }
@@ -52,6 +55,7 @@ const UPDATE_ROLE_MUTATION = gql`
       firstName
       lastName
       particles
+      email
       role
     }
   }
@@ -134,7 +138,7 @@ export class AuthService {
     this.storeUser(null);
   }
 
-  updateProfile(firstName: string, lastName: string, particles: string | null): Observable<AuthWorker | null> {
+  updateProfile(firstName: string, lastName: string, particles: string | null, email: string | null): Observable<AuthWorker | null> {
     const user = this.currentUser;
     if (!user) {
       throw new Error('Not logged in');
@@ -147,7 +151,8 @@ export class AuthService {
           id: user.id,
           firstName,
           lastName,
-          particles
+          particles,
+          email
         }
       })
     ).pipe(

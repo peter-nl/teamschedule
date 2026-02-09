@@ -174,7 +174,7 @@ interface NavItem {
     </div>
 
     <!-- Slide-in Panel -->
-    <div class="slide-in-backdrop" *ngIf="activePanel" (click)="closePanel()"></div>
+    <div class="slide-in-backdrop" *ngIf="activePanel" [style.left.px]="panelLeftOffset" (click)="closePanel()"></div>
     <div class="slide-in-shell-panel" *ngIf="activePanel" [style.left.px]="panelLeftOffset">
       <button class="panel-close" (click)="closePanel()">
         <mat-icon>close</mat-icon>
@@ -406,7 +406,6 @@ interface NavItem {
     .slide-in-backdrop {
       position: fixed;
       top: 0;
-      left: 0;
       right: 0;
       bottom: 0;
       background: rgba(0, 0, 0, 0.3);
@@ -590,6 +589,10 @@ interface NavItem {
         display: block;
       }
 
+      .slide-in-backdrop {
+        left: 0 !important;
+      }
+
       .slide-in-shell-panel {
         left: 0 !important;
       }
@@ -597,6 +600,7 @@ interface NavItem {
       .main-content {
         flex: 1;
         min-height: 0;
+        width: 100%;
         order: 1;
         padding-bottom: 0;
       }
@@ -705,9 +709,12 @@ export class ShellComponent {
   toggleNavBar(type: NavBarType): void {
     this.panelService.closeAll();
     if (this.activeNavBar === type) {
+      // Clicking the same rail item closes its bar and panel
       this.activeNavBar = null;
       this.activePanel = null;
     } else {
+      // Switching to a different rail item: close current panel, show new bar
+      this.activePanel = null;
       this.activeNavBar = type;
     }
   }
@@ -718,7 +725,13 @@ export class ShellComponent {
 
   openPanel(panel: PanelType): void {
     this.panelService.closeAll();
-    this.activePanel = this.activePanel === panel ? null : panel;
+    if (this.activePanel === panel) {
+      // Clicking the active item closes the panel
+      this.activePanel = null;
+    } else {
+      // Switch directly to the new panel
+      this.activePanel = panel;
+    }
     // On mobile, close the nav-bar overlay when opening a panel
     if (this.isMobile && this.activePanel) {
       this.activeNavBar = null;

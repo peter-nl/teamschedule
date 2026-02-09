@@ -27,12 +27,13 @@ const GET_TEAMS_QUERY = gql`
 `;
 
 const CREATE_WORKER_MUTATION = gql`
-  mutation CreateWorker($id: String!, $firstName: String!, $lastName: String!, $particles: String, $password: String!) {
-    createWorker(id: $id, firstName: $firstName, lastName: $lastName, particles: $particles, password: $password) {
+  mutation CreateWorker($id: String!, $firstName: String!, $lastName: String!, $particles: String, $email: String, $password: String!) {
+    createWorker(id: $id, firstName: $firstName, lastName: $lastName, particles: $particles, email: $email, password: $password) {
       id
       firstName
       lastName
       particles
+      email
       role
     }
   }
@@ -110,6 +111,16 @@ const ADD_WORKER_TO_TEAM_MUTATION = gql`
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Email</mat-label>
+            <input matInput
+                   [(ngModel)]="workerForm.email"
+                   name="email"
+                   type="email"
+                   placeholder="e.g., john@example.com">
+            <mat-hint>Optional email address</mat-hint>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="full-width">
             <mat-label>Assign to Teams</mat-label>
             <mat-select [(ngModel)]="selectedTeamIds" name="teams" multiple>
               <mat-option *ngFor="let team of teams" [value]="team.id">
@@ -183,6 +194,7 @@ export class AddWorkerDialogComponent implements OnInit {
     firstName: '',
     lastName: '',
     particles: '',
+    email: '',
     password: '',
     confirmPassword: ''
   };
@@ -238,6 +250,7 @@ export class AddWorkerDialogComponent implements OnInit {
           firstName: this.workerForm.firstName,
           lastName: this.workerForm.lastName,
           particles: this.workerForm.particles || null,
+          email: this.workerForm.email || null,
           password: this.workerForm.password
         }
       });

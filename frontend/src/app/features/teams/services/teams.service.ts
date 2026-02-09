@@ -15,6 +15,7 @@ const GET_TEAMS = gql`
         firstName
         lastName
         particles
+        email
       }
     }
   }

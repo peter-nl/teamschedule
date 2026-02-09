@@ -42,6 +42,7 @@ const typeDefs = `#graphql
     firstName: String!
     lastName: String!
     particles: String
+    email: String
     role: String!
     teams: [Team!]!
   }
@@ -95,13 +96,14 @@ const typeDefs = `#graphql
   type Mutation {
     ping: String
     createTeam(name: String!): Team!
-    createWorker(id: String!, firstName: String!, lastName: String!, particles: String, password: String!): Worker!
+    updateTeam(id: ID!, name: String!): Team
+    createWorker(id: String!, firstName: String!, lastName: String!, particles: String, email: String, password: String!): Worker!
     addWorkerToTeam(teamId: ID!, workerId: ID!): Team!
     removeWorkerFromTeam(teamId: ID!, workerId: ID!): Team!
     deleteTeam(id: ID!): Boolean!
     deleteWorker(id: ID!): Boolean!
     login(workerId: String!, password: String!): AuthPayload!
-    updateWorkerProfile(id: String!, firstName: String!, lastName: String!, particles: String): Worker
+    updateWorkerProfile(id: String!, firstName: String!, lastName: String!, particles: String, email: String): Worker
     changePassword(workerId: String!, currentPassword: String!, newPassword: String!): AuthPayload!
     resetPassword(workerId: String!, newPassword: String!, requesterId: String!): AuthPayload!
     updateWorkerRole(workerId: String!, role: String!, requesterId: String!): Worker
@@ -141,6 +143,7 @@ const resolvers = {
         firstName: row.first_name,
         lastName: row.last_name,
         particles: row.particles,
+        email: row.email,
         role: row.role,
       }));
     },
@@ -153,6 +156,7 @@ const resolvers = {
         firstName: row.first_name,
         lastName: row.last_name,
         particles: row.particles,
+        email: row.email,
         role: row.role,
       };
     },
@@ -223,13 +227,20 @@ const resolvers = {
       );
       return result.rows[0];
     },
-    createWorker: async (_: any, { id, firstName, lastName, particles, password }: { id: string; firstName: string; lastName: string; particles?: string; password: string }) => {
+    updateTeam: async (_: any, { id, name }: { id: number; name: string }) => {
+      const result = await pool.query(
+        'UPDATE team SET name = $1 WHERE id = $2 RETURNING *',
+        [name, id]
+      );
+      return result.rows[0] || null;
+    },
+    createWorker: async (_: any, { id, firstName, lastName, particles, email, password }: { id: string; firstName: string; lastName: string; particles?: string; email?: string; password: string }) => {
       // Hash the password with bcrypt (10 salt rounds)
       const hashedPassword = await bcrypt.hash(password, 10);
 
       const result = await pool.query(
-        'INSERT INTO worker (id, first_name, last_name, particles, password_hash) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-        [id, firstName, lastName, particles || null, hashedPassword]
+        'INSERT INTO worker (id, first_name, last_name, particles, email, password_hash) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+        [id, firstName, lastName, particles || null, email || null, hashedPassword]
       );
       const row = result.rows[0];
       return {
@@ -237,6 +248,7 @@ const resolvers = {
         firstName: row.first_name,
         lastName: row.last_name,
         particles: row.particles,
+        email: row.email,
         role: row.role,
       };
     },
@@ -298,10 +310,10 @@ const resolvers = {
         return { success: false, message: 'Login failed', worker: null };
       }
     },
-    updateWorkerProfile: async (_: any, { id, firstName, lastName, particles }: { id: string; firstName: string; lastName: string; particles?: string }) => {
+    updateWorkerProfile: async (_: any, { id, firstName, lastName, particles, email }: { id: string; firstName: string; lastName: string; particles?: string; email?: string }) => {
       const result = await pool.query(
-        'UPDATE worker SET first_name = $2, last_name = $3, particles = $4 WHERE id = $1 RETURNING *',
-        [id, firstName, lastName, particles || null]
+        'UPDATE worker SET first_name = $2, last_name = $3, particles = $4, email = $5 WHERE id = $1 RETURNING *',
+        [id, firstName, lastName, particles || null, email || null]
       );
 
       if (result.rows.length === 0) return null;
@@ -312,6 +324,7 @@ const resolvers = {
         firstName: row.first_name,
         lastName: row.last_name,
         particles: row.particles,
+        email: row.email,
         role: row.role,
       };
     },
@@ -520,6 +533,7 @@ const resolvers = {
         firstName: row.first_name,
         lastName: row.last_name,
         particles: row.particles,
+        email: row.email,
         role: row.role,
       };
     },
@@ -538,6 +552,7 @@ const resolvers = {
         firstName: row.first_name,
         lastName: row.last_name,
         particles: row.particles,
+        email: row.email,
         role: row.role,
       }));
     },

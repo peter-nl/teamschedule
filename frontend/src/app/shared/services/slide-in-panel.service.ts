@@ -62,15 +62,11 @@ export class SlideInPanelService {
     this.attachComponent(overlayRef, component, config, panelRef);
     this.panelStack.push(panelRef);
 
-    // When leftOffset is set, shift backdrop and overlay wrapper so navigation stays visible
+    // When leftOffset is set, shift backdrop so navigation stays visible
     if (config.leftOffset) {
       const backdropEl = overlayRef.backdropElement;
       if (backdropEl) {
         backdropEl.style.left = config.leftOffset;
-      }
-      const wrapper = overlayRef.overlayElement.parentElement;
-      if (wrapper) {
-        wrapper.style.left = config.leftOffset;
       }
     }
 
@@ -124,7 +120,7 @@ export class SlideInPanelService {
       backdropClass: ['slide-in-panel-backdrop', `panel-level-${this.panelStack.length}`],
       positionStrategy,
       scrollStrategy: this.overlay.scrollStrategies.block(),
-      width: useFullWidth ? '100%' : (config.width || '480px'),
+      width: useFullWidth ? `calc(100% - ${config.leftOffset})` : (config.width || '480px'),
       maxWidth: useFullWidth ? '100%' : '95vw',
       panelClass: panelClasses
     });

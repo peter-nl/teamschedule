@@ -64,6 +64,15 @@ import { HolidayDialogComponent, HolidayDialogData, HolidayDialogResult } from '
                    required>
           </mat-form-field>
 
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Email</mat-label>
+            <input matInput
+                   [(ngModel)]="profileForm.email"
+                   name="email"
+                   type="email"
+                   placeholder="e.g., john@example.com">
+          </mat-form-field>
+
           <button mat-raised-button
                   color="primary"
                   type="submit"
@@ -298,7 +307,8 @@ export class AccountProfileComponent {
   profileForm = {
     firstName: '',
     lastName: '',
-    particles: ''
+    particles: '',
+    email: ''
   };
   profileLoading = false;
 
@@ -323,7 +333,8 @@ export class AccountProfileComponent {
         this.profileForm = {
           firstName: user.firstName,
           lastName: user.lastName,
-          particles: user.particles || ''
+          particles: user.particles || '',
+          email: user.email || ''
         };
         this.loadMyHolidays(user.id);
       } else {
@@ -343,7 +354,8 @@ export class AccountProfileComponent {
     this.authService.updateProfile(
       this.profileForm.firstName,
       this.profileForm.lastName,
-      this.profileForm.particles || null
+      this.profileForm.particles || null,
+      this.profileForm.email || null
     ).subscribe({
       next: () => {
         this.profileLoading = false;

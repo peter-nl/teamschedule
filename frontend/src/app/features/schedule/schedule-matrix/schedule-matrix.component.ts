@@ -1592,7 +1592,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     const railWidth = this.navigationExpanded ? 220 : 80;
     const panelRef = this.panelService.open(WorkerDetailDialogComponent, {
       leftOffset: `${railWidth}px`,
-      data: { workerId: worker.id }
+      data: { workerId: worker.id, leftOffset: `${railWidth}px` }
     });
 
     panelRef.afterClosed().subscribe(result => {

@@ -29,12 +29,6 @@ export interface ScheduleFilterPanelResult {
     <div class="slide-in-panel">
       <div class="panel-header">
         <h2><mat-icon>filter_list</mat-icon> Filter by Teams</h2>
-        <button mat-icon-button
-                (click)="toggleFilterMode()"
-                [matTooltip]="filterModeTooltip"
-                class="filter-mode-toggle">
-          <mat-icon>{{ filterModeIcon }}</mat-icon>
-        </button>
         <button class="panel-close" (click)="cancel()">
           <mat-icon>close</mat-icon>
         </button>
@@ -62,6 +56,12 @@ export interface ScheduleFilterPanelResult {
       <div class="panel-actions">
         <button mat-icon-button (click)="clearAll()" [disabled]="selection.size === 0" matTooltip="Clear all filters">
           <mat-icon>filter_list_off</mat-icon>
+        </button>
+        <button mat-icon-button
+                (click)="toggleFilterMode()"
+                [matTooltip]="filterModeTooltip"
+                class="filter-mode-toggle">
+          <mat-icon>{{ filterModeIcon }}</mat-icon>
         </button>
         <div class="spacer"></div>
         <button mat-icon-button (click)="cancel()" matTooltip="Cancel">
