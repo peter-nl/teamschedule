@@ -29,19 +29,24 @@ export async function runMigrations(pool: Pool): Promise<void> {
       if (result.rows.length === 0) {
         console.log(`Running migration: ${file}`);
 
-        // Read and execute migration
+        // Read and execute migration inside a transaction
         const migrationSQL = fs.readFileSync(
           path.join(migrationsDir, file),
           'utf8'
         );
 
-        await pool.query(migrationSQL);
-
-        // Record migration as executed
-        await pool.query(
-          'INSERT INTO migrations (filename) VALUES ($1)',
-          [file]
-        );
+        await pool.query('BEGIN');
+        try {
+          await pool.query(migrationSQL);
+          await pool.query(
+            'INSERT INTO migrations (filename) VALUES ($1)',
+            [file]
+          );
+          await pool.query('COMMIT');
+        } catch (migrationError) {
+          await pool.query('ROLLBACK');
+          throw migrationError;
+        }
 
         console.log(`✓ Migration ${file} completed`);
       } else {

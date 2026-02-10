@@ -7,4 +7,4 @@ CREATE TABLE IF NOT EXISTS password_reset_token (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_prt_token ON password_reset_token(token);
+CREATE INDEX IF NOT EXISTS idx_prt_token ON password_reset_token(token);
