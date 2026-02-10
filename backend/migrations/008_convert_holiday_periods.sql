@@ -8,7 +8,7 @@ ALTER TABLE worker_holiday DROP CONSTRAINT IF EXISTS chk_day_part;
 ALTER TABLE worker_holiday RENAME COLUMN date TO start_date;
 
 -- 3. Add 'end_date', backfill from start_date
-ALTER TABLE worker_holiday ADD COLUMN end_date DATE;
+ALTER TABLE worker_holiday ADD COLUMN IF NOT EXISTS end_date DATE;
 UPDATE worker_holiday SET end_date = start_date;
 ALTER TABLE worker_holiday ALTER COLUMN end_date SET NOT NULL;
 
@@ -16,7 +16,7 @@ ALTER TABLE worker_holiday ALTER COLUMN end_date SET NOT NULL;
 ALTER TABLE worker_holiday RENAME COLUMN day_part TO start_day_part;
 
 -- 5. Add 'end_day_part', backfill from start_day_part
-ALTER TABLE worker_holiday ADD COLUMN end_day_part VARCHAR(10) NOT NULL DEFAULT 'full';
+ALTER TABLE worker_holiday ADD COLUMN IF NOT EXISTS end_day_part VARCHAR(10) NOT NULL DEFAULT 'full';
 UPDATE worker_holiday SET end_day_part = start_day_part;
 
 -- 6. Add check constraints

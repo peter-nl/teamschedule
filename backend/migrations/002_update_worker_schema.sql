@@ -7,7 +7,7 @@ ALTER TABLE worker DROP CONSTRAINT worker_pkey;
 ALTER TABLE worker DROP COLUMN tn;
 ALTER TABLE worker ALTER COLUMN id TYPE VARCHAR(10);
 ALTER TABLE worker ADD PRIMARY KEY (id);
-ALTER TABLE worker ADD COLUMN particles VARCHAR(50);
+ALTER TABLE worker ADD COLUMN IF NOT EXISTS particles VARCHAR(50);
 
 -- 3. Update team_worker to use VARCHAR for worker_id
 ALTER TABLE team_worker ALTER COLUMN worker_id TYPE VARCHAR(10);
