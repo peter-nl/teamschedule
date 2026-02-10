@@ -10,9 +10,32 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { gql } from '@apollo/client';
+import { apolloClient } from '../../app.config';
 import { AppSettingsService } from '../../core/services/app-settings.service';
 import { HolidayService, HolidayInfo } from '../../core/services/holiday.service';
 import { HolidayTypeService, HolidayType } from '../../core/services/holiday-type.service';
+
+const LOAD_EMAIL_CONFIG = gql`
+  query EmailConfig {
+    emailConfig { host port secure user from configured }
+  }
+`;
+
+const SAVE_EMAIL_CONFIG = gql`
+  mutation SaveEmailConfig($host: String!, $port: Int!, $secure: Boolean!, $user: String!, $password: String!, $from: String!) {
+    saveEmailConfig(host: $host, port: $port, secure: $secure, user: $user, password: $password, from: $from) {
+      success message
+    }
+  }
+`;
+
+const TEST_EMAIL_CONFIG = gql`
+  mutation TestEmailConfig($testAddress: String!) {
+    testEmailConfig(testAddress: $testAddress) { success message }
+  }
+`;
 
 interface DayConfig {
   label: string;
@@ -38,7 +61,8 @@ interface HolidayYearGroup {
     MatProgressSpinnerModule,
     MatFormFieldModule,
     MatInputModule,
-    MatSelectModule
+    MatSelectModule,
+    MatSnackBarModule
   ],
   template: `
     <div class="settings-container">
@@ -215,6 +239,66 @@ interface HolidayYearGroup {
                     <div class="holiday-name">{{ holiday.localName }}</div>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <mat-divider></mat-divider>
+
+          <div class="settings-section">
+            <div class="section-header">
+              <div>
+                <h3>Email Service</h3>
+                <p class="section-description">Configure SMTP email settings for password reset emails and notifications.</p>
+              </div>
+            </div>
+
+            <div class="email-config-form">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>SMTP Host</mat-label>
+                <input matInput [(ngModel)]="emailConfig.host" name="smtpHost" placeholder="smtp.forwardemail.net">
+              </mat-form-field>
+
+              <div class="email-row">
+                <mat-form-field appearance="outline" class="port-field">
+                  <mat-label>Port</mat-label>
+                  <input matInput type="number" [(ngModel)]="emailConfig.port" name="smtpPort">
+                </mat-form-field>
+                <mat-checkbox [(ngModel)]="emailConfig.secure" name="smtpSecure">Use SSL/TLS</mat-checkbox>
+              </div>
+
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Username</mat-label>
+                <input matInput [(ngModel)]="emailConfig.user" name="smtpUser">
+              </mat-form-field>
+
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Password</mat-label>
+                <input matInput type="password" [(ngModel)]="emailConfig.password" name="smtpPass"
+                       placeholder="Enter to set/change">
+              </mat-form-field>
+
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>From Address</mat-label>
+                <input matInput [(ngModel)]="emailConfig.from" name="smtpFrom" placeholder="noreply@example.com">
+              </mat-form-field>
+
+              <div class="email-actions">
+                <button mat-raised-button color="primary" (click)="saveEmailConfig()"
+                        [disabled]="emailSaving || !emailConfig.host || !emailConfig.user || !emailConfig.password">
+                  <mat-spinner *ngIf="emailSaving" diameter="18"></mat-spinner>
+                  Save Configuration
+                </button>
+                <button mat-button (click)="testEmailConfig()" [disabled]="emailTesting || !emailConfigured">
+                  <mat-spinner *ngIf="emailTesting" diameter="18"></mat-spinner>
+                  Send Test Email
+                </button>
+              </div>
+
+              <div *ngIf="emailStatusMessage" class="email-status"
+                   [class.success]="emailStatusSuccess" [class.error]="!emailStatusSuccess">
+                <mat-icon>{{ emailStatusSuccess ? 'check_circle' : 'error' }}</mat-icon>
+                {{ emailStatusMessage }}
               </div>
             </div>
           </div>
@@ -454,6 +538,58 @@ interface HolidayYearGroup {
     .type-name-field {
       flex: 1;
     }
+
+    .email-config-form {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .full-width {
+      width: 100%;
+    }
+
+    .email-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .port-field {
+      width: 120px;
+    }
+
+    .email-actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-top: 8px;
+    }
+
+    .email-actions mat-spinner {
+      display: inline-block;
+      margin-right: 8px;
+    }
+
+    .email-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px;
+      border-radius: 8px;
+      margin-top: 12px;
+      font-size: 14px;
+    }
+
+    .email-status.success {
+      background: var(--mat-sys-primary-container);
+      color: var(--mat-sys-on-primary-container);
+    }
+
+    .email-status.error {
+      background: var(--mat-sys-error-container);
+      color: var(--mat-sys-on-error-container);
+    }
   `]
 })
 export class ManageSettingsComponent implements OnInit {
@@ -486,10 +622,19 @@ export class ManageSettingsComponent implements OnInit {
   newTypeColorLight = '#c8e6c9';
   newTypeColorDark = '#2e7d32';
 
+  // Email config
+  emailConfig = { host: '', port: 587, secure: false, user: '', password: '', from: '' };
+  emailConfigured = false;
+  emailSaving = false;
+  emailTesting = false;
+  emailStatusMessage: string | null = null;
+  emailStatusSuccess = false;
+
   constructor(
     private appSettingsService: AppSettingsService,
     private holidayService: HolidayService,
-    private holidayTypeService: HolidayTypeService
+    private holidayTypeService: HolidayTypeService,
+    private snackBar: MatSnackBar
   ) {
     const s = this.appSettingsService.settings;
     this.workingDays = [...s.workingDays];
@@ -568,6 +713,9 @@ export class ManageSettingsComponent implements OnInit {
     });
 
     this.holidayService.loadHolidaysForYears(years).subscribe();
+
+    // Load email config
+    this.loadEmailConfig();
   }
 
   private groupHolidaysByYear(): void {
@@ -621,5 +769,68 @@ export class ManageSettingsComponent implements OnInit {
     this.holidayService.clearCache();
     const currentYear = new Date().getFullYear();
     this.holidayService.loadHolidaysForYears([currentYear, currentYear + 1]).subscribe();
+  }
+
+  private loadEmailConfig(): void {
+    apolloClient.query({ query: LOAD_EMAIL_CONFIG, fetchPolicy: 'network-only' }).then(result => {
+      const config = (result.data as any).emailConfig;
+      if (config) {
+        this.emailConfig.host = config.host;
+        this.emailConfig.port = config.port;
+        this.emailConfig.secure = config.secure;
+        this.emailConfig.user = config.user;
+        this.emailConfig.from = config.from;
+        this.emailConfigured = config.configured;
+      }
+    }).catch(() => {});
+  }
+
+  saveEmailConfig(): void {
+    this.emailSaving = true;
+    this.emailStatusMessage = null;
+    apolloClient.mutate({
+      mutation: SAVE_EMAIL_CONFIG,
+      variables: {
+        host: this.emailConfig.host,
+        port: this.emailConfig.port,
+        secure: this.emailConfig.secure,
+        user: this.emailConfig.user,
+        password: this.emailConfig.password,
+        from: this.emailConfig.from,
+      }
+    }).then(result => {
+      this.emailSaving = false;
+      const res = (result.data as any).saveEmailConfig;
+      this.emailStatusSuccess = res.success;
+      this.emailStatusMessage = res.message;
+      if (res.success) {
+        this.emailConfigured = true;
+        this.emailConfig.password = '';
+      }
+    }).catch(err => {
+      this.emailSaving = false;
+      this.emailStatusSuccess = false;
+      this.emailStatusMessage = `Error: ${err.message}`;
+    });
+  }
+
+  testEmailConfig(): void {
+    const testAddress = window.prompt('Enter email address to send test to:');
+    if (!testAddress) return;
+    this.emailTesting = true;
+    this.emailStatusMessage = null;
+    apolloClient.mutate({
+      mutation: TEST_EMAIL_CONFIG,
+      variables: { testAddress }
+    }).then(result => {
+      this.emailTesting = false;
+      const res = (result.data as any).testEmailConfig;
+      this.emailStatusSuccess = res.success;
+      this.emailStatusMessage = res.message;
+    }).catch(err => {
+      this.emailTesting = false;
+      this.emailStatusSuccess = false;
+      this.emailStatusMessage = `Error: ${err.message}`;
+    });
   }
 }

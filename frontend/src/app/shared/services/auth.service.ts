@@ -149,6 +149,12 @@ export class AuthService {
     );
   }
 
+  setAuth(worker: AuthWorker, token: string): void {
+    this.token = token;
+    this.currentUserSubject.next(worker);
+    this.storeAuth(worker, token);
+  }
+
   logout(): void {
     this.token = null;
     this.currentUserSubject.next(null);

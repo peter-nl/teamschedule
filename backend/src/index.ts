@@ -3,6 +3,8 @@ import { startStandaloneServer } from '@apollo/server/standalone';
 import { Pool } from 'pg';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
+import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 import { runMigrations } from './db/migrate';
 
@@ -31,6 +33,27 @@ function requireManager(ctx: AuthContext): { id: string; role: string } {
   return user;
 }
 
+// Encryption for SMTP password storage
+const ENCRYPTION_KEY = crypto.createHash('sha256').update(JWT_SECRET).digest();
+
+function encrypt(text: string): string {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
+  const encrypted = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return iv.toString('hex') + ':' + tag.toString('hex') + ':' + encrypted.toString('hex');
+}
+
+function decrypt(data: string): string {
+  const [ivHex, tagHex, encHex] = data.split(':');
+  const iv = Buffer.from(ivHex, 'hex');
+  const tag = Buffer.from(tagHex, 'hex');
+  const encrypted = Buffer.from(encHex, 'hex');
+  const decipher = crypto.createDecipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
+  decipher.setAuthTag(tag);
+  return decipher.update(encrypted) + decipher.final('utf8');
+}
+
 // PostgreSQL connection pool
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -52,6 +75,36 @@ pool.connect(async (err, _client, release) => {
     }
   }
 });
+
+// Email helpers
+async function getSmtpConfig(): Promise<{ host: string; port: number; secure: boolean; user: string; pass: string; from: string } | null> {
+  const result = await pool.query("SELECT key, value FROM app_setting WHERE key LIKE 'smtp_%'");
+  const settings: Record<string, string> = {};
+  for (const row of result.rows) {
+    settings[row.key] = row.value;
+  }
+  if (!settings.smtp_host || !settings.smtp_user || !settings.smtp_pass) return null;
+  return {
+    host: settings.smtp_host,
+    port: parseInt(settings.smtp_port || '587', 10),
+    secure: settings.smtp_secure === 'true',
+    user: settings.smtp_user,
+    pass: decrypt(settings.smtp_pass),
+    from: settings.smtp_from || settings.smtp_user,
+  };
+}
+
+async function sendEmail(to: string, subject: string, html: string): Promise<void> {
+  const config = await getSmtpConfig();
+  if (!config) throw new Error('Email service not configured');
+  const transporter = nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    auth: { user: config.user, pass: config.pass },
+  });
+  await transporter.sendMail({ from: config.from, to, subject, html });
+}
 
 // GraphQL type definitions
 const typeDefs = `#graphql
@@ -106,6 +159,20 @@ const typeDefs = `#graphql
     token: String
   }
 
+  type EmailConfig {
+    host: String!
+    port: Int!
+    secure: Boolean!
+    user: String!
+    from: String!
+    configured: Boolean!
+  }
+
+  type SimpleResult {
+    success: Boolean!
+    message: String
+  }
+
   type Query {
     hello: String
     testDatabase: String
@@ -116,6 +183,7 @@ const typeDefs = `#graphql
     holidayTypes: [HolidayType!]!
     workerHolidays(workerId: String!): [WorkerHoliday!]!
     allWorkerHolidays(startDate: String!, endDate: String!): [WorkerHoliday!]!
+    emailConfig: EmailConfig
   }
 
   type Mutation {
@@ -138,6 +206,10 @@ const typeDefs = `#graphql
     createHolidayType(name: String!, colorLight: String!, colorDark: String!): HolidayType!
     updateHolidayType(id: ID!, name: String, colorLight: String, colorDark: String, sortOrder: Int): HolidayType!
     deleteHolidayType(id: ID!): Boolean!
+    saveEmailConfig(host: String!, port: Int!, secure: Boolean!, user: String!, password: String!, from: String!): SimpleResult!
+    testEmailConfig(testAddress: String!): SimpleResult!
+    requestPasswordReset(email: String!): SimpleResult!
+    resetPasswordWithToken(token: String!, newPassword: String!): AuthPayload!
   }
 `;
 
@@ -248,6 +320,20 @@ const resolvers = {
           colorDark: row.ht_color_dark, sortOrder: row.ht_sort_order,
         } : null,
       }));
+    },
+    emailConfig: async (_: any, __: any, ctx: AuthContext) => {
+      requireManager(ctx);
+      const result = await pool.query("SELECT key, value FROM app_setting WHERE key LIKE 'smtp_%'");
+      const settings: Record<string, string> = {};
+      for (const row of result.rows) settings[row.key] = row.value;
+      return {
+        host: settings.smtp_host || '',
+        port: parseInt(settings.smtp_port || '587', 10),
+        secure: settings.smtp_secure === 'true',
+        user: settings.smtp_user || '',
+        from: settings.smtp_from || '',
+        configured: !!(settings.smtp_host && settings.smtp_user && settings.smtp_pass),
+      };
     },
   },
   Mutation: {
@@ -581,6 +667,84 @@ const resolvers = {
         email: row.email,
         role: row.role,
       };
+    },
+    saveEmailConfig: async (_: any, args: { host: string; port: number; secure: boolean; user: string; password: string; from: string }, ctx: AuthContext) => {
+      requireManager(ctx);
+      const pairs: [string, string][] = [
+        ['smtp_host', args.host],
+        ['smtp_port', String(args.port)],
+        ['smtp_secure', String(args.secure)],
+        ['smtp_user', args.user],
+        ['smtp_pass', encrypt(args.password)],
+        ['smtp_from', args.from],
+      ];
+      for (const [key, value] of pairs) {
+        await pool.query(
+          `INSERT INTO app_setting (key, value, updated_at) VALUES ($1, $2, NOW())
+           ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+          [key, value]
+        );
+      }
+      return { success: true, message: 'Email configuration saved' };
+    },
+    testEmailConfig: async (_: any, { testAddress }: { testAddress: string }, ctx: AuthContext) => {
+      requireManager(ctx);
+      try {
+        await sendEmail(testAddress, 'TeamSchedule - Test Email', '<p>This is a test email from TeamSchedule. Your email configuration is working correctly.</p>');
+        return { success: true, message: 'Test email sent successfully' };
+      } catch (error: any) {
+        return { success: false, message: `Failed to send test email: ${error.message}` };
+      }
+    },
+    requestPasswordReset: async (_: any, { email }: { email: string }) => {
+      const genericMessage = 'If an account with that email exists, a password reset link has been sent.';
+      try {
+        const workerResult = await pool.query('SELECT id, first_name, email FROM worker WHERE LOWER(email) = LOWER($1)', [email]);
+        if (workerResult.rows.length > 0) {
+          const worker = workerResult.rows[0];
+          const token = crypto.randomBytes(32).toString('hex');
+          const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+          // Invalidate existing unused tokens for this worker
+          await pool.query('UPDATE password_reset_token SET used = TRUE WHERE worker_id = $1 AND used = FALSE', [worker.id]);
+          await pool.query(
+            'INSERT INTO password_reset_token (worker_id, token, expires_at) VALUES ($1, $2, $3)',
+            [worker.id, token, expiresAt]
+          );
+          const appUrl = process.env.APP_URL || 'http://localhost:4200';
+          const resetUrl = `${appUrl}/reset-password?token=${token}`;
+          await sendEmail(
+            worker.email,
+            'TeamSchedule - Password Reset',
+            `<p>Hi ${worker.first_name},</p>
+             <p>A password reset was requested for your account. Click the link below to reset your password:</p>
+             <p><a href="${resetUrl}">${resetUrl}</a></p>
+             <p>This link expires in 1 hour. If you did not request this, you can safely ignore this email.</p>`
+          );
+        }
+      } catch (error) {
+        console.error('Password reset error:', error);
+      }
+      return { success: true, message: genericMessage };
+    },
+    resetPasswordWithToken: async (_: any, { token, newPassword }: { token: string; newPassword: string }) => {
+      const tokenResult = await pool.query(
+        'SELECT * FROM password_reset_token WHERE token = $1 AND used = FALSE AND expires_at > NOW()',
+        [token]
+      );
+      if (tokenResult.rows.length === 0) {
+        return { success: false, message: 'Invalid or expired reset link', worker: null, token: null };
+      }
+      const resetRow = tokenResult.rows[0];
+      // Mark token as used
+      await pool.query('UPDATE password_reset_token SET used = TRUE WHERE id = $1', [resetRow.id]);
+      // Update password
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await pool.query('UPDATE worker SET password_hash = $1 WHERE id = $2', [hashedPassword, resetRow.worker_id]);
+      // Fetch worker for response
+      const workerResult = await pool.query('SELECT * FROM worker WHERE id = $1', [resetRow.worker_id]);
+      const row = workerResult.rows[0];
+      const worker = { id: row.id, firstName: row.first_name, lastName: row.last_name, particles: row.particles, email: row.email, role: row.role };
+      return { success: true, message: 'Password reset successfully', worker, token: generateToken(worker) };
     },
   },
   Team: {

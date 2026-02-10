@@ -1,0 +1,10 @@
+CREATE TABLE IF NOT EXISTS password_reset_token (
+  id SERIAL PRIMARY KEY,
+  worker_id VARCHAR(255) NOT NULL REFERENCES worker(id) ON DELETE CASCADE,
+  token VARCHAR(255) NOT NULL UNIQUE,
+  expires_at TIMESTAMP NOT NULL,
+  used BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_prt_token ON password_reset_token(token);
