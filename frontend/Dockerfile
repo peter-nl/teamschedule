@@ -18,4 +18,4 @@ COPY . .
 EXPOSE 4200
 
 # Start Angular dev server
-CMD ["ng", "serve", "--host", "0.0.0.0", "--poll", "2000", "--disable-host-check", "--proxy-config", "proxy.conf.docker.json"]
+CMD ["ng", "serve", "--host", "0.0.0.0", "--poll", "2000", "--disable-host-check", "--live-reload", "false", "--proxy-config", "proxy.conf.docker.json"]
