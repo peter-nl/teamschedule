@@ -1,21 +1,18 @@
-FROM node:20-alpine
+# Stage 1: Build Angular app
+FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# Install Angular CLI globally
-RUN npm install -g @angular/cli
-
-# Copy package files
 COPY package*.json ./
-
-# Install dependencies
 RUN npm install
 
-# Copy source code
 COPY . .
+RUN npx ng build --configuration=production
 
-# Expose port
-EXPOSE 4200
+# Stage 2: Serve with nginx
+FROM nginx:alpine
 
-# Start Angular dev server
-CMD ["ng", "serve", "--host", "0.0.0.0", "--poll", "2000", "--disable-host-check", "--live-reload", "false", "--proxy-config", "proxy.conf.docker.json"]
+COPY --from=build /app/dist/teamschedule-frontend /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
