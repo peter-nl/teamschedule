@@ -77,11 +77,14 @@ services:
     networks:
       - teamschedule-network
 
-  # Nginx Reverse Proxy (SSL termination)
+  # Nginx Reverse Proxy (SSL termination, production only)
+  # Start with: docker compose --profile production up -d nginx
   nginx:
     image: nginx:alpine
     container_name: teamschedule-nginx
     restart: always
+    profiles:
+      - production
     ports:
       - "80:80"
       - "443:443"
