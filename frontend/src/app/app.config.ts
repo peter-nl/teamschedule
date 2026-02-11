@@ -38,7 +38,6 @@ const errorLink = onError(({ error }) => {
   if (CombinedGraphQLErrors.is(error) &&
       error.errors.some(e => e.message === 'Authentication required')) {
     localStorage.removeItem('teamschedule-auth');
-    window.location.reload();
   }
 });
 
