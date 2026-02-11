@@ -72,9 +72,35 @@ services:
     networks:
       - teamschedule-network
 
+  # Nginx reverse proxy (SSL termination, production only)
+  nginx:
+    image: nginx:alpine
+    container_name: teamschedule-nginx
+    restart: always
+    profiles:
+      - production
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - certbot_data:/etc/letsencrypt:ro
+      - certbot_www:/var/www/certbot:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - teamschedule-network
+
 volumes:
   postgres_data:
   pgadmin_data:
+  certbot_data:
+    external: true
+    name: teamschedule_certbot_data
+  certbot_www:
+    external: true
+    name: teamschedule_certbot_www
 
 networks:
   teamschedule-network:
