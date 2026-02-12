@@ -864,21 +864,18 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
   ngOnInit(): void {
     this.currentUserId = this.authService.currentUser?.id || null;
     this.generateDateColumns();
-    if (this.authService.isLoggedIn) {
-      this.loadHolidays();
-      this.loadData();
-      this.holidayTypeService.ensureLoaded().subscribe();
-    } else {
-      this.loading = false;
-    }
-
-    // Load data when user logs in (if not already loaded)
+    // Load data when user is logged in, or when they log in later
     this.authService.currentUser$.subscribe(user => {
       if (user && !this.workers.length) {
         this.currentUserId = user.id;
         this.loadHolidays();
         this.loadData();
         this.holidayTypeService.ensureLoaded().subscribe();
+      } else if (!user) {
+        this.workers = [];
+        this.currentUserId = null;
+        this.loading = false;
+        this.cdr.markForCheck();
       }
     });
 
