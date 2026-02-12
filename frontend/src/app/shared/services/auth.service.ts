@@ -141,8 +141,8 @@ export class AuthService {
         const payload: AuthPayload = result.data.login;
         if (payload.success && payload.worker) {
           this.token = payload.token ?? null;
-          this.currentUserSubject.next(payload.worker);
           this.storeAuth(payload.worker, this.token);
+          this.currentUserSubject.next(payload.worker);
         }
         return payload;
       })
