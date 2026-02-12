@@ -873,6 +873,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
         this.holidayTypeService.ensureLoaded().subscribe();
       } else if (!user) {
         this.workers = [];
+        this.filteredWorkers = [];
         this.currentUserId = null;
         this.loading = false;
         this.cdr.markForCheck();
