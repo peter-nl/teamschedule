@@ -655,6 +655,11 @@ export class ShellComponent {
       this.activePanel = null;
       this.panelService.closeAll();
     });
+
+    // Auto-open login panel when not logged in
+    if (!this.authService.isLoggedIn) {
+      this.activePanel = 'login';
+    }
   }
 
   get showManagement(): boolean {

@@ -868,6 +868,8 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
       this.loadHolidays();
       this.loadData();
       this.holidayTypeService.ensureLoaded().subscribe();
+    } else {
+      this.loading = false;
     }
 
     // Load data when user logs in (if not already loaded)

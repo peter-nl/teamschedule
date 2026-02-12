@@ -58,20 +58,15 @@ services:
     networks:
       - teamschedule-network
 
-  # Angular Frontend
+  # Angular Frontend (production build served by nginx)
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: teamschedule-frontend
     restart: always
-    environment:
-      - NODE_ENV=development
     ports:
-      - "1220:4200"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - "1220:80"
     depends_on:
       - backend
     networks:
