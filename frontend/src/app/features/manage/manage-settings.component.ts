@@ -10,6 +10,8 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { provideNativeDateAdapter } from '@angular/material/core';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
@@ -62,8 +64,10 @@ interface HolidayYearGroup {
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
+    MatDatepickerModule,
     MatSnackBarModule
   ],
+  providers: [provideNativeDateAdapter()],
   template: `
     <div class="settings-container">
       <mat-card class="settings-card">
@@ -73,6 +77,86 @@ interface HolidayYearGroup {
           <mat-card-subtitle>Configure application-wide settings</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
+
+          <!-- Schedule Date Range (first section) -->
+          <div class="settings-section">
+            <div class="section-header">
+              <div>
+                <h3>Schedule Date Range</h3>
+                <p class="section-description">Define the start and end dates for the schedule. Worker holidays outside this range will be permanently deleted.</p>
+              </div>
+            </div>
+
+            <div class="date-range-form">
+              <mat-form-field appearance="outline" class="date-field">
+                <mat-label>Start date</mat-label>
+                <input matInput [matDatepicker]="startPicker" [(ngModel)]="scheduleStartDateObj" name="scheduleStart">
+                <mat-datepicker-toggle matSuffix [for]="startPicker"></mat-datepicker-toggle>
+                <mat-datepicker #startPicker></mat-datepicker>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline" class="date-field">
+                <mat-label>End date</mat-label>
+                <input matInput [matDatepicker]="endPicker" [(ngModel)]="scheduleEndDateObj" name="scheduleEnd">
+                <mat-datepicker-toggle matSuffix [for]="endPicker"></mat-datepicker-toggle>
+                <mat-datepicker #endPicker></mat-datepicker>
+              </mat-form-field>
+
+              <button mat-raised-button color="primary"
+                      (click)="saveScheduleDateRange()"
+                      [disabled]="dateRangeSaving || !isDateRangeValid">
+                <mat-spinner *ngIf="dateRangeSaving" diameter="18"></mat-spinner>
+                Save Date Range
+              </button>
+            </div>
+
+            <div *ngIf="dateRangeMessage" class="email-status"
+                 [class.success]="dateRangeSuccess" [class.error]="!dateRangeSuccess">
+              <mat-icon>{{ dateRangeSuccess ? 'check_circle' : 'error' }}</mat-icon>
+              {{ dateRangeMessage }}
+            </div>
+          </div>
+
+          <mat-divider></mat-divider>
+
+          <!-- Public Holidays (moved up, right after date range) -->
+          <div class="settings-section">
+            <div class="section-header">
+              <div>
+                <h3>Public Holidays (Netherlands)</h3>
+                <p class="section-description">Holidays retrieved from the Nager.Date API. These are highlighted in the schedule.</p>
+              </div>
+              <button mat-button class="reset-button" (click)="resetHolidays()">
+                <mat-icon>restart_alt</mat-icon> Reload
+              </button>
+            </div>
+
+            <div *ngIf="holidaysLoading" class="holidays-loading">
+              <mat-progress-spinner mode="indeterminate" diameter="24"></mat-progress-spinner>
+              <span>Loading holidays...</span>
+            </div>
+
+            <div *ngIf="!holidaysLoading && holidays.length === 0" class="holidays-empty">
+              No holidays loaded.
+            </div>
+
+            <div *ngIf="!holidaysLoading && holidays.length > 0" class="holidays-columns-scroll">
+              <div class="holidays-columns">
+                <div *ngFor="let yearGroup of holidaysByYear" class="holiday-year-column">
+                  <h4>{{ yearGroup.year }}</h4>
+                  <div class="holiday-items">
+                    <div *ngFor="let holiday of yearGroup.holidays" class="holiday-item">
+                      <div class="holiday-date">{{ holiday.date | date:'EEE, d MMM' }}</div>
+                      <div class="holiday-name">{{ holiday.localName }}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <mat-divider></mat-divider>
+
           <div class="settings-section">
             <div class="section-header">
               <div>
@@ -166,7 +250,9 @@ interface HolidayYearGroup {
 
             <div class="holiday-types-list">
               <div *ngFor="let type of holidayTypes" class="holiday-type-row">
-                <span class="holiday-type-name">{{ type.name }}</span>
+                <input class="holiday-type-name-input" [value]="type.name"
+                       (blur)="onTypeNameChange(type, $event)"
+                       (keydown.enter)="$any($event.target).blur()">
                 <div class="holiday-type-colors">
                   <div class="color-pair">
                     <label>Light</label>
@@ -205,41 +291,6 @@ interface HolidayYearGroup {
               <button mat-button color="primary" (click)="addHolidayType()" [disabled]="!newTypeName.trim()">
                 <mat-icon>add</mat-icon> Add
               </button>
-            </div>
-          </div>
-
-          <mat-divider></mat-divider>
-
-          <div class="settings-section">
-            <div class="section-header">
-              <div>
-                <h3>Public Holidays (Netherlands)</h3>
-                <p class="section-description">Holidays retrieved from the Nager.Date API. These are highlighted in the schedule.</p>
-              </div>
-              <button mat-button class="reset-button" (click)="resetHolidays()">
-                <mat-icon>restart_alt</mat-icon> Reload
-              </button>
-            </div>
-
-            <div *ngIf="holidaysLoading" class="holidays-loading">
-              <mat-progress-spinner mode="indeterminate" diameter="24"></mat-progress-spinner>
-              <span>Loading holidays...</span>
-            </div>
-
-            <div *ngIf="!holidaysLoading && holidays.length === 0" class="holidays-empty">
-              No holidays loaded.
-            </div>
-
-            <div *ngIf="!holidaysLoading && holidays.length > 0" class="holidays-list">
-              <div *ngFor="let yearGroup of holidaysByYear" class="holiday-year-group">
-                <h4>{{ yearGroup.year }}</h4>
-                <div class="holiday-items">
-                  <div *ngFor="let holiday of yearGroup.holidays" class="holiday-item">
-                    <div class="holiday-date">{{ holiday.date | date:'EEE, d MMM' }}</div>
-                    <div class="holiday-name">{{ holiday.localName }}</div>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -364,6 +415,88 @@ interface HolidayYearGroup {
       color: var(--mat-sys-on-surface-variant);
     }
 
+    /* Date Range */
+    .date-range-form {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .date-field {
+      width: 220px;
+    }
+
+    /* Public Holidays horizontal columns */
+    .holidays-columns-scroll {
+      overflow-x: auto;
+      padding-bottom: 8px;
+    }
+
+    .holidays-columns {
+      display: flex;
+      gap: 24px;
+      min-width: min-content;
+    }
+
+    .holiday-year-column {
+      min-width: 220px;
+      flex-shrink: 0;
+    }
+
+    .holiday-year-column h4 {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--mat-sys-on-surface);
+      position: sticky;
+      top: 0;
+      background: var(--mat-sys-surface);
+      padding: 4px 0;
+    }
+
+    .holidays-loading {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 0;
+      font-size: 14px;
+      color: var(--mat-sys-on-surface-variant);
+    }
+
+    .holidays-empty {
+      padding: 16px 0;
+      font-size: 14px;
+      color: var(--mat-sys-on-surface-variant);
+    }
+
+    .holiday-items {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .holiday-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 6px 12px;
+      background: var(--mat-sys-surface-container-low);
+      border-radius: 8px;
+      font-size: 13px;
+    }
+
+    .holiday-date {
+      min-width: 100px;
+      color: var(--mat-sys-on-surface-variant);
+      font-weight: 500;
+    }
+
+    .holiday-name {
+      color: var(--mat-sys-on-surface);
+    }
+
+    /* Days grid */
     .days-grid {
       display: flex;
       flex-wrap: wrap;
@@ -412,58 +545,6 @@ interface HolidayYearGroup {
       align-items: center;
     }
 
-    .holidays-loading {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 16px 0;
-      font-size: 14px;
-      color: var(--mat-sys-on-surface-variant);
-    }
-
-    .holidays-empty {
-      padding: 16px 0;
-      font-size: 14px;
-      color: var(--mat-sys-on-surface-variant);
-    }
-
-    .holiday-year-group h4 {
-      margin: 16px 0 8px 0;
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--mat-sys-on-surface);
-    }
-
-    .holiday-year-group:first-child h4 {
-      margin-top: 0;
-    }
-
-    .holiday-items {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .holiday-item {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      padding: 6px 12px;
-      background: var(--mat-sys-surface-container-low);
-      border-radius: 8px;
-      font-size: 14px;
-    }
-
-    .holiday-date {
-      min-width: 120px;
-      color: var(--mat-sys-on-surface-variant);
-      font-weight: 500;
-    }
-
-    .holiday-name {
-      color: var(--mat-sys-on-surface);
-    }
-
     .holiday-types-list {
       display: flex;
       flex-direction: column;
@@ -480,12 +561,26 @@ interface HolidayYearGroup {
       border-radius: 8px;
     }
 
-    .holiday-type-name {
+    .holiday-type-name-input {
       font-size: 14px;
       font-weight: 500;
       color: var(--mat-sys-on-surface);
       min-width: 120px;
       flex: 1;
+      border: none;
+      background: transparent;
+      outline: none;
+      padding: 4px 0;
+      font-family: inherit;
+      border-bottom: 1px solid transparent;
+    }
+
+    .holiday-type-name-input:hover {
+      border-bottom-color: var(--mat-sys-outline-variant);
+    }
+
+    .holiday-type-name-input:focus {
+      border-bottom-color: var(--mat-sys-primary);
     }
 
     .holiday-type-colors {
@@ -628,6 +723,15 @@ export class ManageSettingsComponent implements OnInit {
   holidaysByYear: HolidayYearGroup[] = [];
   holidaysLoading = true;
 
+  // Schedule date range
+  scheduleStartDate = '';
+  scheduleEndDate = '';
+  scheduleStartDateObj: Date | null = null;
+  scheduleEndDateObj: Date | null = null;
+  dateRangeSaving = false;
+  dateRangeMessage: string | null = null;
+  dateRangeSuccess = false;
+
   // Holiday types
   holidayTypes: HolidayType[] = [];
   newTypeName = '';
@@ -649,6 +753,11 @@ export class ManageSettingsComponent implements OnInit {
   emailTesting = false;
   emailStatusMessage: string | null = null;
   emailStatusSuccess = false;
+
+  get isDateRangeValid(): boolean {
+    if (!this.scheduleStartDateObj || !this.scheduleEndDateObj) return false;
+    return this.scheduleStartDateObj < this.scheduleEndDateObj;
+  }
 
   constructor(
     private appSettingsService: AppSettingsService,
@@ -717,13 +826,21 @@ export class ManageSettingsComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    // Load schedule date range
+    this.appSettingsService.loadDateRange().subscribe(range => {
+      this.scheduleStartDate = range.startDate;
+      this.scheduleEndDate = range.endDate;
+      this.scheduleStartDateObj = new Date(range.startDate + 'T00:00:00');
+      this.scheduleEndDateObj = new Date(range.endDate + 'T00:00:00');
+      // Load holidays for the configured date range years
+      this.loadHolidaysForRange(range.startDate, range.endDate);
+    });
+
     // Load holiday types
     this.holidayTypeService.types$.subscribe(types => {
       this.holidayTypes = types;
     });
     this.holidayTypeService.loadTypes().subscribe();
-    const currentYear = new Date().getFullYear();
-    const years = [currentYear, currentYear + 1];
 
     this.holidayService.holidays$.subscribe(holidaysMap => {
       this.holidays = Array.from(holidaysMap.values())
@@ -732,10 +849,58 @@ export class ManageSettingsComponent implements OnInit {
       this.holidaysLoading = false;
     });
 
-    this.holidayService.loadHolidaysForYears(years).subscribe();
-
     // Load email config
     this.loadEmailConfig();
+  }
+
+  private loadHolidaysForRange(startDate: string, endDate: string): void {
+    const startYear = new Date(startDate).getFullYear();
+    const endYear = new Date(endDate).getFullYear();
+    const years: number[] = [];
+    for (let y = startYear; y <= endYear; y++) {
+      years.push(y);
+    }
+    this.holidayService.loadHolidaysForYears(years).subscribe();
+  }
+
+  private formatDate(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  saveScheduleDateRange(): void {
+    if (!this.isDateRangeValid) return;
+
+    this.scheduleStartDate = this.formatDate(this.scheduleStartDateObj!);
+    this.scheduleEndDate = this.formatDate(this.scheduleEndDateObj!);
+
+    const proceed = window.confirm(
+      'Changing the schedule date range will permanently delete any worker holiday data that falls outside the new range.\n\nAre you sure you want to continue?'
+    );
+    if (!proceed) return;
+
+    this.dateRangeSaving = true;
+    this.dateRangeMessage = null;
+    this.appSettingsService.saveDateRange(this.scheduleStartDate, this.scheduleEndDate).subscribe({
+      next: (result) => {
+        this.dateRangeSaving = false;
+        this.dateRangeSuccess = result.success;
+        this.dateRangeMessage = result.message;
+        if (result.success) {
+          // Reload public holidays for the new range
+          this.holidaysLoading = true;
+          this.holidayService.clearCache();
+          this.loadHolidaysForRange(this.scheduleStartDate, this.scheduleEndDate);
+        }
+      },
+      error: (err) => {
+        this.dateRangeSaving = false;
+        this.dateRangeSuccess = false;
+        this.dateRangeMessage = `Error: ${err.message}`;
+      }
+    });
   }
 
   private groupHolidaysByYear(): void {
@@ -760,6 +925,16 @@ export class ManageSettingsComponent implements OnInit {
       this.newTypeColorLight = '#c8e6c9';
       this.newTypeColorDark = '#2e7d32';
     });
+  }
+
+  onTypeNameChange(type: HolidayType, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const newName = input.value.trim();
+    if (newName && newName !== type.name) {
+      this.holidayTypeService.updateType(type.id, newName).subscribe();
+    } else {
+      input.value = type.name;
+    }
   }
 
   onTypeColorLightChange(type: HolidayType, event: Event): void {
@@ -787,8 +962,7 @@ export class ManageSettingsComponent implements OnInit {
   resetHolidays(): void {
     this.holidaysLoading = true;
     this.holidayService.clearCache();
-    const currentYear = new Date().getFullYear();
-    this.holidayService.loadHolidaysForYears([currentYear, currentYear + 1]).subscribe();
+    this.loadHolidaysForRange(this.scheduleStartDate, this.scheduleEndDate);
   }
 
   private loadEmailConfig(): void {

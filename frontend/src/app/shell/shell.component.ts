@@ -15,10 +15,11 @@ import { AccountPasswordComponent } from '../features/account/account-password.c
 import { ManageTeamsComponent } from '../features/manage/manage-teams.component';
 import { ManageWorkersComponent } from '../features/manage/manage-workers.component';
 import { ManageSettingsComponent } from '../features/manage/manage-settings.component';
+import { ManageImportExportComponent } from '../features/manage/manage-import-export.component';
 
 type NavBarType = 'account' | 'management';
 type PanelType = 'login' | 'profile' | 'password'
-              | 'manage-teams' | 'manage-workers' | 'manage-settings';
+              | 'manage-teams' | 'manage-workers' | 'manage-import-export' | 'manage-settings';
 
 interface NavItem {
   path: string;
@@ -41,6 +42,7 @@ interface NavItem {
     AccountPasswordComponent,
     ManageTeamsComponent,
     ManageWorkersComponent,
+    ManageImportExportComponent,
     ManageSettingsComponent
   ],
   template: `
@@ -156,6 +158,12 @@ interface NavItem {
             <span>Workers</span>
           </button>
           <button class="nav-bar-item"
+                  [class.active]="activePanel === 'manage-import-export'"
+                  (click)="openPanel('manage-import-export')">
+            <mat-icon>import_export</mat-icon>
+            <span>Import / Export</span>
+          </button>
+          <button class="nav-bar-item"
                   [class.active]="activePanel === 'manage-settings'"
                   (click)="openPanel('manage-settings')">
             <mat-icon>settings</mat-icon>
@@ -185,6 +193,7 @@ interface NavItem {
         <app-account-password *ngIf="activePanel === 'password'"></app-account-password>
         <app-manage-teams *ngIf="activePanel === 'manage-teams'"></app-manage-teams>
         <app-manage-workers *ngIf="activePanel === 'manage-workers'"></app-manage-workers>
+        <app-manage-import-export *ngIf="activePanel === 'manage-import-export'"></app-manage-import-export>
         <app-manage-settings *ngIf="activePanel === 'manage-settings'"></app-manage-settings>
       </div>
     </div>

@@ -868,14 +868,29 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     this.authService.currentUser$.subscribe(user => {
       if (user && !this.workers.length) {
         this.currentUserId = user.id;
-        this.loadHolidays();
-        this.loadData();
-        this.holidayTypeService.ensureLoaded().subscribe();
+        // Load date range from backend, then regenerate columns and load data
+        this.appSettingsService.loadDateRange().subscribe(range => {
+          this.generateDateColumns(range.startDate, range.endDate);
+          this.loadHolidays();
+          this.loadData();
+          this.holidayTypeService.ensureLoaded().subscribe();
+          this.cdr.markForCheck();
+        });
       } else if (!user) {
         this.workers = [];
         this.filteredWorkers = [];
         this.currentUserId = null;
         this.loading = false;
+        this.cdr.markForCheck();
+      }
+    });
+
+    // Subscribe to date range changes (e.g. from settings panel)
+    this.appSettingsService.dateRange$.subscribe(range => {
+      if (this.workers.length > 0) {
+        this.generateDateColumns(range.startDate, range.endDate);
+        this.loadHolidays();
+        this.loadWorkerHolidays();
         this.cdr.markForCheck();
       }
     });
@@ -992,10 +1007,10 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     }
   }
 
-  generateDateColumns(): void {
-    const startDate = new Date('2025-01-01');
-    const endDate = new Date();
-    endDate.setFullYear(endDate.getFullYear() + 1);
+  generateDateColumns(rangeStart?: string, rangeEnd?: string): void {
+    const range = this.appSettingsService.dateRange;
+    const startDate = new Date(rangeStart || range.startDate);
+    const endDate = new Date(rangeEnd || range.endDate);
 
     this.dateColumns = [];
     let currentDate = new Date(startDate);

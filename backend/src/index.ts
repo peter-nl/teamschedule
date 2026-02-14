@@ -184,6 +184,37 @@ const typeDefs = `#graphql
     workerHolidays(workerId: String!): [WorkerHoliday!]!
     allWorkerHolidays(startDate: String!, endDate: String!): [WorkerHoliday!]!
     emailConfig: EmailConfig
+    scheduleDateRange: ScheduleDateRange!
+    exportWorkerHolidays: [WorkerHolidayExport!]!
+  }
+
+  type ScheduleDateRange {
+    startDate: String!
+    endDate: String!
+  }
+
+  type WorkerHolidayExport {
+    workerId: String!
+    workerName: String!
+    startDate: String!
+    endDate: String!
+    startDayPart: String!
+    endDayPart: String!
+    description: String
+    holidayTypeName: String
+  }
+
+  type DeletedHolidaysResult {
+    success: Boolean!
+    message: String
+    deletedCount: Int!
+  }
+
+  type ImportResult {
+    success: Boolean!
+    message: String
+    importedCount: Int!
+    skippedCount: Int!
   }
 
   type Mutation {
@@ -210,6 +241,18 @@ const typeDefs = `#graphql
     testEmailConfig(testAddress: String!): SimpleResult!
     requestPasswordReset(email: String!): SimpleResult!
     resetPasswordWithToken(token: String!, newPassword: String!): AuthPayload!
+    saveScheduleDateRange(startDate: String!, endDate: String!): DeletedHolidaysResult!
+    importWorkerHolidays(holidays: [WorkerHolidayImportInput!]!): ImportResult!
+  }
+
+  input WorkerHolidayImportInput {
+    workerId: String!
+    startDate: String!
+    endDate: String!
+    startDayPart: String!
+    endDayPart: String!
+    description: String
+    holidayTypeName: String
   }
 `;
 
@@ -320,6 +363,43 @@ const resolvers = {
           colorDark: row.ht_color_dark, sortOrder: row.ht_sort_order,
         } : null,
       }));
+    },
+    scheduleDateRange: async (_: any, __: any, ctx: AuthContext) => {
+      requireAuth(ctx);
+      const result = await pool.query("SELECT key, value FROM app_setting WHERE key IN ('schedule_start_date', 'schedule_end_date')");
+      const settings: Record<string, string> = {};
+      for (const row of result.rows) settings[row.key] = row.value;
+      const now = new Date();
+      const defaultStart = `${now.getFullYear() - 1}-01-01`;
+      const defaultEnd = `${now.getFullYear() + 1}-12-31`;
+      return {
+        startDate: settings.schedule_start_date || defaultStart,
+        endDate: settings.schedule_end_date || defaultEnd,
+      };
+    },
+    exportWorkerHolidays: async (_: any, __: any, ctx: AuthContext) => {
+      requireManager(ctx);
+      const result = await pool.query(
+        `SELECT wh.*, w.first_name, w.last_name, w.particles,
+                ht.name as ht_name
+         FROM worker_holiday wh
+         JOIN worker w ON wh.worker_id = w.id
+         LEFT JOIN holiday_type ht ON wh.holiday_type_id = ht.id
+         ORDER BY w.last_name, w.first_name, wh.start_date`
+      );
+      return result.rows.map(row => {
+        const nameParts = [row.first_name, row.particles, row.last_name].filter(Boolean);
+        return {
+          workerId: row.worker_id,
+          workerName: nameParts.join(' '),
+          startDate: row.start_date.toISOString().split('T')[0],
+          endDate: row.end_date.toISOString().split('T')[0],
+          startDayPart: row.start_day_part,
+          endDayPart: row.end_day_part,
+          description: row.description,
+          holidayTypeName: row.ht_name || null,
+        };
+      });
     },
     emailConfig: async (_: any, __: any, ctx: AuthContext) => {
       requireManager(ctx);
@@ -745,6 +825,77 @@ const resolvers = {
       const row = workerResult.rows[0];
       const worker = { id: row.id, firstName: row.first_name, lastName: row.last_name, particles: row.particles, email: row.email, role: row.role };
       return { success: true, message: 'Password reset successfully', worker, token: generateToken(worker) };
+    },
+    saveScheduleDateRange: async (_: any, { startDate, endDate }: { startDate: string; endDate: string }, ctx: AuthContext) => {
+      requireManager(ctx);
+      // Validate dates
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        throw new Error('Invalid date format');
+      }
+      if (start >= end) {
+        throw new Error('Start date must be before end date');
+      }
+      // Save the date range
+      for (const [key, value] of [['schedule_start_date', startDate], ['schedule_end_date', endDate]]) {
+        await pool.query(
+          `INSERT INTO app_setting (key, value, updated_at) VALUES ($1, $2, NOW())
+           ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+          [key, value]
+        );
+      }
+      // Delete worker holidays that fall completely outside the new range
+      const deleteResult = await pool.query(
+        `DELETE FROM worker_holiday WHERE start_date > $2 OR end_date < $1`,
+        [startDate, endDate]
+      );
+      const deletedCount = deleteResult.rowCount ?? 0;
+      return {
+        success: true,
+        message: deletedCount > 0
+          ? `Date range saved. ${deletedCount} holiday period(s) outside the new range were removed.`
+          : 'Date range saved.',
+        deletedCount,
+      };
+    },
+    importWorkerHolidays: async (_: any, { holidays }: { holidays: Array<{ workerId: string; startDate: string; endDate: string; startDayPart: string; endDayPart: string; description?: string; holidayTypeName?: string }> }, ctx: AuthContext) => {
+      requireManager(ctx);
+      let importedCount = 0;
+      let skippedCount = 0;
+      // Pre-load holiday types for name lookup
+      const typeResult = await pool.query('SELECT id, name FROM holiday_type');
+      const typeMap = new Map<string, number>();
+      for (const row of typeResult.rows) {
+        typeMap.set(row.name.toLowerCase(), row.id);
+      }
+      // Verify all worker IDs exist
+      const workerResult = await pool.query('SELECT id FROM worker');
+      const validWorkerIds = new Set(workerResult.rows.map(r => r.id));
+
+      for (const h of holidays) {
+        if (!validWorkerIds.has(h.workerId)) {
+          skippedCount++;
+          continue;
+        }
+        const holidayTypeId = h.holidayTypeName ? typeMap.get(h.holidayTypeName.toLowerCase()) || null : null;
+        try {
+          await pool.query(
+            `INSERT INTO worker_holiday (worker_id, start_date, end_date, start_day_part, end_day_part, description, holiday_type_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [h.workerId, h.startDate, h.endDate, h.startDayPart, h.endDayPart, h.description || null, holidayTypeId]
+          );
+          importedCount++;
+        } catch (error) {
+          skippedCount++;
+        }
+      }
+      return {
+        success: true,
+        message: `Imported ${importedCount} holiday period(s). ${skippedCount > 0 ? `${skippedCount} skipped.` : ''}`,
+        importedCount,
+        skippedCount,
+      };
     },
   },
   Team: {

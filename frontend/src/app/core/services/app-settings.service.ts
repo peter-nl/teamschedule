@@ -1,5 +1,7 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, Observable, from, map, tap } from 'rxjs';
+import { gql } from '@apollo/client';
+import { apolloClient } from '../../app.config';
 
 export interface AppSettings {
   workingDays: boolean[]; // Index 0 = Sunday, 1 = Monday, ..., 6 = Saturday (matches JS Date.getDay())
@@ -8,6 +10,11 @@ export interface AppSettings {
   holidayColorLight: string;
   holidayColorDark: string;
   weekStartDay: 0 | 1; // 0 = Sunday, 1 = Monday
+}
+
+export interface ScheduleDateRange {
+  startDate: string; // YYYY-MM-DD
+  endDate: string;   // YYYY-MM-DD
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -21,6 +28,28 @@ const DEFAULT_SETTINGS: AppSettings = {
 
 const STORAGE_KEY = 'teamschedule-app-settings';
 
+const SCHEDULE_DATE_RANGE_QUERY = gql`
+  query ScheduleDateRange {
+    scheduleDateRange { startDate endDate }
+  }
+`;
+
+const SAVE_SCHEDULE_DATE_RANGE_MUTATION = gql`
+  mutation SaveScheduleDateRange($startDate: String!, $endDate: String!) {
+    saveScheduleDateRange(startDate: $startDate, endDate: $endDate) {
+      success message deletedCount
+    }
+  }
+`;
+
+function getDefaultDateRange(): ScheduleDateRange {
+  const now = new Date();
+  return {
+    startDate: `${now.getFullYear() - 1}-01-01`,
+    endDate: `${now.getFullYear() + 1}-12-31`,
+  };
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -28,12 +57,19 @@ export class AppSettingsService {
   private settingsSubject = new BehaviorSubject<AppSettings>(DEFAULT_SETTINGS);
   public settings$ = this.settingsSubject.asObservable();
 
+  private dateRangeSubject = new BehaviorSubject<ScheduleDateRange>(getDefaultDateRange());
+  public dateRange$ = this.dateRangeSubject.asObservable();
+
   constructor() {
     this.loadSettings();
   }
 
   get settings(): AppSettings {
     return this.settingsSubject.value;
+  }
+
+  get dateRange(): ScheduleDateRange {
+    return this.dateRangeSubject.value;
   }
 
   private loadSettings(): void {
@@ -55,6 +91,31 @@ export class AppSettingsService {
     } catch (e) {
       console.warn('Failed to save app settings to localStorage:', e);
     }
+  }
+
+  loadDateRange(): Observable<ScheduleDateRange> {
+    return from(
+      apolloClient.query({ query: SCHEDULE_DATE_RANGE_QUERY, fetchPolicy: 'network-only' })
+    ).pipe(
+      map((result: any) => result.data.scheduleDateRange as ScheduleDateRange),
+      tap(range => this.dateRangeSubject.next(range))
+    );
+  }
+
+  saveDateRange(startDate: string, endDate: string): Observable<{ success: boolean; message: string; deletedCount: number }> {
+    return from(
+      apolloClient.mutate({
+        mutation: SAVE_SCHEDULE_DATE_RANGE_MUTATION,
+        variables: { startDate, endDate }
+      })
+    ).pipe(
+      map((result: any) => result.data.saveScheduleDateRange),
+      tap(res => {
+        if (res.success) {
+          this.dateRangeSubject.next({ startDate, endDate });
+        }
+      })
+    );
   }
 
   setWorkingDays(workingDays: boolean[]): void {
