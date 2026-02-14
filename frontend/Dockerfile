@@ -1,5 +1,4 @@
-# Stage 1: Build Angular app
-FROM node:20-alpine AS build
+FROM node:20-alpine
 
 WORKDIR /app
 
@@ -7,12 +6,7 @@ COPY package*.json ./
 RUN npm install
 
 COPY . .
-RUN npx ng build --configuration=production
 
-# Stage 2: Serve with nginx
-FROM nginx:alpine
+EXPOSE 4200
 
-COPY --from=build /app/dist/teamschedule-frontend /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-EXPOSE 80
+CMD ["npx", "ng", "serve", "--host", "0.0.0.0", "--disable-host-check", "--proxy-config", "proxy.conf.docker.json"]
