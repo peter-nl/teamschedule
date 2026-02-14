@@ -264,7 +264,15 @@ interface HolidayYearGroup {
                   <mat-label>Port</mat-label>
                   <input matInput type="number" [(ngModel)]="emailConfig.port" name="smtpPort">
                 </mat-form-field>
-                <mat-checkbox [(ngModel)]="emailConfig.secure" name="smtpSecure">Use SSL/TLS</mat-checkbox>
+                <mat-form-field appearance="outline" class="encryption-field">
+                  <mat-label>Encryption</mat-label>
+                  <mat-select [(ngModel)]="emailConfig.encryption" name="smtpEncryption">
+                    <mat-option value="starttls">STARTTLS (port 587)</mat-option>
+                    <mat-option value="ssl">SSL/TLS (port 465)</mat-option>
+                    <mat-option value="none">None (port 25)</mat-option>
+                  </mat-select>
+                  <mat-hint>{{ encryptionHint }}</mat-hint>
+                </mat-form-field>
               </div>
 
               <mat-form-field appearance="outline" class="full-width">
@@ -559,6 +567,10 @@ interface HolidayYearGroup {
       width: 120px;
     }
 
+    .encryption-field {
+      flex: 1;
+    }
+
     .email-actions {
       display: flex;
       gap: 12px;
@@ -623,8 +635,16 @@ export class ManageSettingsComponent implements OnInit {
   newTypeColorDark = '#2e7d32';
 
   // Email config
-  emailConfig = { host: '', port: 587, secure: false, user: '', password: '', from: '' };
+  emailConfig = { host: '', port: 587, encryption: 'starttls' as 'starttls' | 'ssl' | 'none', user: '', password: '', from: '' };
   emailConfigured = false;
+
+  get encryptionHint(): string {
+    switch (this.emailConfig.encryption) {
+      case 'starttls': return 'Starts unencrypted, upgrades to TLS. Most common for port 587.';
+      case 'ssl': return 'Direct encrypted connection. Used with port 465.';
+      case 'none': return 'No encryption. Not recommended for production use.';
+    }
+  }
   emailSaving = false;
   emailTesting = false;
   emailStatusMessage: string | null = null;
@@ -777,7 +797,7 @@ export class ManageSettingsComponent implements OnInit {
       if (config) {
         this.emailConfig.host = config.host;
         this.emailConfig.port = config.port;
-        this.emailConfig.secure = config.secure;
+        this.emailConfig.encryption = config.secure ? 'ssl' : (config.port === 25 ? 'none' : 'starttls');
         this.emailConfig.user = config.user;
         this.emailConfig.from = config.from;
         this.emailConfigured = config.configured;
@@ -793,7 +813,7 @@ export class ManageSettingsComponent implements OnInit {
       variables: {
         host: this.emailConfig.host,
         port: this.emailConfig.port,
-        secure: this.emailConfig.secure,
+        secure: this.emailConfig.encryption === 'ssl',
         user: this.emailConfig.user,
         password: this.emailConfig.password,
         from: this.emailConfig.from,
