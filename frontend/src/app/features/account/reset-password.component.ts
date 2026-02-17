@@ -8,6 +8,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
 import { AuthService } from '../../shared/services/auth.service';
@@ -15,7 +16,7 @@ import { AuthService } from '../../shared/services/auth.service';
 const RESET_PASSWORD_WITH_TOKEN = gql`
   mutation ResetPasswordWithToken($token: String!, $newPassword: String!) {
     resetPasswordWithToken(token: $token, newPassword: $newPassword) {
-      success message worker { id firstName lastName particles email role } token
+      success message member { id firstName lastName particles email role } token
     }
   }
 `;
@@ -31,21 +32,22 @@ const RESET_PASSWORD_WITH_TOKEN = gql`
     MatInputModule,
     MatButtonModule,
     MatIconModule,
-    MatProgressSpinnerModule
+    MatProgressSpinnerModule,
+    TranslateModule
   ],
   template: `
     <div class="reset-container">
       <mat-card class="reset-card">
         <mat-card-header>
           <mat-icon mat-card-avatar>lock_reset</mat-icon>
-          <mat-card-title>Reset Password</mat-card-title>
-          <mat-card-subtitle>Enter your new password</mat-card-subtitle>
+          <mat-card-title>{{ 'resetPassword.title' | translate }}</mat-card-title>
+          <mat-card-subtitle>{{ 'resetPassword.subtitle' | translate }}</mat-card-subtitle>
         </mat-card-header>
 
         <mat-card-content>
           <form *ngIf="!completed" (ngSubmit)="onReset()" class="reset-form">
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>New Password</mat-label>
+              <mat-label>{{ 'resetPassword.newPassword' | translate }}</mat-label>
               <input matInput [(ngModel)]="newPassword" name="newPassword"
                      [type]="hidePassword ? 'password' : 'text'" required>
               <button mat-icon-button matSuffix type="button" (click)="hidePassword = !hidePassword">
@@ -54,7 +56,7 @@ const RESET_PASSWORD_WITH_TOKEN = gql`
             </mat-form-field>
 
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Confirm Password</mat-label>
+              <mat-label>{{ 'resetPassword.confirmPassword' | translate }}</mat-label>
               <input matInput [(ngModel)]="confirmPassword" name="confirmPassword"
                      [type]="hidePassword ? 'password' : 'text'" required>
             </mat-form-field>
@@ -67,13 +69,13 @@ const RESET_PASSWORD_WITH_TOKEN = gql`
             <button mat-raised-button color="primary" type="submit" class="full-width"
                     [disabled]="loading || !newPassword || !confirmPassword">
               <mat-spinner *ngIf="loading" diameter="20"></mat-spinner>
-              <span *ngIf="!loading">Reset Password</span>
+              <span *ngIf="!loading">{{ 'resetPassword.resetButton' | translate }}</span>
             </button>
           </form>
 
           <div *ngIf="completed" class="success-message">
             <mat-icon>check_circle</mat-icon>
-            <p>Your password has been reset successfully. You are now logged in.</p>
+            <p>{{ 'resetPassword.success' | translate }}</p>
           </div>
         </mat-card-content>
       </mat-card>
@@ -173,23 +175,24 @@ export class ResetPasswordComponent implements OnInit {
   constructor(
     private route: ActivatedRoute,
     private router: Router,
-    private authService: AuthService
+    private authService: AuthService,
+    private translate: TranslateService
   ) {}
 
   ngOnInit(): void {
     this.token = this.route.snapshot.queryParamMap.get('token') || '';
     if (!this.token) {
-      this.errorMessage = 'No reset token provided. Please use the link from your email.';
+      this.errorMessage = this.translate.instant('resetPassword.messages.noToken');
     }
   }
 
   onReset(): void {
     if (this.newPassword !== this.confirmPassword) {
-      this.errorMessage = 'Passwords do not match';
+      this.errorMessage = this.translate.instant('resetPassword.messages.mismatch');
       return;
     }
     if (this.newPassword.length < 4) {
-      this.errorMessage = 'Password must be at least 4 characters';
+      this.errorMessage = this.translate.instant('resetPassword.messages.tooShort');
       return;
     }
 
@@ -202,16 +205,16 @@ export class ResetPasswordComponent implements OnInit {
     }).then(result => {
       this.loading = false;
       const res = (result.data as any).resetPasswordWithToken;
-      if (res.success && res.worker && res.token) {
+      if (res.success && res.member && res.token) {
         this.completed = true;
-        this.authService.setAuth(res.worker, res.token);
+        this.authService.setAuth(res.member, res.token);
         setTimeout(() => this.router.navigate(['/schedule']), 2000);
       } else {
-        this.errorMessage = res.message || 'Invalid or expired reset link';
+        this.errorMessage = res.message || this.translate.instant('resetPassword.messages.invalidLink');
       }
     }).catch(err => {
       this.loading = false;
-      this.errorMessage = 'An error occurred. Please try again.';
+      this.errorMessage = this.translate.instant('resetPassword.messages.error');
     });
   }
 }

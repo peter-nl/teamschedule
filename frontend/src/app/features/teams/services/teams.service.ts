@@ -10,7 +10,7 @@ const GET_TEAMS = gql`
     teams {
       id
       name
-      workers {
+      members {
         id
         firstName
         lastName
@@ -35,7 +35,7 @@ export class TeamsService {
       map((result: any) => {
         return result.data.teams.map((team: any) => ({
           ...team,
-          workerCount: team.workers?.length || 0
+          memberCount: team.members?.length || 0
         }));
       })
     );

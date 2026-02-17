@@ -8,20 +8,22 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../app.config';
 import { SlideInPanelRef } from '../shared/services/slide-in-panel.service';
 
-interface Worker {
+interface Member {
   id: string;
   firstName: string;
   lastName: string;
   particles: string | null;
 }
 
-const GET_WORKERS_QUERY = gql`
-  query GetWorkers {
-    workers {
+const GET_MEMBERS_QUERY = gql`
+  query GetMembers {
+    members {
       id
       firstName
       lastName
@@ -39,9 +41,9 @@ const CREATE_TEAM_MUTATION = gql`
   }
 `;
 
-const ADD_WORKER_TO_TEAM_MUTATION = gql`
-  mutation AddWorkerToTeam($teamId: ID!, $workerId: ID!) {
-    addWorkerToTeam(teamId: $teamId, workerId: $workerId) {
+const ADD_MEMBER_TO_TEAM_MUTATION = gql`
+  mutation AddMemberToTeam($teamId: ID!, $memberId: ID!) {
+    addMemberToTeam(teamId: $teamId, memberId: $memberId) {
       id
     }
   }
@@ -59,14 +61,16 @@ const ADD_WORKER_TO_TEAM_MUTATION = gql`
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule
+    MatSnackBarModule,
+    MatTooltipModule,
+    TranslateModule
   ],
   template: `
     <div class="slide-in-panel">
       <div class="panel-header">
         <h2>
           <mat-icon>group_add</mat-icon>
-          Add New Team
+          {{ 'addTeam.title' | translate }}
         </h2>
         <button class="panel-close" (click)="panelRef.close()">
           <mat-icon>close</mat-icon>
@@ -76,35 +80,37 @@ const ADD_WORKER_TO_TEAM_MUTATION = gql`
       <div class="panel-content">
         <form class="team-form">
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Team Name</mat-label>
+            <mat-label>{{ 'addTeam.teamName' | translate }}</mat-label>
             <input matInput
                    [(ngModel)]="teamName"
                    name="name"
                    required
-                   placeholder="e.g., Development Team">
+                   [placeholder]="'addTeam.teamNamePlaceholder' | translate">
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Assign Workers</mat-label>
-            <mat-select [(ngModel)]="selectedWorkerIds" name="workers" multiple>
-              <mat-option *ngFor="let worker of workers" [value]="worker.id">
-                {{ displayName(worker) }}
+            <mat-label>{{ 'addTeam.assignMembers' | translate }}</mat-label>
+            <mat-select [(ngModel)]="selectedMemberIds" name="members" multiple>
+              <mat-option *ngFor="let member of members" [value]="member.id">
+                {{ displayName(member) }}
               </mat-option>
             </mat-select>
-            <mat-hint>Optional - select one or more workers</mat-hint>
+            <mat-hint>{{ 'addTeam.assignMembersHint' | translate }}</mat-hint>
           </mat-form-field>
         </form>
       </div>
 
       <div class="panel-actions">
         <span class="spacer"></span>
-        <button mat-button (click)="panelRef.close()">Cancel</button>
+        <button mat-icon-button (click)="panelRef.close()" [matTooltip]="'common.cancel' | translate">
+          <mat-icon>close</mat-icon>
+        </button>
         <button mat-raised-button
                 color="primary"
                 (click)="onSubmit()"
                 [disabled]="loading || !teamName.trim()">
           <mat-spinner *ngIf="loading" diameter="20"></mat-spinner>
-          <span *ngIf="!loading">Add Team</span>
+          <span *ngIf="!loading">{{ 'addTeam.addButton' | translate }}</span>
         </button>
       </div>
     </div>
@@ -131,35 +137,36 @@ const ADD_WORKER_TO_TEAM_MUTATION = gql`
 })
 export class AddTeamDialogComponent implements OnInit {
   teamName = '';
-  workers: Worker[] = [];
-  selectedWorkerIds: string[] = [];
+  members: Member[] = [];
+  selectedMemberIds: string[] = [];
   loading = false;
 
   constructor(
     public panelRef: SlideInPanelRef<AddTeamDialogComponent>,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private translate: TranslateService
   ) {}
 
   ngOnInit(): void {
-    this.loadWorkers();
+    this.loadMembers();
   }
 
-  async loadWorkers(): Promise<void> {
+  async loadMembers(): Promise<void> {
     try {
       const result: any = await apolloClient.query({
-        query: GET_WORKERS_QUERY,
+        query: GET_MEMBERS_QUERY,
         fetchPolicy: 'network-only'
       });
-      this.workers = result.data.workers;
+      this.members = result.data.members;
     } catch (error) {
-      console.error('Failed to load workers:', error);
+      console.error('Failed to load members:', error);
     }
   }
 
-  displayName(worker: Worker): string {
-    const parts = [worker.firstName];
-    if (worker.particles) parts.push(worker.particles);
-    parts.push(worker.lastName);
+  displayName(member: Member): string {
+    const parts = [member.firstName];
+    if (member.particles) parts.push(member.particles);
+    parts.push(member.lastName);
     return parts.join(' ');
   }
 
@@ -178,22 +185,22 @@ export class AddTeamDialogComponent implements OnInit {
 
       const teamId = result.data.createTeam.id;
 
-      for (const workerId of this.selectedWorkerIds) {
+      for (const memberId of this.selectedMemberIds) {
         await apolloClient.mutate({
-          mutation: ADD_WORKER_TO_TEAM_MUTATION,
-          variables: { teamId, workerId }
+          mutation: ADD_MEMBER_TO_TEAM_MUTATION,
+          variables: { teamId, memberId }
         });
       }
 
       await apolloClient.refetchQueries({
-        include: ['GetTeams', 'GetWorkers']
+        include: ['GetTeams', 'GetMembers']
       });
 
-      this.snackBar.open('Team added successfully', 'Close', { duration: 3000 });
+      this.snackBar.open(this.translate.instant('addTeam.messages.success'), this.translate.instant('common.close'), { duration: 3000 });
       this.panelRef.close(true);
     } catch (error: any) {
       console.error('Failed to add team:', error);
-      this.snackBar.open(error.message || 'Failed to add team', 'Close', { duration: 5000 });
+      this.snackBar.open(error.message || this.translate.instant('addTeam.messages.failed'), this.translate.instant('common.close'), { duration: 5000 });
     } finally {
       this.loading = false;
     }

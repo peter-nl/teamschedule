@@ -13,11 +13,11 @@ INSERT INTO holiday_type (name, color_light, color_dark, sort_order)
 VALUES ('Vakantie', '#c8e6c9', '#2e7d32', 0)
 ON CONFLICT (name) DO NOTHING;
 
--- Add holiday_type_id to worker_holiday
-ALTER TABLE worker_holiday
+-- Add holiday_type_id to member_holiday
+ALTER TABLE member_holiday
   ADD COLUMN IF NOT EXISTS holiday_type_id INTEGER REFERENCES holiday_type(id) ON DELETE SET NULL;
 
 -- Backfill existing holidays with the "Vakantie" type
-UPDATE worker_holiday
+UPDATE member_holiday
   SET holiday_type_id = (SELECT id FROM holiday_type WHERE name = 'Vakantie')
   WHERE holiday_type_id IS NULL;

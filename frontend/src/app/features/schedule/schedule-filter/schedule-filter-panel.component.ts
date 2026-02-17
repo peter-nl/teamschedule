@@ -4,6 +4,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { SlideInPanelRef, SLIDE_IN_PANEL_DATA } from '../../../shared/services/slide-in-panel.service';
 import { TeamFilterMode } from '../../../shared/services/user-preferences.service';
 
@@ -11,8 +12,8 @@ export interface ScheduleFilterPanelData {
   teams: { id: string; name: string }[];
   selectedTeamIds: Set<string>;
   teamFilterMode: TeamFilterMode;
-  getWorkerCountForTeam: (teamId: string) => number;
-  getWorkerCountWithoutTeam: () => number;
+  getMemberCountForTeam: (teamId: string) => number;
+  getMemberCountWithoutTeam: () => number;
   onSelectionChange: (selectedTeamIds: string[]) => void;
   onFilterModeChange: (mode: TeamFilterMode) => void;
 }
@@ -24,11 +25,11 @@ export interface ScheduleFilterPanelResult {
 @Component({
   selector: 'app-schedule-filter-panel',
   standalone: true,
-  imports: [CommonModule, MatCheckboxModule, MatButtonModule, MatIconModule, MatTooltipModule],
+  imports: [CommonModule, MatCheckboxModule, MatButtonModule, MatIconModule, MatTooltipModule, TranslateModule],
   template: `
     <div class="slide-in-panel">
       <div class="panel-header">
-        <h2><mat-icon>filter_list</mat-icon> Filter by Teams</h2>
+        <h2><mat-icon>filter_list</mat-icon> {{ 'scheduleFilter.title' | translate }}</h2>
         <button class="panel-close" (click)="cancel()">
           <mat-icon>close</mat-icon>
         </button>
@@ -40,7 +41,7 @@ export interface ScheduleFilterPanelResult {
               [checked]="isSelected('__no_team__')"
               (click)="$event.stopPropagation()"
               (change)="toggleTeam('__no_team__')">
-              [geen team] ({{ data.getWorkerCountWithoutTeam() }})
+              {{ 'scheduleFilter.noTeam' | translate }} ({{ data.getMemberCountWithoutTeam() }})
             </mat-checkbox>
           </div>
           <div *ngFor="let team of data.teams" class="filter-item" (click)="toggleTeam(team.id)">
@@ -48,13 +49,13 @@ export interface ScheduleFilterPanelResult {
               [checked]="isSelected(team.id)"
               (click)="$event.stopPropagation()"
               (change)="toggleTeam(team.id)">
-              {{ team.name }} ({{ data.getWorkerCountForTeam(team.id) }})
+              {{ team.name }} ({{ data.getMemberCountForTeam(team.id) }})
             </mat-checkbox>
           </div>
         </div>
       </div>
       <div class="panel-actions">
-        <button mat-icon-button (click)="clearAll()" [disabled]="selection.size === 0" matTooltip="Clear all filters">
+        <button mat-icon-button (click)="clearAll()" [disabled]="selection.size === 0" [matTooltip]="'scheduleFilter.clearAll' | translate">
           <mat-icon>filter_list_off</mat-icon>
         </button>
         <button mat-icon-button
@@ -64,10 +65,10 @@ export interface ScheduleFilterPanelResult {
           <mat-icon>{{ filterModeIcon }}</mat-icon>
         </button>
         <div class="spacer"></div>
-        <button mat-icon-button (click)="cancel()" matTooltip="Cancel">
+        <button mat-icon-button (click)="cancel()" [matTooltip]="'common.cancel' | translate">
           <mat-icon>close</mat-icon>
         </button>
-        <button mat-icon-button (click)="apply()" matTooltip="Apply" color="primary">
+        <button mat-icon-button (click)="apply()" [matTooltip]="'common.apply' | translate" color="primary">
           <mat-icon>check</mat-icon>
         </button>
       </div>
@@ -104,7 +105,8 @@ export class ScheduleFilterPanelComponent implements OnInit {
 
   constructor(
     public panelRef: SlideInPanelRef<ScheduleFilterPanelComponent, ScheduleFilterPanelResult>,
-    @Inject(SLIDE_IN_PANEL_DATA) public data: ScheduleFilterPanelData
+    @Inject(SLIDE_IN_PANEL_DATA) public data: ScheduleFilterPanelData,
+    private translate: TranslateService
   ) {}
 
   ngOnInit(): void {
@@ -118,8 +120,8 @@ export class ScheduleFilterPanelComponent implements OnInit {
 
   get filterModeTooltip(): string {
     return this.data.teamFilterMode === 'and'
-      ? 'AND mode: workers must be in ALL selected teams. Click to switch to OR.'
-      : 'OR mode: workers can be in ANY selected team. Click to switch to AND.';
+      ? this.translate.instant('scheduleFilter.andMode')
+      : this.translate.instant('scheduleFilter.orMode');
   }
 
   toggleFilterMode(): void {

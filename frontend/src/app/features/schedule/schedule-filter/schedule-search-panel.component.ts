@@ -6,6 +6,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { TranslateModule } from '@ngx-translate/core';
 import { SlideInPanelRef, SLIDE_IN_PANEL_DATA } from '../../../shared/services/slide-in-panel.service';
 
 export interface ScheduleSearchPanelData {
@@ -20,40 +21,40 @@ export interface ScheduleSearchPanelResult {
 @Component({
   selector: 'app-schedule-search-panel',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatFormFieldModule, MatInputModule, MatButtonModule, MatIconModule, MatTooltipModule],
+  imports: [CommonModule, FormsModule, MatFormFieldModule, MatInputModule, MatButtonModule, MatIconModule, MatTooltipModule, TranslateModule],
   template: `
     <div class="slide-in-panel">
       <div class="panel-header">
-        <h2><mat-icon>search</mat-icon> Search Workers</h2>
+        <h2><mat-icon>search</mat-icon> {{ 'scheduleSearch.title' | translate }}</h2>
         <button class="panel-close" (click)="cancel()">
           <mat-icon>close</mat-icon>
         </button>
       </div>
       <div class="panel-content">
         <mat-form-field appearance="outline" class="search-field">
-          <mat-label>Search by name</mat-label>
+          <mat-label>{{ 'scheduleSearch.label' | translate }}</mat-label>
           <input matInput
                  [(ngModel)]="searchText"
                  (ngModelChange)="onSearchInput()"
-                 placeholder="Type to search..."
+                 [placeholder]="'scheduleSearch.placeholder' | translate"
                  autocomplete="off"
                  #searchInput>
           <mat-icon matSuffix *ngIf="!searchText">search</mat-icon>
-          <button mat-icon-button matSuffix *ngIf="searchText" (click)="clearSearch()" matTooltip="Clear search">
+          <button mat-icon-button matSuffix *ngIf="searchText" (click)="clearSearch()" [matTooltip]="'scheduleSearch.clearSearch' | translate">
             <mat-icon>close</mat-icon>
           </button>
         </mat-form-field>
-        <p class="search-hint">Searches in First name, Last name and Particles columns.</p>
+        <p class="search-hint">{{ 'scheduleSearch.hint' | translate }}</p>
       </div>
       <div class="panel-actions">
-        <button mat-icon-button (click)="clearSearch()" [disabled]="!searchText" matTooltip="Clear search">
+        <button mat-icon-button (click)="clearSearch()" [disabled]="!searchText" [matTooltip]="'scheduleSearch.clearSearch' | translate">
           <mat-icon>search_off</mat-icon>
         </button>
         <div class="spacer"></div>
-        <button mat-icon-button (click)="cancel()" matTooltip="Cancel">
+        <button mat-icon-button (click)="cancel()" [matTooltip]="'common.cancel' | translate">
           <mat-icon>close</mat-icon>
         </button>
-        <button mat-icon-button (click)="apply()" matTooltip="Apply" color="primary">
+        <button mat-icon-button (click)="apply()" [matTooltip]="'common.apply' | translate" color="primary">
           <mat-icon>check</mat-icon>
         </button>
       </div>

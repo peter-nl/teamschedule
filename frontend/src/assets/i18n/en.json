@@ -1,0 +1,397 @@
+{
+  "common": {
+    "close": "Close",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "delete": "Delete",
+    "add": "Add",
+    "edit": "Edit",
+    "reset": "Reset",
+    "reload": "Reload",
+    "retry": "Retry",
+    "apply": "Apply",
+    "loading": "Loading...",
+    "error": "Error",
+    "morning": "Morning",
+    "afternoon": "Afternoon",
+    "fullDay": "Full day",
+    "manager": "Manager",
+    "user": "User",
+    "light": "Light",
+    "dark": "Dark"
+  },
+  "days": {
+    "sunday": "Sunday",
+    "monday": "Monday",
+    "tuesday": "Tuesday",
+    "wednesday": "Wednesday",
+    "thursday": "Thursday",
+    "friday": "Friday",
+    "saturday": "Saturday"
+  },
+  "shell": {
+    "appTitle": "TeamSchedule",
+    "nav": {
+      "schedule": "Schedule",
+      "menu": "Menu"
+    },
+    "account": {
+      "lightTheme": "Light theme",
+      "darkTheme": "Dark theme",
+      "memberMode": "Member mode",
+      "managerMode": "Manager mode",
+      "signIn": "Sign in",
+      "account": "Account",
+      "changePassword": "Change password",
+      "signOut": "Sign out",
+      "login": "Login"
+    },
+    "management": {
+      "label": "Management",
+      "teams": "Teams",
+      "members": "Members",
+      "importExport": "Import / Export",
+      "settings": "Settings"
+    },
+    "messages": {
+      "signedOut": "You have been signed out"
+    }
+  },
+  "login": {
+    "title": "Login",
+    "subtitle": "Sign in with your member ID",
+    "memberId": "Member ID",
+    "memberIdPlaceholder": "Enter your member ID",
+    "password": "Password",
+    "passwordPlaceholder": "Enter your password",
+    "signIn": "Sign In",
+    "forgotPassword": "Forgot password?",
+    "emailAddress": "Your email address",
+    "sendResetLink": "Send Reset Link",
+    "messages": {
+      "fieldsRequired": "Please enter both Member ID and Password",
+      "welcome": "Welcome back!",
+      "loginFailed": "Login failed",
+      "error": "An error occurred. Please try again."
+    }
+  },
+  "resetPassword": {
+    "title": "Reset Password",
+    "subtitle": "Enter your new password",
+    "newPassword": "New Password",
+    "confirmPassword": "Confirm Password",
+    "resetButton": "Reset Password",
+    "success": "Your password has been reset successfully. You are now logged in.",
+    "messages": {
+      "noToken": "No reset token provided. Please use the link from your email.",
+      "mismatch": "Passwords do not match",
+      "tooShort": "Password must be at least 4 characters",
+      "invalidLink": "Invalid or expired reset link",
+      "error": "An error occurred. Please try again."
+    }
+  },
+  "profile": {
+    "title": "My Account",
+    "subtitle": "Member ID: {{ id }}",
+    "firstName": "First Name",
+    "particles": "Particles (prefix)",
+    "particlesPlaceholder": "e.g., van, de, von",
+    "lastName": "Last Name",
+    "email": "Email",
+    "emailPlaceholder": "e.g., john@example.com",
+    "saveChanges": "Save Changes",
+    "role": "Role",
+    "holidays": {
+      "title": "My Personal Holidays",
+      "addHoliday": "Add Holiday",
+      "loading": "Loading holidays...",
+      "empty": "No personal holidays set.",
+      "first": "first",
+      "last": "last"
+    },
+    "messages": {
+      "nameRequired": "First name and last name are required",
+      "updated": "Profile updated successfully",
+      "updateFailed": "Failed to update profile",
+      "holidayRemoved": "Holiday removed",
+      "holidayRemoveFailed": "Failed to remove holiday"
+    }
+  },
+  "password": {
+    "title": "Change Password",
+    "currentPassword": "Current Password",
+    "newPassword": "New Password",
+    "confirmPassword": "Confirm New Password",
+    "changeButton": "Change Password",
+    "messages": {
+      "fieldsRequired": "Please fill in all password fields",
+      "mismatch": "New passwords do not match",
+      "changed": "Password changed successfully",
+      "changeFailed": "Failed to change password"
+    }
+  },
+  "schedule": {
+    "searchMembers": "Search members",
+    "filterByTeams": "Filter by teams",
+    "loading": "Loading schedule...",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "goToMyRow": "Go to my row",
+    "goToToday": "Go to today",
+    "columns": {
+      "first": "First",
+      "particles": "Part.",
+      "last": "Last"
+    },
+    "messages": {
+      "loadFailed": "Failed to load schedule"
+    },
+    "dayParts": {
+      "morning": "(morning)",
+      "afternoon": "(afternoon)"
+    }
+  },
+  "scheduleFilter": {
+    "title": "Filter by Teams",
+    "noTeam": "[geen team]",
+    "clearAll": "Clear all filters",
+    "andMode": "AND mode: members must be in ALL selected teams. Click to switch to OR.",
+    "orMode": "OR mode: members can be in ANY selected team. Click to switch to AND."
+  },
+  "scheduleSearch": {
+    "title": "Search Members",
+    "label": "Search by name",
+    "placeholder": "Type to search...",
+    "clearSearch": "Clear search",
+    "hint": "Searches in First name, Last name and Particles columns."
+  },
+  "settings": {
+    "title": "Application Settings",
+    "subtitle": "Configure application-wide settings",
+    "dateRange": {
+      "title": "Schedule Date Range",
+      "description": "Define the start and end dates for the schedule. Member holidays outside this range will be permanently deleted.",
+      "startDate": "Start date",
+      "endDate": "End date",
+      "saveButton": "Save Date Range",
+      "confirmDelete": "Changing the schedule date range will permanently delete any member holiday data that falls outside the new range.\n\nAre you sure you want to continue?"
+    },
+    "holidays": {
+      "title": "Public Holidays (Netherlands)",
+      "description": "Holidays retrieved from the Nager.Date API. These are highlighted in the schedule.",
+      "loading": "Loading holidays...",
+      "empty": "No holidays loaded."
+    },
+    "workingDays": {
+      "title": "Working Days",
+      "description": "Select which days are working days. Non-working days will be highlighted in the schedule.",
+      "weekStartsOn": "Week starts on"
+    },
+    "colors": {
+      "title": "Schedule Colors",
+      "description": "Customize the appearance of special days in the schedule.",
+      "nonWorkingDays": "Non-working days",
+      "publicHolidays": "Public holidays"
+    },
+    "holidayTypes": {
+      "title": "Holiday Types",
+      "description": "Define holiday types with separate colors for light and dark themes. These are used when members log personal holidays.",
+      "newTypeName": "New type name",
+      "newTypePlaceholder": "e.g. Ziekte"
+    },
+    "email": {
+      "title": "Email Service",
+      "description": "Configure SMTP email settings for password reset emails and notifications.",
+      "smtpHost": "SMTP Host",
+      "smtpHostPlaceholder": "smtp.forwardemail.net",
+      "port": "Port",
+      "encryption": "Encryption",
+      "starttls": "STARTTLS (port 587)",
+      "ssl": "SSL/TLS (port 465)",
+      "none": "None (port 25)",
+      "starttlsHint": "Starts unencrypted, upgrades to TLS. Most common for port 587.",
+      "sslHint": "Direct encrypted connection. Used with port 465.",
+      "noneHint": "No encryption. Not recommended for production use.",
+      "username": "Username",
+      "password": "Password",
+      "passwordPlaceholder": "Enter to set/change",
+      "fromAddress": "From Address",
+      "fromPlaceholder": "noreply@example.com",
+      "saveConfig": "Save Configuration",
+      "sendTest": "Send Test Email",
+      "testPrompt": "Enter email address to send test to:"
+    }
+  },
+  "teams": {
+    "addTeam": "Add team",
+    "searchTeams": "Search teams",
+    "name": "Name",
+    "members": "Members",
+    "assignMembers": "Assign Members",
+    "noTeamsFound": "No teams found",
+    "messages": {
+      "loadFailed": "Failed to load teams",
+      "updated": "Team updated",
+      "updateFailed": "Failed to update team"
+    }
+  },
+  "members": {
+    "addMember": "Add member",
+    "searchMembers": "Search members",
+    "filterByTeams": "Filter by teams",
+    "firstName": "First Name",
+    "particles": "Particles",
+    "lastName": "Last Name",
+    "id": "ID",
+    "email": "Email",
+    "role": "Role",
+    "teamsColumn": "Teams",
+    "noMembersFound": "No members found",
+    "messages": {
+      "loadFailed": "Failed to load members"
+    }
+  },
+  "importExport": {
+    "title": "Import / Export",
+    "subtitle": "Import and export member holiday data",
+    "export": {
+      "title": "Export Member Holidays",
+      "description": "Download all member holiday periods as a JSON file. This includes member IDs, names, dates, day parts, descriptions, and holiday types.",
+      "button": "Export to JSON",
+      "success": "Exported {{ count }} holiday period(s).",
+      "failed": "Export failed: {{ error }}"
+    },
+    "import": {
+      "title": "Import Member Holidays",
+      "description": "Import member holiday periods from a JSON file. The file must match the export format. Holidays are added to existing data (not replaced). Members must already exist in the system.",
+      "selectFile": "Select JSON File",
+      "importButton": "Import {{ count }} holiday period(s)",
+      "invalidArray": "Invalid file: expected a JSON array.",
+      "invalidJson": "Invalid JSON file.",
+      "failed": "Import failed: {{ error }}"
+    }
+  },
+  "holidayDialog": {
+    "addTitle": "Add Holiday",
+    "editTitle": "Edit Holiday",
+    "startDate": "Start Date",
+    "endDate": "End Date",
+    "dayPart": "Day Part",
+    "afternoonOnly": "Afternoon only",
+    "morningOnly": "Morning only",
+    "firstDay": "First day",
+    "lastDay": "Last day",
+    "type": "Type",
+    "description": "Description (optional)",
+    "descriptionPlaceholder": "e.g., Vacation, Day off",
+    "editWarning": "You are editing the data of member <strong>{{ name }}</strong>",
+    "messages": {
+      "added": "Holiday added",
+      "addFailed": "Failed to add holiday",
+      "updated": "Holiday updated",
+      "updateFailed": "Failed to update holiday",
+      "removed": "Holiday removed",
+      "removeFailed": "Failed to remove holiday"
+    }
+  },
+  "addTeam": {
+    "title": "Add New Team",
+    "teamName": "Team Name",
+    "teamNamePlaceholder": "e.g., Development Team",
+    "assignMembers": "Assign Members",
+    "assignMembersHint": "Optional - select one or more members",
+    "addButton": "Add Team",
+    "messages": {
+      "success": "Team added successfully",
+      "failed": "Failed to add team"
+    }
+  },
+  "addMember": {
+    "title": "Add New Member",
+    "memberId": "Member ID",
+    "memberIdPlaceholder": "e.g., jdoe001",
+    "memberIdHint": "Unique identifier for the member",
+    "firstName": "First Name",
+    "particles": "Particles (prefix)",
+    "particlesPlaceholder": "e.g., van, de, von",
+    "particlesHint": "Optional name prefix",
+    "lastName": "Last Name",
+    "email": "Email",
+    "emailPlaceholder": "e.g., john@example.com",
+    "assignTeams": "Assign to Teams",
+    "assignTeamsHint": "Optional - select one or more teams",
+    "password": "Password",
+    "passwordHint": "Initial password for the member",
+    "confirmPassword": "Confirm Password",
+    "addButton": "Add Member",
+    "messages": {
+      "success": "Member added successfully",
+      "failed": "Failed to add member"
+    }
+  },
+  "editMember": {
+    "title": "Edit Member",
+    "memberId": "Member ID",
+    "firstName": "First Name",
+    "particles": "Particles",
+    "particlesPlaceholder": "e.g., van, de",
+    "lastName": "Last Name",
+    "email": "Email",
+    "emailPlaceholder": "e.g., john@example.com",
+    "role": "Role",
+    "teamsLabel": "Teams",
+    "resetPassword": "Reset Password",
+    "newPassword": "New Password",
+    "confirmPassword": "Confirm New Password",
+    "resetButton": "Reset Password",
+    "messages": {
+      "updated": "Member updated",
+      "updateFailed": "Failed to update member",
+      "passwordReset": "Password reset successfully",
+      "passwordResetFailed": "Failed to reset password"
+    }
+  },
+  "editTeam": {
+    "title": "Edit Team",
+    "teamId": "Team ID",
+    "teamName": "Team Name",
+    "members": "Members",
+    "messages": {
+      "updated": "Team updated",
+      "updateFailed": "Failed to update team"
+    }
+  },
+  "memberDetail": {
+    "title": "Member Details",
+    "memberId": "Member ID",
+    "name": "Name",
+    "email": "Email",
+    "notSet": "Not set",
+    "role": "Role",
+    "teams": "Teams",
+    "noTeams": "No teams assigned",
+    "deleteTitle": "Delete Member",
+    "deleteMessage": "Are you sure you want to delete \"{{ name }}\"?",
+    "messages": {
+      "loadFailed": "Failed to load member data",
+      "deleted": "Member deleted",
+      "deleteFailed": "Failed to delete member"
+    }
+  },
+  "teamsList": {
+    "title": "Teams",
+    "searchLabel": "Search teams",
+    "searchPlaceholder": "Search by name",
+    "loading": "Loading teams...",
+    "id": "ID",
+    "name": "Name",
+    "memberCount": "Member Count",
+    "actions": "Actions",
+    "viewTeam": "View team",
+    "editTeam": "Edit team",
+    "noTeamsMatch": "No teams found matching \"{{ search }}\"",
+    "noTeams": "No teams available. Create your first team!",
+    "loadFailed": "Failed to load teams"
+  }
+}

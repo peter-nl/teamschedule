@@ -8,6 +8,8 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { TeamsService } from '../services/teams.service';
 import { Team } from '../../../shared/models/team.model';
 import { SettingsService } from '../../../shared/services/settings.service';
@@ -24,55 +26,59 @@ import { SettingsService } from '../../../shared/services/settings.service';
     MatFormFieldModule,
     MatProgressSpinnerModule,
     MatButtonModule,
-    MatIconModule
+    MatIconModule,
+    MatTooltipModule,
+    TranslateModule
   ],
   template: `
     <div class="teams-container">
       <div class="header">
-        <h1>Teams</h1>
+        <h1>{{ 'teamsList.title' | translate }}</h1>
         <mat-form-field class="search-field" appearance="outline">
-          <mat-label>Search teams</mat-label>
-          <input matInput (keyup)="applyFilter($event)" placeholder="Search by name" #input>
+          <mat-label>{{ 'teamsList.searchLabel' | translate }}</mat-label>
+          <input matInput (keyup)="applyFilter($event)" [placeholder]="'teamsList.searchPlaceholder' | translate" #input>
           <mat-icon matSuffix>search</mat-icon>
         </mat-form-field>
       </div>
 
       <div *ngIf="loading" class="loading-container">
         <mat-progress-spinner mode="indeterminate" diameter="50"></mat-progress-spinner>
-        <p>Loading teams...</p>
+        <p>{{ 'teamsList.loading' | translate }}</p>
       </div>
 
       <div *ngIf="error && !loading" class="error-container">
         <mat-icon>error_outline</mat-icon>
         <p>{{ error }}</p>
-        <button mat-raised-button color="primary" (click)="loadTeams()">Retry</button>
+        <button mat-icon-button color="primary" (click)="loadTeams()" [matTooltip]="'common.retry' | translate">
+          <mat-icon>refresh</mat-icon>
+        </button>
       </div>
 
       <div *ngIf="!loading && !error" class="table-container">
         <table mat-table [dataSource]="dataSource" matSort (matSortChange)="onSortChange($event)" class="teams-table">
 
           <ng-container matColumnDef="id">
-            <th mat-header-cell *matHeaderCellDef mat-sort-header>ID</th>
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>{{ 'teamsList.id' | translate }}</th>
             <td mat-cell *matCellDef="let team">{{ team.id }}</td>
           </ng-container>
 
           <ng-container matColumnDef="name">
-            <th mat-header-cell *matHeaderCellDef mat-sort-header>Name</th>
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>{{ 'teamsList.name' | translate }}</th>
             <td mat-cell *matCellDef="let team">{{ team.name }}</td>
           </ng-container>
 
-          <ng-container matColumnDef="workerCount">
-            <th mat-header-cell *matHeaderCellDef mat-sort-header>Worker Count</th>
-            <td mat-cell *matCellDef="let team">{{ team.workerCount }}</td>
+          <ng-container matColumnDef="memberCount">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>{{ 'teamsList.memberCount' | translate }}</th>
+            <td mat-cell *matCellDef="let team">{{ team.memberCount }}</td>
           </ng-container>
 
           <ng-container matColumnDef="actions">
-            <th mat-header-cell *matHeaderCellDef>Actions</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'teamsList.actions' | translate }}</th>
             <td mat-cell *matCellDef="let team">
-              <button mat-icon-button color="primary" aria-label="View team">
+              <button mat-icon-button color="primary" [attr.aria-label]="'teamsList.viewTeam' | translate">
                 <mat-icon>visibility</mat-icon>
               </button>
-              <button mat-icon-button color="accent" aria-label="Edit team">
+              <button mat-icon-button color="accent" [attr.aria-label]="'teamsList.editTeam' | translate">
                 <mat-icon>edit</mat-icon>
               </button>
             </td>
@@ -85,8 +91,8 @@ import { SettingsService } from '../../../shared/services/settings.service';
             <td class="mat-cell" [attr.colspan]="displayedColumns.length">
               <div class="no-data">
                 <mat-icon>info</mat-icon>
-                <p *ngIf="input.value">No teams found matching "{{ input.value }}"</p>
-                <p *ngIf="!input.value">No teams available. Create your first team!</p>
+                <p *ngIf="input.value">{{ 'teamsList.noTeamsMatch' | translate:{ search: input.value } }}</p>
+                <p *ngIf="!input.value">{{ 'teamsList.noTeams' | translate }}</p>
               </div>
             </td>
           </tr>
@@ -209,7 +215,7 @@ import { SettingsService } from '../../../shared/services/settings.service';
   `]
 })
 export class TeamsListComponent implements OnInit {
-  displayedColumns: string[] = ['id', 'name', 'workerCount', 'actions'];
+  displayedColumns: string[] = ['id', 'name', 'memberCount', 'actions'];
   dataSource = new MatTableDataSource<Team>();
   loading = true;
   error: string | null = null;
@@ -233,7 +239,8 @@ export class TeamsListComponent implements OnInit {
 
   constructor(
     private teamsService: TeamsService,
-    private settingsService: SettingsService
+    private settingsService: SettingsService,
+    private translate: TranslateService
   ) {
     const settings = this.settingsService.getTeamsTableSettings();
     if (settings) {
@@ -264,7 +271,7 @@ export class TeamsListComponent implements OnInit {
         this.loading = false;
       },
       error: (error) => {
-        this.error = error.message || 'Failed to load teams';
+        this.error = error.message || this.translate.instant('teamsList.loadFailed');
         this.loading = false;
       }
     });

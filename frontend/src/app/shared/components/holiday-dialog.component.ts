@@ -9,18 +9,20 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { provideNativeDateAdapter } from '@angular/material/core';
-import { WorkerHolidayService, WorkerHolidayPeriod, WorkerHolidayInput, DayPart } from '../../core/services/worker-holiday.service';
+import { MemberHolidayService, MemberHolidayPeriod, MemberHolidayInput, DayPart } from '../../core/services/member-holiday.service';
 import { HolidayTypeService, HolidayType } from '../../core/services/holiday-type.service';
 import { UserPreferencesService } from '../services/user-preferences.service';
 import { SlideInPanelRef, SLIDE_IN_PANEL_DATA } from '../services/slide-in-panel.service';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 
 export interface HolidayDialogData {
   mode: 'add' | 'edit';
-  workerId: string;
-  period?: WorkerHolidayPeriod;
+  memberId: string;
+  period?: MemberHolidayPeriod;
   initialDate?: Date;
-  workerName?: string; // Set when editing another worker's data (manager mode)
+  memberName?: string; // Set when editing another member's data (manager mode)
 }
 
 export interface HolidayDialogResult {
@@ -40,7 +42,9 @@ export interface HolidayDialogResult {
     MatSelectModule,
     MatDatepickerModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule
+    MatSnackBarModule,
+    MatTooltipModule,
+    TranslateModule
   ],
   providers: [provideNativeDateAdapter()],
   template: `
@@ -48,7 +52,7 @@ export interface HolidayDialogResult {
       <div class="panel-header">
         <h2>
           <mat-icon>{{ data.mode === 'add' ? 'add_circle' : 'edit' }}</mat-icon>
-          {{ data.mode === 'add' ? 'Add Holiday' : 'Edit Holiday' }}
+          {{ (data.mode === 'add' ? 'holidayDialog.addTitle' : 'holidayDialog.editTitle') | translate }}
         </h2>
         <button class="panel-close" (click)="panelRef.close()" [disabled]="saving || deleting">
           <mat-icon>close</mat-icon>
@@ -56,14 +60,14 @@ export interface HolidayDialogResult {
       </div>
 
       <div class="panel-content">
-        <div *ngIf="data.workerName" class="worker-warning">
+        <div *ngIf="data.memberName" class="member-warning">
           <mat-icon>warning</mat-icon>
-          <span>You are editing the data of worker <strong>{{ data.workerName }}</strong></span>
+          <span [innerHTML]="'holidayDialog.editWarning' | translate:{ name: data.memberName }"></span>
         </div>
         <div class="form-content">
           <div class="date-row">
             <mat-form-field appearance="outline" class="date-field">
-              <mat-label>Start Date</mat-label>
+              <mat-label>{{ 'holidayDialog.startDate' | translate }}</mat-label>
               <input matInput
                      [matDatepicker]="startPicker"
                      [(ngModel)]="form.startDate"
@@ -73,7 +77,7 @@ export interface HolidayDialogResult {
               <mat-datepicker #startPicker></mat-datepicker>
             </mat-form-field>
             <mat-form-field appearance="outline" class="date-field">
-              <mat-label>End Date</mat-label>
+              <mat-label>{{ 'holidayDialog.endDate' | translate }}</mat-label>
               <input matInput
                      [matDatepicker]="endPicker"
                      [(ngModel)]="form.endDate"
@@ -88,35 +92,35 @@ export interface HolidayDialogResult {
           <div class="day-part-row">
             <!-- Single date: all 3 options -->
             <mat-form-field appearance="outline" class="day-part-field" *ngIf="!isDateRange">
-              <mat-label>Day Part</mat-label>
+              <mat-label>{{ 'holidayDialog.dayPart' | translate }}</mat-label>
               <mat-select [(ngModel)]="form.startDayPart" name="startDayPart">
-                <mat-option value="full">Full day</mat-option>
-                <mat-option value="morning">Morning</mat-option>
-                <mat-option value="afternoon">Afternoon</mat-option>
+                <mat-option value="full">{{ 'common.fullDay' | translate }}</mat-option>
+                <mat-option value="morning">{{ 'common.morning' | translate }}</mat-option>
+                <mat-option value="afternoon">{{ 'common.afternoon' | translate }}</mat-option>
               </mat-select>
             </mat-form-field>
 
             <!-- Range: first day -->
             <mat-form-field appearance="outline" class="day-part-field" *ngIf="isDateRange">
-              <mat-label>First day</mat-label>
+              <mat-label>{{ 'holidayDialog.firstDay' | translate }}</mat-label>
               <mat-select [(ngModel)]="form.startDayPart" name="startDayPartRange">
-                <mat-option value="full">Full day</mat-option>
-                <mat-option value="afternoon">Afternoon only</mat-option>
+                <mat-option value="full">{{ 'common.fullDay' | translate }}</mat-option>
+                <mat-option value="afternoon">{{ 'holidayDialog.afternoonOnly' | translate }}</mat-option>
               </mat-select>
             </mat-form-field>
 
             <!-- Range: last day -->
             <mat-form-field appearance="outline" class="day-part-field" *ngIf="isDateRange">
-              <mat-label>Last day</mat-label>
+              <mat-label>{{ 'holidayDialog.lastDay' | translate }}</mat-label>
               <mat-select [(ngModel)]="form.endDayPart" name="endDayPart">
-                <mat-option value="full">Full day</mat-option>
-                <mat-option value="morning">Morning only</mat-option>
+                <mat-option value="full">{{ 'common.fullDay' | translate }}</mat-option>
+                <mat-option value="morning">{{ 'holidayDialog.morningOnly' | translate }}</mat-option>
               </mat-select>
             </mat-form-field>
           </div>
 
           <mat-form-field appearance="outline" class="full-width" *ngIf="holidayTypes.length > 0">
-            <mat-label>Type</mat-label>
+            <mat-label>{{ 'holidayDialog.type' | translate }}</mat-label>
             <mat-select [(ngModel)]="form.holidayTypeId" name="holidayTypeId">
               <mat-option *ngFor="let type of holidayTypes" [value]="type.id">
                 {{ type.name }}
@@ -125,40 +129,42 @@ export interface HolidayDialogResult {
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Description (optional)</mat-label>
+            <mat-label>{{ 'holidayDialog.description' | translate }}</mat-label>
             <input matInput
                    [(ngModel)]="form.description"
                    name="description"
-                   placeholder="e.g., Vacation, Day off">
+                   [placeholder]="'holidayDialog.descriptionPlaceholder' | translate">
           </mat-form-field>
         </div>
       </div>
 
       <div class="panel-actions">
-        <button mat-button
+        <button mat-icon-button
                 color="warn"
                 *ngIf="data.mode === 'edit'"
                 (click)="onDelete()"
                 [disabled]="saving || deleting"
-                class="delete-button">
+                [matTooltip]="'common.delete' | translate">
           <mat-spinner *ngIf="deleting" diameter="18"></mat-spinner>
           <mat-icon *ngIf="!deleting">delete</mat-icon>
-          <span *ngIf="!deleting">Delete</span>
         </button>
         <span class="spacer"></span>
-        <button mat-button (click)="panelRef.close()" [disabled]="saving || deleting">Cancel</button>
-        <button mat-raised-button
+        <button mat-icon-button (click)="panelRef.close()" [disabled]="saving || deleting" [matTooltip]="'common.cancel' | translate">
+          <mat-icon>close</mat-icon>
+        </button>
+        <button mat-icon-button
                 color="primary"
                 (click)="onSave()"
-                [disabled]="saving || deleting || !form.startDate">
+                [disabled]="saving || deleting || !form.startDate"
+                [matTooltip]="(data.mode === 'add' ? 'common.add' : 'common.save') | translate">
           <mat-spinner *ngIf="saving" diameter="18"></mat-spinner>
-          <span *ngIf="!saving">{{ data.mode === 'add' ? 'Add' : 'Save' }}</span>
+          <mat-icon *ngIf="!saving">check</mat-icon>
         </button>
       </div>
     </div>
   `,
   styles: [`
-    .worker-warning {
+    .member-warning {
       display: flex;
       align-items: center;
       gap: 8px;
@@ -170,7 +176,7 @@ export interface HolidayDialogResult {
       font-size: 13px;
     }
 
-    .worker-warning mat-icon {
+    .member-warning mat-icon {
       flex-shrink: 0;
       font-size: 20px;
       width: 20px;
@@ -236,10 +242,11 @@ export class HolidayDialogComponent implements OnInit {
   constructor(
     public panelRef: SlideInPanelRef<HolidayDialogComponent, HolidayDialogResult>,
     @Inject(SLIDE_IN_PANEL_DATA) public data: HolidayDialogData,
-    private workerHolidayService: WorkerHolidayService,
+    private memberHolidayService: MemberHolidayService,
     private holidayTypeService: HolidayTypeService,
     private userPreferencesService: UserPreferencesService,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private translate: TranslateService
   ) {}
 
   ngOnInit(): void {
@@ -298,7 +305,7 @@ export class HolidayDialogComponent implements OnInit {
     return `${y}-${m}-${d}`;
   }
 
-  private buildInput(): WorkerHolidayInput {
+  private buildInput(): MemberHolidayInput {
     const startDate = this.formatDateISO(this.form.startDate!);
     const endDate = this.form.endDate ? this.formatDateISO(this.form.endDate) : startDate;
 
@@ -319,28 +326,28 @@ export class HolidayDialogComponent implements OnInit {
     const input = this.buildInput();
 
     if (this.data.mode === 'add') {
-      this.workerHolidayService.addHoliday(this.data.workerId, input).subscribe({
+      this.memberHolidayService.addHoliday(this.data.memberId, input).subscribe({
         next: () => {
           this.saving = false;
-          this.snackBar.open('Holiday added', 'Close', { duration: 3000 });
+          this.snackBar.open(this.translate.instant('holidayDialog.messages.added'), this.translate.instant('common.close'), { duration: 3000 });
           this.panelRef.close({ action: 'saved' });
         },
         error: (error) => {
           this.saving = false;
-          this.snackBar.open('Failed to add holiday', 'Close', { duration: 3000 });
+          this.snackBar.open(this.translate.instant('holidayDialog.messages.addFailed'), this.translate.instant('common.close'), { duration: 3000 });
           console.error('Add holiday error:', error);
         }
       });
     } else {
-      this.workerHolidayService.updateHoliday(this.data.period!.id, input).subscribe({
+      this.memberHolidayService.updateHoliday(this.data.period!.id, input).subscribe({
         next: () => {
           this.saving = false;
-          this.snackBar.open('Holiday updated', 'Close', { duration: 3000 });
+          this.snackBar.open(this.translate.instant('holidayDialog.messages.updated'), this.translate.instant('common.close'), { duration: 3000 });
           this.panelRef.close({ action: 'saved' });
         },
         error: (error) => {
           this.saving = false;
-          this.snackBar.open('Failed to update holiday', 'Close', { duration: 3000 });
+          this.snackBar.open(this.translate.instant('holidayDialog.messages.updateFailed'), this.translate.instant('common.close'), { duration: 3000 });
           console.error('Update holiday error:', error);
         }
       });
@@ -351,15 +358,15 @@ export class HolidayDialogComponent implements OnInit {
     if (!this.data.period) return;
 
     this.deleting = true;
-    this.workerHolidayService.removeHoliday(this.data.period.id).subscribe({
+    this.memberHolidayService.removeHoliday(this.data.period.id).subscribe({
       next: () => {
         this.deleting = false;
-        this.snackBar.open('Holiday removed', 'Close', { duration: 3000 });
+        this.snackBar.open(this.translate.instant('holidayDialog.messages.removed'), this.translate.instant('common.close'), { duration: 3000 });
         this.panelRef.close({ action: 'deleted' });
       },
       error: (error) => {
         this.deleting = false;
-        this.snackBar.open('Failed to remove holiday', 'Close', { duration: 3000 });
+        this.snackBar.open(this.translate.instant('holidayDialog.messages.removeFailed'), this.translate.instant('common.close'), { duration: 3000 });
         console.error('Remove holiday error:', error);
       }
     });

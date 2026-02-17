@@ -8,6 +8,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
 import { AuthService } from '../../shared/services/auth.service';
@@ -30,36 +31,37 @@ const REQUEST_PASSWORD_RESET = gql`
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule
+    MatSnackBarModule,
+    TranslateModule
   ],
   template: `
     <mat-card class="login-card">
       <mat-card-header>
         <mat-icon mat-card-avatar>login</mat-icon>
-        <mat-card-title>Login</mat-card-title>
-        <mat-card-subtitle>Sign in with your worker ID</mat-card-subtitle>
+        <mat-card-title>{{ 'login.title' | translate }}</mat-card-title>
+        <mat-card-subtitle>{{ 'login.subtitle' | translate }}</mat-card-subtitle>
       </mat-card-header>
 
       <mat-card-content>
         <form (ngSubmit)="onLogin()" class="login-form">
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Worker ID</mat-label>
+            <mat-label>{{ 'login.memberId' | translate }}</mat-label>
             <input matInput
-                   [(ngModel)]="loginForm.workerId"
-                   name="workerId"
+                   [(ngModel)]="loginForm.memberId"
+                   name="memberId"
                    required
-                   placeholder="Enter your worker ID">
+                   [placeholder]="'login.memberIdPlaceholder' | translate">
             <mat-icon matSuffix>badge</mat-icon>
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Password</mat-label>
+            <mat-label>{{ 'login.password' | translate }}</mat-label>
             <input matInput
                    [(ngModel)]="loginForm.password"
                    name="password"
                    [type]="hidePassword ? 'password' : 'text'"
                    required
-                   placeholder="Enter your password">
+                   [placeholder]="'login.passwordPlaceholder' | translate">
             <button mat-icon-button matSuffix type="button" (click)="hidePassword = !hidePassword">
               <mat-icon>{{ hidePassword ? 'visibility_off' : 'visibility' }}</mat-icon>
             </button>
@@ -76,25 +78,25 @@ const REQUEST_PASSWORD_RESET = gql`
                   class="full-width"
                   [disabled]="loginLoading">
             <mat-spinner *ngIf="loginLoading" diameter="20"></mat-spinner>
-            <span *ngIf="!loginLoading">Sign In</span>
+            <span *ngIf="!loginLoading">{{ 'login.signIn' | translate }}</span>
           </button>
         </form>
 
         <div class="forgot-password-section">
           <button mat-button type="button" class="forgot-link" (click)="showForgotForm = !showForgotForm">
-            Forgot password?
+            {{ 'login.forgotPassword' | translate }}
           </button>
 
           <div *ngIf="showForgotForm" class="forgot-form">
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Your email address</mat-label>
+              <mat-label>{{ 'login.emailAddress' | translate }}</mat-label>
               <input matInput [(ngModel)]="forgotEmail" name="forgotEmail" type="email">
               <mat-icon matSuffix>email</mat-icon>
             </mat-form-field>
             <button mat-raised-button color="primary" class="full-width"
                     (click)="onRequestReset()" [disabled]="resetLoading || !forgotEmail">
               <mat-spinner *ngIf="resetLoading" diameter="18"></mat-spinner>
-              <span *ngIf="!resetLoading">Send Reset Link</span>
+              <span *ngIf="!resetLoading">{{ 'login.sendResetLink' | translate }}</span>
             </button>
             <div *ngIf="resetMessage" class="reset-message">
               <mat-icon>info</mat-icon>
@@ -188,7 +190,7 @@ export class AccountLoginComponent {
   @Output() loginSuccess = new EventEmitter<void>();
 
   loginForm = {
-    workerId: '',
+    memberId: '',
     password: ''
   };
   loginLoading = false;
@@ -202,32 +204,33 @@ export class AccountLoginComponent {
 
   constructor(
     private authService: AuthService,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private translate: TranslateService
   ) {}
 
   onLogin(): void {
-    if (!this.loginForm.workerId || !this.loginForm.password) {
-      this.loginError = 'Please enter both Worker ID and Password';
+    if (!this.loginForm.memberId || !this.loginForm.password) {
+      this.loginError = this.translate.instant('login.messages.fieldsRequired');
       return;
     }
 
     this.loginLoading = true;
     this.loginError = null;
 
-    this.authService.login(this.loginForm.workerId, this.loginForm.password).subscribe({
+    this.authService.login(this.loginForm.memberId, this.loginForm.password).subscribe({
       next: (result) => {
         this.loginLoading = false;
         if (result.success) {
-          this.snackBar.open('Welcome back!', 'Close', { duration: 3000 });
-          this.loginForm = { workerId: '', password: '' };
+          this.snackBar.open(this.translate.instant('login.messages.welcome'), this.translate.instant('common.close'), { duration: 3000 });
+          this.loginForm = { memberId: '', password: '' };
           this.loginSuccess.emit();
         } else {
-          this.loginError = result.message || 'Login failed';
+          this.loginError = result.message || this.translate.instant('login.messages.loginFailed');
         }
       },
       error: (error) => {
         this.loginLoading = false;
-        this.loginError = 'An error occurred. Please try again.';
+        this.loginError = this.translate.instant('login.messages.error');
         console.error('Login error:', error);
       }
     });
@@ -244,7 +247,7 @@ export class AccountLoginComponent {
       this.resetMessage = (result.data as any).requestPasswordReset.message;
     }).catch(() => {
       this.resetLoading = false;
-      this.resetMessage = 'An error occurred. Please try again.';
+      this.resetMessage = this.translate.instant('login.messages.error');
     });
   }
 }

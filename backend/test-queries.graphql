@@ -8,9 +8,9 @@ mutation CreateTeam {
   }
 }
 
-# Create workers
-mutation CreateWorker1 {
-  createWorker(id: "jdo001", firstName: "John", lastName: "Doe") {
+# Create members
+mutation CreateMember1 {
+  createMember(id: "jdo001", firstName: "John", lastName: "Doe") {
     id
     firstName
     lastName
@@ -18,8 +18,8 @@ mutation CreateWorker1 {
   }
 }
 
-mutation CreateWorker2 {
-  createWorker(id: "jsm002", firstName: "Jane", lastName: "Smith") {
+mutation CreateMember2 {
+  createMember(id: "jsm002", firstName: "Jane", lastName: "Smith") {
     id
     firstName
     lastName
@@ -27,12 +27,12 @@ mutation CreateWorker2 {
   }
 }
 
-# Add worker to team
-mutation AddWorkerToTeam {
-  addWorkerToTeam(teamId: 1, workerId: "jdo001") {
+# Add member to team
+mutation AddMemberToTeam {
+  addMemberToTeam(teamId: 1, memberId: "jdo001") {
     id
     name
-    workers {
+    members {
       id
       firstName
       lastName
@@ -41,12 +41,12 @@ mutation AddWorkerToTeam {
   }
 }
 
-# Query all teams with their workers
+# Query all teams with their members
 query GetTeams {
   teams {
     id
     name
-    workers {
+    members {
       id
       firstName
       lastName
@@ -55,9 +55,9 @@ query GetTeams {
   }
 }
 
-# Query all workers with their teams
-query GetWorkers {
-  workers {
+# Query all members with their teams
+query GetMembers {
+  members {
     id
     firstName
     lastName
@@ -69,9 +69,9 @@ query GetWorkers {
   }
 }
 
-# Query specific worker
-query GetWorker {
-  worker(id: "jdo001") {
+# Query specific member
+query GetMember {
+  member(id: "jdo001") {
     id
     firstName
     lastName

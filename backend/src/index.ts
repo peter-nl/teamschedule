@@ -18,8 +18,8 @@ interface AuthContext {
   user: { id: string; role: string } | null;
 }
 
-function generateToken(worker: { id: string; role: string }): string {
-  return jwt.sign({ id: worker.id, role: worker.role }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN as any });
+function generateToken(member: { id: string; role: string }): string {
+  return jwt.sign({ id: member.id, role: member.role }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN as any });
 }
 
 function requireAuth(ctx: AuthContext): { id: string; role: string } {
@@ -111,10 +111,10 @@ const typeDefs = `#graphql
   type Team {
     id: ID!
     name: String!
-    workers: [Worker!]!
+    members: [Member!]!
   }
 
-  type Worker {
+  type Member {
     id: ID!
     firstName: String!
     lastName: String!
@@ -132,9 +132,9 @@ const typeDefs = `#graphql
     sortOrder: Int!
   }
 
-  type WorkerHoliday {
+  type MemberHoliday {
     id: ID!
-    workerId: String!
+    memberId: String!
     startDate: String!
     endDate: String!
     startDayPart: String!
@@ -143,7 +143,7 @@ const typeDefs = `#graphql
     holidayType: HolidayType
   }
 
-  input WorkerHolidayInput {
+  input MemberHolidayInput {
     startDate: String!
     endDate: String!
     startDayPart: String!
@@ -155,7 +155,7 @@ const typeDefs = `#graphql
   type AuthPayload {
     success: Boolean!
     message: String
-    worker: Worker
+    member: Member
     token: String
   }
 
@@ -178,14 +178,14 @@ const typeDefs = `#graphql
     testDatabase: String
     teams: [Team!]!
     team(id: ID!): Team
-    workers: [Worker!]!
-    worker(id: ID!): Worker
+    members: [Member!]!
+    member(id: ID!): Member
     holidayTypes: [HolidayType!]!
-    workerHolidays(workerId: String!): [WorkerHoliday!]!
-    allWorkerHolidays(startDate: String!, endDate: String!): [WorkerHoliday!]!
+    memberHolidays(memberId: String!): [MemberHoliday!]!
+    allMemberHolidays(startDate: String!, endDate: String!): [MemberHoliday!]!
     emailConfig: EmailConfig
     scheduleDateRange: ScheduleDateRange!
-    exportWorkerHolidays: [WorkerHolidayExport!]!
+    exportMemberHolidays: [MemberHolidayExport!]!
   }
 
   type ScheduleDateRange {
@@ -193,9 +193,9 @@ const typeDefs = `#graphql
     endDate: String!
   }
 
-  type WorkerHolidayExport {
-    workerId: String!
-    workerName: String!
+  type MemberHolidayExport {
+    memberId: String!
+    memberName: String!
     startDate: String!
     endDate: String!
     startDayPart: String!
@@ -221,19 +221,19 @@ const typeDefs = `#graphql
     ping: String
     createTeam(name: String!): Team!
     updateTeam(id: ID!, name: String!): Team
-    createWorker(id: String!, firstName: String!, lastName: String!, particles: String, email: String, password: String!): Worker!
-    addWorkerToTeam(teamId: ID!, workerId: ID!): Team!
-    removeWorkerFromTeam(teamId: ID!, workerId: ID!): Team!
+    createMember(id: String!, firstName: String!, lastName: String!, particles: String, email: String, password: String!): Member!
+    addMemberToTeam(teamId: ID!, memberId: ID!): Team!
+    removeMemberFromTeam(teamId: ID!, memberId: ID!): Team!
     deleteTeam(id: ID!): Boolean!
-    deleteWorker(id: ID!): Boolean!
-    login(workerId: String!, password: String!): AuthPayload!
-    updateWorkerProfile(id: String!, firstName: String!, lastName: String!, particles: String, email: String): Worker
-    changePassword(workerId: String!, currentPassword: String!, newPassword: String!): AuthPayload!
-    resetPassword(workerId: String!, newPassword: String!): AuthPayload!
-    updateWorkerRole(workerId: String!, role: String!): Worker
-    addWorkerHoliday(workerId: String!, holiday: WorkerHolidayInput!): WorkerHoliday!
-    removeWorkerHoliday(id: ID!): Boolean!
-    updateWorkerHoliday(id: ID!, holiday: WorkerHolidayInput!): WorkerHoliday!
+    deleteMember(id: ID!): Boolean!
+    login(memberId: String!, password: String!): AuthPayload!
+    updateMemberProfile(id: String!, firstName: String!, lastName: String!, particles: String, email: String): Member
+    changePassword(memberId: String!, currentPassword: String!, newPassword: String!): AuthPayload!
+    resetPassword(memberId: String!, newPassword: String!): AuthPayload!
+    updateMemberRole(memberId: String!, role: String!): Member
+    addMemberHoliday(memberId: String!, holiday: MemberHolidayInput!): MemberHoliday!
+    removeMemberHoliday(id: ID!): Boolean!
+    updateMemberHoliday(id: ID!, holiday: MemberHolidayInput!): MemberHoliday!
     createHolidayType(name: String!, colorLight: String!, colorDark: String!): HolidayType!
     updateHolidayType(id: ID!, name: String, colorLight: String, colorDark: String, sortOrder: Int): HolidayType!
     deleteHolidayType(id: ID!): Boolean!
@@ -242,11 +242,11 @@ const typeDefs = `#graphql
     requestPasswordReset(email: String!): SimpleResult!
     resetPasswordWithToken(token: String!, newPassword: String!): AuthPayload!
     saveScheduleDateRange(startDate: String!, endDate: String!): DeletedHolidaysResult!
-    importWorkerHolidays(holidays: [WorkerHolidayImportInput!]!): ImportResult!
+    importMemberHolidays(holidays: [MemberHolidayImportInput!]!): ImportResult!
   }
 
-  input WorkerHolidayImportInput {
-    workerId: String!
+  input MemberHolidayImportInput {
+    memberId: String!
     startDate: String!
     endDate: String!
     startDayPart: String!
@@ -278,9 +278,9 @@ const resolvers = {
       const result = await pool.query('SELECT * FROM team WHERE id = $1', [id]);
       return result.rows[0] || null;
     },
-    workers: async (_: any, __: any, ctx: AuthContext) => {
+    members: async (_: any, __: any, ctx: AuthContext) => {
       requireAuth(ctx);
-      const result = await pool.query('SELECT * FROM worker ORDER BY last_name, first_name');
+      const result = await pool.query('SELECT * FROM member ORDER BY last_name, first_name');
       return result.rows.map(row => ({
         id: row.id,
         firstName: row.first_name,
@@ -290,9 +290,9 @@ const resolvers = {
         role: row.role,
       }));
     },
-    worker: async (_: any, { id }: { id: string }, ctx: AuthContext) => {
+    member: async (_: any, { id }: { id: string }, ctx: AuthContext) => {
       requireAuth(ctx);
-      const result = await pool.query('SELECT * FROM worker WHERE id = $1', [id]);
+      const result = await pool.query('SELECT * FROM member WHERE id = $1', [id]);
       if (result.rows.length === 0) return null;
       const row = result.rows[0];
       return {
@@ -315,19 +315,19 @@ const resolvers = {
         sortOrder: row.sort_order,
       }));
     },
-    workerHolidays: async (_: any, { workerId }: { workerId: string }, ctx: AuthContext) => {
+    memberHolidays: async (_: any, { memberId }: { memberId: string }, ctx: AuthContext) => {
       requireAuth(ctx);
       const result = await pool.query(
-        `SELECT wh.*, ht.id as ht_id, ht.name as ht_name, ht.color_light as ht_color_light,
+        `SELECT mh.*, ht.id as ht_id, ht.name as ht_name, ht.color_light as ht_color_light,
                 ht.color_dark as ht_color_dark, ht.sort_order as ht_sort_order
-         FROM worker_holiday wh
-         LEFT JOIN holiday_type ht ON wh.holiday_type_id = ht.id
-         WHERE wh.worker_id = $1 ORDER BY wh.start_date`,
-        [workerId]
+         FROM member_holiday mh
+         LEFT JOIN holiday_type ht ON mh.holiday_type_id = ht.id
+         WHERE mh.member_id = $1 ORDER BY mh.start_date`,
+        [memberId]
       );
       return result.rows.map(row => ({
         id: row.id,
-        workerId: row.worker_id,
+        memberId: row.member_id,
         startDate: row.start_date.toISOString().split('T')[0],
         endDate: row.end_date.toISOString().split('T')[0],
         startDayPart: row.start_day_part,
@@ -339,20 +339,20 @@ const resolvers = {
         } : null,
       }));
     },
-    allWorkerHolidays: async (_: any, { startDate, endDate }: { startDate: string; endDate: string }, ctx: AuthContext) => {
+    allMemberHolidays: async (_: any, { startDate, endDate }: { startDate: string; endDate: string }, ctx: AuthContext) => {
       requireAuth(ctx);
       const result = await pool.query(
-        `SELECT wh.*, ht.id as ht_id, ht.name as ht_name, ht.color_light as ht_color_light,
+        `SELECT mh.*, ht.id as ht_id, ht.name as ht_name, ht.color_light as ht_color_light,
                 ht.color_dark as ht_color_dark, ht.sort_order as ht_sort_order
-         FROM worker_holiday wh
-         LEFT JOIN holiday_type ht ON wh.holiday_type_id = ht.id
-         WHERE wh.start_date <= $2 AND wh.end_date >= $1
-         ORDER BY wh.start_date`,
+         FROM member_holiday mh
+         LEFT JOIN holiday_type ht ON mh.holiday_type_id = ht.id
+         WHERE mh.start_date <= $2 AND mh.end_date >= $1
+         ORDER BY mh.start_date`,
         [startDate, endDate]
       );
       return result.rows.map(row => ({
         id: row.id,
-        workerId: row.worker_id,
+        memberId: row.member_id,
         startDate: row.start_date.toISOString().split('T')[0],
         endDate: row.end_date.toISOString().split('T')[0],
         startDayPart: row.start_day_part,
@@ -377,21 +377,21 @@ const resolvers = {
         endDate: settings.schedule_end_date || defaultEnd,
       };
     },
-    exportWorkerHolidays: async (_: any, __: any, ctx: AuthContext) => {
+    exportMemberHolidays: async (_: any, __: any, ctx: AuthContext) => {
       requireManager(ctx);
       const result = await pool.query(
-        `SELECT wh.*, w.first_name, w.last_name, w.particles,
+        `SELECT mh.*, m.first_name, m.last_name, m.particles,
                 ht.name as ht_name
-         FROM worker_holiday wh
-         JOIN worker w ON wh.worker_id = w.id
-         LEFT JOIN holiday_type ht ON wh.holiday_type_id = ht.id
-         ORDER BY w.last_name, w.first_name, wh.start_date`
+         FROM member_holiday mh
+         JOIN member m ON mh.member_id = m.id
+         LEFT JOIN holiday_type ht ON mh.holiday_type_id = ht.id
+         ORDER BY m.last_name, m.first_name, mh.start_date`
       );
       return result.rows.map(row => {
         const nameParts = [row.first_name, row.particles, row.last_name].filter(Boolean);
         return {
-          workerId: row.worker_id,
-          workerName: nameParts.join(' '),
+          memberId: row.member_id,
+          memberName: nameParts.join(' '),
           startDate: row.start_date.toISOString().split('T')[0],
           endDate: row.end_date.toISOString().split('T')[0],
           startDayPart: row.start_day_part,
@@ -434,12 +434,12 @@ const resolvers = {
       );
       return result.rows[0] || null;
     },
-    createWorker: async (_: any, { id, firstName, lastName, particles, email, password }: { id: string; firstName: string; lastName: string; particles?: string; email?: string; password: string }, ctx: AuthContext) => {
+    createMember: async (_: any, { id, firstName, lastName, particles, email, password }: { id: string; firstName: string; lastName: string; particles?: string; email?: string; password: string }, ctx: AuthContext) => {
       requireManager(ctx);
       const hashedPassword = await bcrypt.hash(password, 10);
 
       const result = await pool.query(
-        'INSERT INTO worker (id, first_name, last_name, particles, email, password_hash) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+        'INSERT INTO member (id, first_name, last_name, particles, email, password_hash) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
         [id, firstName, lastName, particles || null, email || null, hashedPassword]
       );
       const row = result.rows[0];
@@ -452,20 +452,20 @@ const resolvers = {
         role: row.role,
       };
     },
-    addWorkerToTeam: async (_: any, { teamId, workerId }: { teamId: number; workerId: number }, ctx: AuthContext) => {
+    addMemberToTeam: async (_: any, { teamId, memberId }: { teamId: number; memberId: number }, ctx: AuthContext) => {
       requireManager(ctx);
       await pool.query(
-        'INSERT INTO team_worker (team_id, worker_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-        [teamId, workerId]
+        'INSERT INTO team_member (team_id, member_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [teamId, memberId]
       );
       const result = await pool.query('SELECT * FROM team WHERE id = $1', [teamId]);
       return result.rows[0];
     },
-    removeWorkerFromTeam: async (_: any, { teamId, workerId }: { teamId: number; workerId: number }, ctx: AuthContext) => {
+    removeMemberFromTeam: async (_: any, { teamId, memberId }: { teamId: number; memberId: number }, ctx: AuthContext) => {
       requireManager(ctx);
       await pool.query(
-        'DELETE FROM team_worker WHERE team_id = $1 AND worker_id = $2',
-        [teamId, workerId]
+        'DELETE FROM team_member WHERE team_id = $1 AND member_id = $2',
+        [teamId, memberId]
       );
       const result = await pool.query('SELECT * FROM team WHERE id = $1', [teamId]);
       return result.rows[0];
@@ -475,30 +475,30 @@ const resolvers = {
       const result = await pool.query('DELETE FROM team WHERE id = $1', [id]);
       return (result.rowCount ?? 0) > 0;
     },
-    deleteWorker: async (_: any, { id }: { id: number }, ctx: AuthContext) => {
+    deleteMember: async (_: any, { id }: { id: number }, ctx: AuthContext) => {
       requireManager(ctx);
-      const result = await pool.query('DELETE FROM worker WHERE id = $1', [id]);
+      const result = await pool.query('DELETE FROM member WHERE id = $1', [id]);
       return (result.rowCount ?? 0) > 0;
     },
-    login: async (_: any, { workerId, password }: { workerId: string; password: string }) => {
+    login: async (_: any, { memberId, password }: { memberId: string; password: string }) => {
       try {
         const result = await pool.query(
-          'SELECT * FROM worker WHERE id = $1',
-          [workerId]
+          'SELECT * FROM member WHERE id = $1',
+          [memberId]
         );
 
         if (result.rows.length === 0) {
-          return { success: false, message: 'Worker not found', worker: null, token: null };
+          return { success: false, message: 'Member not found', member: null, token: null };
         }
 
         const row = result.rows[0];
 
         const passwordValid = await bcrypt.compare(password, row.password_hash);
         if (!passwordValid) {
-          return { success: false, message: 'Invalid password', worker: null, token: null };
+          return { success: false, message: 'Invalid password', member: null, token: null };
         }
 
-        const worker = {
+        const member = {
           id: row.id,
           firstName: row.first_name,
           lastName: row.last_name,
@@ -510,14 +510,14 @@ const resolvers = {
         return {
           success: true,
           message: 'Login successful',
-          worker,
-          token: generateToken(worker),
+          member,
+          token: generateToken(member),
         };
       } catch (error) {
-        return { success: false, message: 'Login failed', worker: null, token: null };
+        return { success: false, message: 'Login failed', member: null, token: null };
       }
     },
-    updateWorkerProfile: async (_: any, { id, firstName, lastName, particles, email }: { id: string; firstName: string; lastName: string; particles?: string; email?: string }, ctx: AuthContext) => {
+    updateMemberProfile: async (_: any, { id, firstName, lastName, particles, email }: { id: string; firstName: string; lastName: string; particles?: string; email?: string }, ctx: AuthContext) => {
       const user = requireAuth(ctx);
       // Users can only update their own profile, managers can update anyone
       if (user.id !== id && user.role !== 'manager') {
@@ -525,7 +525,7 @@ const resolvers = {
       }
 
       const result = await pool.query(
-        'UPDATE worker SET first_name = $2, last_name = $3, particles = $4, email = $5 WHERE id = $1 RETURNING *',
+        'UPDATE member SET first_name = $2, last_name = $3, particles = $4, email = $5 WHERE id = $1 RETURNING *',
         [id, firstName, lastName, particles || null, email || null]
       );
 
@@ -541,40 +541,40 @@ const resolvers = {
         role: row.role,
       };
     },
-    changePassword: async (_: any, { workerId, currentPassword, newPassword }: { workerId: string; currentPassword: string; newPassword: string }, ctx: AuthContext) => {
+    changePassword: async (_: any, { memberId, currentPassword, newPassword }: { memberId: string; currentPassword: string; newPassword: string }, ctx: AuthContext) => {
       const user = requireAuth(ctx);
       // Users can only change their own password
-      if (user.id !== workerId) {
+      if (user.id !== memberId) {
         throw new Error('You can only change your own password');
       }
 
       try {
         const result = await pool.query(
-          'SELECT * FROM worker WHERE id = $1',
-          [workerId]
+          'SELECT * FROM member WHERE id = $1',
+          [memberId]
         );
 
         if (result.rows.length === 0) {
-          return { success: false, message: 'Worker not found', worker: null, token: null };
+          return { success: false, message: 'Member not found', member: null, token: null };
         }
 
         const row = result.rows[0];
 
         const passwordValid = await bcrypt.compare(currentPassword, row.password_hash);
         if (!passwordValid) {
-          return { success: false, message: 'Current password is incorrect', worker: null, token: null };
+          return { success: false, message: 'Current password is incorrect', member: null, token: null };
         }
 
         const hashedPassword = await bcrypt.hash(newPassword, 10);
         await pool.query(
-          'UPDATE worker SET password_hash = $2 WHERE id = $1',
-          [workerId, hashedPassword]
+          'UPDATE member SET password_hash = $2 WHERE id = $1',
+          [memberId, hashedPassword]
         );
 
         return {
           success: true,
           message: 'Password changed successfully',
-          worker: {
+          member: {
             id: row.id,
             firstName: row.first_name,
             lastName: row.last_name,
@@ -585,33 +585,33 @@ const resolvers = {
           token: null,
         };
       } catch (error) {
-        return { success: false, message: 'Failed to change password', worker: null, token: null };
+        return { success: false, message: 'Failed to change password', member: null, token: null };
       }
     },
-    resetPassword: async (_: any, { workerId, newPassword }: { workerId: string; newPassword: string }, ctx: AuthContext) => {
+    resetPassword: async (_: any, { memberId, newPassword }: { memberId: string; newPassword: string }, ctx: AuthContext) => {
       const manager = requireManager(ctx);
 
       try {
         // Prevent managers from resetting their own password via this mutation
-        if (workerId === manager.id) {
-          return { success: false, message: 'Cannot reset your own password. Use change password instead.', worker: null, token: null };
+        if (memberId === manager.id) {
+          return { success: false, message: 'Cannot reset your own password. Use change password instead.', member: null, token: null };
         }
 
-        // Verify target worker exists
-        const workerResult = await pool.query('SELECT * FROM worker WHERE id = $1', [workerId]);
-        if (workerResult.rows.length === 0) {
-          return { success: false, message: 'Worker not found', worker: null, token: null };
+        // Verify target member exists
+        const memberResult = await pool.query('SELECT * FROM member WHERE id = $1', [memberId]);
+        if (memberResult.rows.length === 0) {
+          return { success: false, message: 'Member not found', member: null, token: null };
         }
 
         // Hash and update password
         const hashedPassword = await bcrypt.hash(newPassword, 10);
-        await pool.query('UPDATE worker SET password_hash = $2 WHERE id = $1', [workerId, hashedPassword]);
+        await pool.query('UPDATE member SET password_hash = $2 WHERE id = $1', [memberId, hashedPassword]);
 
-        const row = workerResult.rows[0];
+        const row = memberResult.rows[0];
         return {
           success: true,
           message: 'Password reset successfully',
-          worker: {
+          member: {
             id: row.id,
             firstName: row.first_name,
             lastName: row.last_name,
@@ -622,30 +622,30 @@ const resolvers = {
           token: null,
         };
       } catch (error) {
-        return { success: false, message: 'Failed to reset password', worker: null, token: null };
+        return { success: false, message: 'Failed to reset password', member: null, token: null };
       }
     },
-    addWorkerHoliday: async (_: any, { workerId, holiday }: { workerId: string; holiday: { startDate: string; endDate: string; startDayPart: string; endDayPart: string; description?: string; holidayTypeId?: string } }, ctx: AuthContext) => {
+    addMemberHoliday: async (_: any, { memberId, holiday }: { memberId: string; holiday: { startDate: string; endDate: string; startDayPart: string; endDayPart: string; description?: string; holidayTypeId?: string } }, ctx: AuthContext) => {
       requireAuth(ctx);
       const insertResult = await pool.query(
-        `INSERT INTO worker_holiday (worker_id, start_date, end_date, start_day_part, end_day_part, description, holiday_type_id)
+        `INSERT INTO member_holiday (member_id, start_date, end_date, start_day_part, end_day_part, description, holiday_type_id)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING *`,
-        [workerId, holiday.startDate, holiday.endDate, holiday.startDayPart, holiday.endDayPart, holiday.description || null, holiday.holidayTypeId || null]
+        [memberId, holiday.startDate, holiday.endDate, holiday.startDayPart, holiday.endDayPart, holiday.description || null, holiday.holidayTypeId || null]
       );
       const insertedId = insertResult.rows[0].id;
       const result = await pool.query(
-        `SELECT wh.*, ht.id as ht_id, ht.name as ht_name, ht.color_light as ht_color_light,
+        `SELECT mh.*, ht.id as ht_id, ht.name as ht_name, ht.color_light as ht_color_light,
                 ht.color_dark as ht_color_dark, ht.sort_order as ht_sort_order
-         FROM worker_holiday wh
-         LEFT JOIN holiday_type ht ON wh.holiday_type_id = ht.id
-         WHERE wh.id = $1`,
+         FROM member_holiday mh
+         LEFT JOIN holiday_type ht ON mh.holiday_type_id = ht.id
+         WHERE mh.id = $1`,
         [insertedId]
       );
       const row = result.rows[0];
       return {
         id: row.id,
-        workerId: row.worker_id,
+        memberId: row.member_id,
         startDate: row.start_date.toISOString().split('T')[0],
         endDate: row.end_date.toISOString().split('T')[0],
         startDayPart: row.start_day_part,
@@ -657,34 +657,34 @@ const resolvers = {
         } : null,
       };
     },
-    removeWorkerHoliday: async (_: any, { id }: { id: string }, ctx: AuthContext) => {
+    removeMemberHoliday: async (_: any, { id }: { id: string }, ctx: AuthContext) => {
       requireAuth(ctx);
       const result = await pool.query(
-        'DELETE FROM worker_holiday WHERE id = $1',
+        'DELETE FROM member_holiday WHERE id = $1',
         [id]
       );
       return (result.rowCount ?? 0) > 0;
     },
-    updateWorkerHoliday: async (_: any, { id, holiday }: { id: string; holiday: { startDate: string; endDate: string; startDayPart: string; endDayPart: string; description?: string; holidayTypeId?: string } }, ctx: AuthContext) => {
+    updateMemberHoliday: async (_: any, { id, holiday }: { id: string; holiday: { startDate: string; endDate: string; startDayPart: string; endDayPart: string; description?: string; holidayTypeId?: string } }, ctx: AuthContext) => {
       requireAuth(ctx);
       await pool.query(
-        `UPDATE worker_holiday
+        `UPDATE member_holiday
          SET start_date = $2, end_date = $3, start_day_part = $4, end_day_part = $5, description = $6, holiday_type_id = $7
          WHERE id = $1`,
         [id, holiday.startDate, holiday.endDate, holiday.startDayPart, holiday.endDayPart, holiday.description || null, holiday.holidayTypeId || null]
       );
       const result = await pool.query(
-        `SELECT wh.*, ht.id as ht_id, ht.name as ht_name, ht.color_light as ht_color_light,
+        `SELECT mh.*, ht.id as ht_id, ht.name as ht_name, ht.color_light as ht_color_light,
                 ht.color_dark as ht_color_dark, ht.sort_order as ht_sort_order
-         FROM worker_holiday wh
-         LEFT JOIN holiday_type ht ON wh.holiday_type_id = ht.id
-         WHERE wh.id = $1`,
+         FROM member_holiday mh
+         LEFT JOIN holiday_type ht ON mh.holiday_type_id = ht.id
+         WHERE mh.id = $1`,
         [id]
       );
       const row = result.rows[0];
       return {
         id: row.id,
-        workerId: row.worker_id,
+        memberId: row.member_id,
         startDate: row.start_date.toISOString().split('T')[0],
         endDate: row.end_date.toISOString().split('T')[0],
         startDayPart: row.start_day_part,
@@ -724,7 +724,7 @@ const resolvers = {
       const result = await pool.query('DELETE FROM holiday_type WHERE id = $1', [id]);
       return (result.rowCount ?? 0) > 0;
     },
-    updateWorkerRole: async (_: any, { workerId, role }: { workerId: string; role: string }, ctx: AuthContext) => {
+    updateMemberRole: async (_: any, { memberId, role }: { memberId: string; role: string }, ctx: AuthContext) => {
       requireManager(ctx);
 
       if (role !== 'user' && role !== 'manager') {
@@ -732,8 +732,8 @@ const resolvers = {
       }
 
       const result = await pool.query(
-        'UPDATE worker SET role = $2 WHERE id = $1 RETURNING *',
-        [workerId, role]
+        'UPDATE member SET role = $2 WHERE id = $1 RETURNING *',
+        [memberId, role]
       );
 
       if (result.rows.length === 0) return null;
@@ -779,23 +779,23 @@ const resolvers = {
     requestPasswordReset: async (_: any, { email }: { email: string }) => {
       const genericMessage = 'If an account with that email exists, a password reset link has been sent.';
       try {
-        const workerResult = await pool.query('SELECT id, first_name, email FROM worker WHERE LOWER(email) = LOWER($1)', [email]);
-        if (workerResult.rows.length > 0) {
-          const worker = workerResult.rows[0];
+        const memberResult = await pool.query('SELECT id, first_name, email FROM member WHERE LOWER(email) = LOWER($1)', [email]);
+        if (memberResult.rows.length > 0) {
+          const member = memberResult.rows[0];
           const token = crypto.randomBytes(32).toString('hex');
           const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-          // Invalidate existing unused tokens for this worker
-          await pool.query('UPDATE password_reset_token SET used = TRUE WHERE worker_id = $1 AND used = FALSE', [worker.id]);
+          // Invalidate existing unused tokens for this member
+          await pool.query('UPDATE password_reset_token SET used = TRUE WHERE member_id = $1 AND used = FALSE', [member.id]);
           await pool.query(
-            'INSERT INTO password_reset_token (worker_id, token, expires_at) VALUES ($1, $2, $3)',
-            [worker.id, token, expiresAt]
+            'INSERT INTO password_reset_token (member_id, token, expires_at) VALUES ($1, $2, $3)',
+            [member.id, token, expiresAt]
           );
           const appUrl = process.env.APP_URL || 'http://localhost:4200';
           const resetUrl = `${appUrl}/reset-password?token=${token}`;
           await sendEmail(
-            worker.email,
+            member.email,
             'TeamSchedule - Password Reset',
-            `<p>Hi ${worker.first_name},</p>
+            `<p>Hi ${member.first_name},</p>
              <p>A password reset was requested for your account. Click the link below to reset your password:</p>
              <p><a href="${resetUrl}">${resetUrl}</a></p>
              <p>This link expires in 1 hour. If you did not request this, you can safely ignore this email.</p>`
@@ -812,19 +812,19 @@ const resolvers = {
         [token]
       );
       if (tokenResult.rows.length === 0) {
-        return { success: false, message: 'Invalid or expired reset link', worker: null, token: null };
+        return { success: false, message: 'Invalid or expired reset link', member: null, token: null };
       }
       const resetRow = tokenResult.rows[0];
       // Mark token as used
       await pool.query('UPDATE password_reset_token SET used = TRUE WHERE id = $1', [resetRow.id]);
       // Update password
       const hashedPassword = await bcrypt.hash(newPassword, 10);
-      await pool.query('UPDATE worker SET password_hash = $1 WHERE id = $2', [hashedPassword, resetRow.worker_id]);
-      // Fetch worker for response
-      const workerResult = await pool.query('SELECT * FROM worker WHERE id = $1', [resetRow.worker_id]);
-      const row = workerResult.rows[0];
-      const worker = { id: row.id, firstName: row.first_name, lastName: row.last_name, particles: row.particles, email: row.email, role: row.role };
-      return { success: true, message: 'Password reset successfully', worker, token: generateToken(worker) };
+      await pool.query('UPDATE member SET password_hash = $1 WHERE id = $2', [hashedPassword, resetRow.member_id]);
+      // Fetch member for response
+      const memberResult = await pool.query('SELECT * FROM member WHERE id = $1', [resetRow.member_id]);
+      const row = memberResult.rows[0];
+      const member = { id: row.id, firstName: row.first_name, lastName: row.last_name, particles: row.particles, email: row.email, role: row.role };
+      return { success: true, message: 'Password reset successfully', member, token: generateToken(member) };
     },
     saveScheduleDateRange: async (_: any, { startDate, endDate }: { startDate: string; endDate: string }, ctx: AuthContext) => {
       requireManager(ctx);
@@ -845,9 +845,9 @@ const resolvers = {
           [key, value]
         );
       }
-      // Delete worker holidays that fall completely outside the new range
+      // Delete member holidays that fall completely outside the new range
       const deleteResult = await pool.query(
-        `DELETE FROM worker_holiday WHERE start_date > $2 OR end_date < $1`,
+        `DELETE FROM member_holiday WHERE start_date > $2 OR end_date < $1`,
         [startDate, endDate]
       );
       const deletedCount = deleteResult.rowCount ?? 0;
@@ -859,7 +859,7 @@ const resolvers = {
         deletedCount,
       };
     },
-    importWorkerHolidays: async (_: any, { holidays }: { holidays: Array<{ workerId: string; startDate: string; endDate: string; startDayPart: string; endDayPart: string; description?: string; holidayTypeName?: string }> }, ctx: AuthContext) => {
+    importMemberHolidays: async (_: any, { holidays }: { holidays: Array<{ memberId: string; startDate: string; endDate: string; startDayPart: string; endDayPart: string; description?: string; holidayTypeName?: string }> }, ctx: AuthContext) => {
       requireManager(ctx);
       let importedCount = 0;
       let skippedCount = 0;
@@ -869,21 +869,21 @@ const resolvers = {
       for (const row of typeResult.rows) {
         typeMap.set(row.name.toLowerCase(), row.id);
       }
-      // Verify all worker IDs exist
-      const workerResult = await pool.query('SELECT id FROM worker');
-      const validWorkerIds = new Set(workerResult.rows.map(r => r.id));
+      // Verify all member IDs exist
+      const memberResult = await pool.query('SELECT id FROM member');
+      const validMemberIds = new Set(memberResult.rows.map(r => r.id));
 
       for (const h of holidays) {
-        if (!validWorkerIds.has(h.workerId)) {
+        if (!validMemberIds.has(h.memberId)) {
           skippedCount++;
           continue;
         }
         const holidayTypeId = h.holidayTypeName ? typeMap.get(h.holidayTypeName.toLowerCase()) || null : null;
         try {
           await pool.query(
-            `INSERT INTO worker_holiday (worker_id, start_date, end_date, start_day_part, end_day_part, description, holiday_type_id)
+            `INSERT INTO member_holiday (member_id, start_date, end_date, start_day_part, end_day_part, description, holiday_type_id)
              VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [h.workerId, h.startDate, h.endDate, h.startDayPart, h.endDayPart, h.description || null, holidayTypeId]
+            [h.memberId, h.startDate, h.endDate, h.startDayPart, h.endDayPart, h.description || null, holidayTypeId]
           );
           importedCount++;
         } catch (error) {
@@ -899,12 +899,12 @@ const resolvers = {
     },
   },
   Team: {
-    workers: async (parent: any) => {
+    members: async (parent: any) => {
       const result = await pool.query(
-        `SELECT w.* FROM worker w
-         INNER JOIN team_worker tw ON w.id = tw.worker_id
-         WHERE tw.team_id = $1
-         ORDER BY w.last_name, w.first_name`,
+        `SELECT m.* FROM member m
+         INNER JOIN team_member tm ON m.id = tm.member_id
+         WHERE tm.team_id = $1
+         ORDER BY m.last_name, m.first_name`,
         [parent.id]
       );
       return result.rows.map(row => ({
@@ -917,12 +917,12 @@ const resolvers = {
       }));
     },
   },
-  Worker: {
+  Member: {
     teams: async (parent: any) => {
       const result = await pool.query(
         `SELECT t.* FROM team t
-         INNER JOIN team_worker tw ON t.id = tw.team_id
-         WHERE tw.worker_id = $1
+         INNER JOIN team_member tm ON t.id = tm.team_id
+         WHERE tm.member_id = $1
          ORDER BY t.name`,
         [parent.id]
       );

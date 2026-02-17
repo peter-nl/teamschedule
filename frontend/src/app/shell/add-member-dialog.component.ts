@@ -8,6 +8,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../app.config';
 import { SlideInPanelRef } from '../shared/services/slide-in-panel.service';
@@ -26,9 +28,9 @@ const GET_TEAMS_QUERY = gql`
   }
 `;
 
-const CREATE_WORKER_MUTATION = gql`
-  mutation CreateWorker($id: String!, $firstName: String!, $lastName: String!, $particles: String, $email: String, $password: String!) {
-    createWorker(id: $id, firstName: $firstName, lastName: $lastName, particles: $particles, email: $email, password: $password) {
+const CREATE_MEMBER_MUTATION = gql`
+  mutation CreateMember($id: String!, $firstName: String!, $lastName: String!, $particles: String, $email: String, $password: String!) {
+    createMember(id: $id, firstName: $firstName, lastName: $lastName, particles: $particles, email: $email, password: $password) {
       id
       firstName
       lastName
@@ -39,16 +41,16 @@ const CREATE_WORKER_MUTATION = gql`
   }
 `;
 
-const ADD_WORKER_TO_TEAM_MUTATION = gql`
-  mutation AddWorkerToTeam($teamId: ID!, $workerId: ID!) {
-    addWorkerToTeam(teamId: $teamId, workerId: $workerId) {
+const ADD_MEMBER_TO_TEAM_MUTATION = gql`
+  mutation AddMemberToTeam($teamId: ID!, $memberId: ID!) {
+    addMemberToTeam(teamId: $teamId, memberId: $memberId) {
       id
     }
   }
 `;
 
 @Component({
-  selector: 'app-add-worker-dialog',
+  selector: 'app-add-member-dialog',
   standalone: true,
   imports: [
     CommonModule,
@@ -59,14 +61,16 @@ const ADD_WORKER_TO_TEAM_MUTATION = gql`
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule
+    MatSnackBarModule,
+    MatTooltipModule,
+    TranslateModule
   ],
   template: `
     <div class="slide-in-panel">
       <div class="panel-header">
         <h2>
           <mat-icon>person_add</mat-icon>
-          Add New Worker
+          {{ 'addMember.title' | translate }}
         </h2>
         <button class="panel-close" (click)="panelRef.close()">
           <mat-icon>close</mat-icon>
@@ -74,79 +78,79 @@ const ADD_WORKER_TO_TEAM_MUTATION = gql`
       </div>
 
       <div class="panel-content">
-        <form class="worker-form">
+        <form class="member-form">
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Worker ID</mat-label>
+            <mat-label>{{ 'addMember.memberId' | translate }}</mat-label>
             <input matInput
-                   [(ngModel)]="workerForm.id"
+                   [(ngModel)]="memberForm.id"
                    name="id"
                    required
-                   placeholder="e.g., jdoe001">
-            <mat-hint>Unique identifier for the worker</mat-hint>
+                   [placeholder]="'addMember.memberIdPlaceholder' | translate">
+            <mat-hint>{{ 'addMember.memberIdHint' | translate }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>First Name</mat-label>
+            <mat-label>{{ 'addMember.firstName' | translate }}</mat-label>
             <input matInput
-                   [(ngModel)]="workerForm.firstName"
+                   [(ngModel)]="memberForm.firstName"
                    name="firstName"
                    required>
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Particles (prefix)</mat-label>
+            <mat-label>{{ 'addMember.particles' | translate }}</mat-label>
             <input matInput
-                   [(ngModel)]="workerForm.particles"
+                   [(ngModel)]="memberForm.particles"
                    name="particles"
-                   placeholder="e.g., van, de, von">
-            <mat-hint>Optional name prefix</mat-hint>
+                   [placeholder]="'addMember.particlesPlaceholder' | translate">
+            <mat-hint>{{ 'addMember.particlesHint' | translate }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Last Name</mat-label>
+            <mat-label>{{ 'addMember.lastName' | translate }}</mat-label>
             <input matInput
-                   [(ngModel)]="workerForm.lastName"
+                   [(ngModel)]="memberForm.lastName"
                    name="lastName"
                    required>
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Email</mat-label>
+            <mat-label>{{ 'addMember.email' | translate }}</mat-label>
             <input matInput
-                   [(ngModel)]="workerForm.email"
+                   [(ngModel)]="memberForm.email"
                    name="email"
                    type="email"
                    required
-                   placeholder="e.g., john@example.com">
+                   [placeholder]="'addMember.emailPlaceholder' | translate">
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Assign to Teams</mat-label>
+            <mat-label>{{ 'addMember.assignTeams' | translate }}</mat-label>
             <mat-select [(ngModel)]="selectedTeamIds" name="teams" multiple>
               <mat-option *ngFor="let team of teams" [value]="team.id">
                 {{ team.name }}
               </mat-option>
             </mat-select>
-            <mat-hint>Optional - select one or more teams</mat-hint>
+            <mat-hint>{{ 'addMember.assignTeamsHint' | translate }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Password</mat-label>
+            <mat-label>{{ 'addMember.password' | translate }}</mat-label>
             <input matInput
-                   [(ngModel)]="workerForm.password"
+                   [(ngModel)]="memberForm.password"
                    name="password"
                    [type]="hidePassword ? 'password' : 'text'"
                    required>
             <button mat-icon-button matSuffix type="button" (click)="hidePassword = !hidePassword">
               <mat-icon>{{ hidePassword ? 'visibility_off' : 'visibility' }}</mat-icon>
             </button>
-            <mat-hint>Initial password for the worker</mat-hint>
+            <mat-hint>{{ 'addMember.passwordHint' | translate }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Confirm Password</mat-label>
+            <mat-label>{{ 'addMember.confirmPassword' | translate }}</mat-label>
             <input matInput
-                   [(ngModel)]="workerForm.confirmPassword"
+                   [(ngModel)]="memberForm.confirmPassword"
                    name="confirmPassword"
                    [type]="hideConfirmPassword ? 'password' : 'text'"
                    required>
@@ -159,19 +163,21 @@ const ADD_WORKER_TO_TEAM_MUTATION = gql`
 
       <div class="panel-actions">
         <span class="spacer"></span>
-        <button mat-button (click)="panelRef.close()">Cancel</button>
+        <button mat-icon-button (click)="panelRef.close()" [matTooltip]="'common.cancel' | translate">
+          <mat-icon>close</mat-icon>
+        </button>
         <button mat-raised-button
                 color="primary"
                 (click)="onSubmit()"
                 [disabled]="loading || !isValid()">
           <mat-spinner *ngIf="loading" diameter="20"></mat-spinner>
-          <span *ngIf="!loading">Add Worker</span>
+          <span *ngIf="!loading">{{ 'addMember.addButton' | translate }}</span>
         </button>
       </div>
     </div>
   `,
   styles: [`
-    .worker-form {
+    .member-form {
       display: flex;
       flex-direction: column;
       gap: 8px;
@@ -190,8 +196,8 @@ const ADD_WORKER_TO_TEAM_MUTATION = gql`
     }
   `]
 })
-export class AddWorkerDialogComponent implements OnInit {
-  workerForm = {
+export class AddMemberDialogComponent implements OnInit {
+  memberForm = {
     id: '',
     firstName: '',
     lastName: '',
@@ -208,8 +214,9 @@ export class AddWorkerDialogComponent implements OnInit {
   hideConfirmPassword = true;
 
   constructor(
-    public panelRef: SlideInPanelRef<AddWorkerDialogComponent>,
-    private snackBar: MatSnackBar
+    public panelRef: SlideInPanelRef<AddMemberDialogComponent>,
+    private snackBar: MatSnackBar,
+    private translate: TranslateService
   ) {}
 
   ngOnInit(): void {
@@ -230,12 +237,12 @@ export class AddWorkerDialogComponent implements OnInit {
 
   isValid(): boolean {
     return !!(
-      this.workerForm.id &&
-      this.workerForm.firstName &&
-      this.workerForm.lastName &&
-      this.workerForm.email &&
-      this.workerForm.password &&
-      this.workerForm.password === this.workerForm.confirmPassword
+      this.memberForm.id &&
+      this.memberForm.firstName &&
+      this.memberForm.lastName &&
+      this.memberForm.email &&
+      this.memberForm.password &&
+      this.memberForm.password === this.memberForm.confirmPassword
     );
   }
 
@@ -245,40 +252,40 @@ export class AddWorkerDialogComponent implements OnInit {
     this.loading = true;
 
     try {
-      // Create the worker
+      // Create the member
       await apolloClient.mutate({
-        mutation: CREATE_WORKER_MUTATION,
+        mutation: CREATE_MEMBER_MUTATION,
         variables: {
-          id: this.workerForm.id,
-          firstName: this.workerForm.firstName,
-          lastName: this.workerForm.lastName,
-          particles: this.workerForm.particles || null,
-          email: this.workerForm.email || null,
-          password: this.workerForm.password
+          id: this.memberForm.id,
+          firstName: this.memberForm.firstName,
+          lastName: this.memberForm.lastName,
+          particles: this.memberForm.particles || null,
+          email: this.memberForm.email || null,
+          password: this.memberForm.password
         }
       });
 
-      // Assign worker to selected teams
+      // Assign member to selected teams
       for (const teamId of this.selectedTeamIds) {
         await apolloClient.mutate({
-          mutation: ADD_WORKER_TO_TEAM_MUTATION,
+          mutation: ADD_MEMBER_TO_TEAM_MUTATION,
           variables: {
             teamId: teamId,
-            workerId: this.workerForm.id
+            memberId: this.memberForm.id
           }
         });
       }
 
       // Refetch relevant queries
       await apolloClient.refetchQueries({
-        include: ['GetWorkers', 'GetTeams']
+        include: ['GetMembers', 'GetTeams']
       });
 
-      this.snackBar.open('Worker added successfully', 'Close', { duration: 3000 });
+      this.snackBar.open(this.translate.instant('addMember.messages.success'), this.translate.instant('common.close'), { duration: 3000 });
       this.panelRef.close(true);
     } catch (error: any) {
-      console.error('Failed to add worker:', error);
-      this.snackBar.open(error.message || 'Failed to add worker', 'Close', { duration: 5000 });
+      console.error('Failed to add member:', error);
+      this.snackBar.open(error.message || this.translate.instant('addMember.messages.failed'), this.translate.instant('common.close'), { duration: 5000 });
     } finally {
       this.loading = false;
     }

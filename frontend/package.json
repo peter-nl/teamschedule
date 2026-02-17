@@ -1,6 +1,6 @@
 {
   "name": "teamschedule-frontend",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
@@ -21,6 +21,8 @@
     "@angular/platform-browser-dynamic": "^19.2.0",
     "@angular/router": "^19.2.0",
     "@apollo/client": "^4.0.11",
+    "@ngx-translate/core": "^17.0.0",
+    "@ngx-translate/http-loader": "^17.0.0",
     "graphql": "^16.12.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",

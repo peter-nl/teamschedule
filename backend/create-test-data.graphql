@@ -14,27 +14,27 @@ mutation CreateTeams {
   }
 }
 
-# Create test workers
-mutation CreateWorkers {
-  john: createWorker(id: "jdo001", firstName: "John", lastName: "Doe") {
+# Create test members
+mutation CreateMembers {
+  john: createMember(id: "jdo001", firstName: "John", lastName: "Doe") {
     id
     firstName
     lastName
     particles
   }
-  jane: createWorker(id: "jsm002", firstName: "Jane", lastName: "Smith") {
+  jane: createMember(id: "jsm002", firstName: "Jane", lastName: "Smith") {
     id
     firstName
     lastName
     particles
   }
-  bob: createWorker(id: "bjo003", firstName: "Bob", lastName: "Johnson") {
+  bob: createMember(id: "bjo003", firstName: "Bob", lastName: "Johnson") {
     id
     firstName
     lastName
     particles
   }
-  alice: createWorker(id: "awi004", firstName: "Alice", lastName: "Williams") {
+  alice: createMember(id: "awi004", firstName: "Alice", lastName: "Williams") {
     id
     firstName
     lastName
@@ -42,16 +42,16 @@ mutation CreateWorkers {
   }
 }
 
-# Assign workers to teams
-mutation AssignWorkersToTeams {
+# Assign members to teams
+mutation AssignMembersToTeams {
   # John and Jane to Engineering
-  a1: addWorkerToTeam(teamId: 1, workerId: "jdo001") { id }
-  a2: addWorkerToTeam(teamId: 1, workerId: "jsm002") { id }
+  a1: addMemberToTeam(teamId: 1, memberId: "jdo001") { id }
+  a2: addMemberToTeam(teamId: 1, memberId: "jsm002") { id }
 
   # Jane and Bob to Design (Jane is on both Engineering and Design)
-  a3: addWorkerToTeam(teamId: 2, workerId: "jsm002") { id }
-  a4: addWorkerToTeam(teamId: 2, workerId: "bjo003") { id }
+  a3: addMemberToTeam(teamId: 2, memberId: "jsm002") { id }
+  a4: addMemberToTeam(teamId: 2, memberId: "bjo003") { id }
 
   # Alice to Marketing
-  a5: addWorkerToTeam(teamId: 3, workerId: "awi004") { id }
+  a5: addMemberToTeam(teamId: 3, memberId: "awi004") { id }
 }

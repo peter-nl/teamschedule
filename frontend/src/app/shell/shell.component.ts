@@ -9,17 +9,18 @@ import { AuthService } from '../shared/services/auth.service';
 import { APP_VERSION } from '../version';
 import { UserPreferencesService } from '../shared/services/user-preferences.service';
 import { SlideInPanelService } from '../shared/services/slide-in-panel.service';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AccountLoginComponent } from '../features/account/account-login.component';
 import { AccountProfileComponent } from '../features/account/account-profile.component';
 import { AccountPasswordComponent } from '../features/account/account-password.component';
 import { ManageTeamsComponent } from '../features/manage/manage-teams.component';
-import { ManageWorkersComponent } from '../features/manage/manage-workers.component';
+import { ManageMembersComponent } from '../features/manage/manage-members.component';
 import { ManageSettingsComponent } from '../features/manage/manage-settings.component';
 import { ManageImportExportComponent } from '../features/manage/manage-import-export.component';
 
 type NavBarType = 'account' | 'management';
 type PanelType = 'login' | 'profile' | 'password'
-              | 'manage-teams' | 'manage-workers' | 'manage-import-export' | 'manage-settings';
+              | 'manage-teams' | 'manage-members' | 'manage-import-export' | 'manage-settings';
 
 interface NavItem {
   path: string;
@@ -37,11 +38,12 @@ interface NavItem {
     MatIconModule,
     MatTooltipModule,
     MatSnackBarModule,
+    TranslateModule,
     AccountLoginComponent,
     AccountProfileComponent,
     AccountPasswordComponent,
     ManageTeamsComponent,
-    ManageWorkersComponent,
+    ManageMembersComponent,
     ManageImportExportComponent,
     ManageSettingsComponent
   ],
@@ -50,10 +52,10 @@ interface NavItem {
       <!-- Navigation Rail -->
       <nav class="nav-rail" [class.expanded]="isExpanded">
         <div class="nav-header">
-          <button class="menu-button" (click)="toggleExpanded()" matTooltip="Menu" matTooltipPosition="right">
+          <button class="menu-button" (click)="toggleExpanded()" [matTooltip]="'shell.nav.menu' | translate" matTooltipPosition="right">
             <mat-icon>{{ isExpanded ? 'menu_open' : 'menu' }}</mat-icon>
           </button>
-          <span *ngIf="isExpanded" class="app-title">TeamSchedule</span>
+          <span *ngIf="isExpanded" class="app-title">{{ 'shell.appTitle' | translate }}</span>
         </div>
 
         <div class="nav-items">
@@ -62,10 +64,10 @@ interface NavItem {
              [class.active]="isActive(item.path)"
              [routerLink]="item.path"
              (click)="onNavItemClick()"
-             [matTooltip]="isExpanded ? '' : item.label"
+             [matTooltip]="isExpanded ? '' : (item.label | translate)"
              matTooltipPosition="right">
             <mat-icon>{{ item.icon }}</mat-icon>
-            <span class="nav-label">{{ item.label }}</span>
+            <span class="nav-label">{{ item.label | translate }}</span>
           </a>
         </div>
 
@@ -73,22 +75,29 @@ interface NavItem {
 
         <!-- Bottom Menu Items -->
         <div class="nav-account">
+          <a class="nav-item lang-toggle"
+             (click)="toggleLanguage()"
+             [matTooltip]="isExpanded ? '' : currentLang.toUpperCase()"
+             matTooltipPosition="right">
+            <mat-icon>language</mat-icon>
+            <span class="nav-label">{{ currentLang.toUpperCase() }}</span>
+          </a>
           <a *ngIf="showManagement"
              class="nav-item"
              [class.active]="activeNavBar === 'management'"
              (click)="toggleNavBar('management')"
-             [matTooltip]="isExpanded ? '' : 'Management'"
+             [matTooltip]="isExpanded ? '' : ('shell.management.label' | translate)"
              matTooltipPosition="right">
             <mat-icon>admin_panel_settings</mat-icon>
-            <span class="nav-label">Management</span>
+            <span class="nav-label">{{ 'shell.management.label' | translate }}</span>
           </a>
           <a class="nav-item"
              [class.active]="activeNavBar === 'account' || activePanel === 'login'"
              (click)="authService.isLoggedIn ? toggleNavBar('account') : openLoginPanel()"
-             [matTooltip]="isExpanded ? '' : (authService.isLoggedIn ? 'Account' : 'Login')"
+             [matTooltip]="isExpanded ? '' : ((authService.isLoggedIn ? 'shell.account.account' : 'shell.account.login') | translate)"
              matTooltipPosition="right">
             <mat-icon>{{ authService.isLoggedIn ? 'account_circle' : 'login' }}</mat-icon>
-            <span class="nav-label">{{ authService.isLoggedIn ? 'Account' : 'Login' }}</span>
+            <span class="nav-label">{{ (authService.isLoggedIn ? 'shell.account.account' : 'shell.account.login') | translate }}</span>
           </a>
         </div>
         <div class="nav-version">v{{ version }}</div>
@@ -100,14 +109,14 @@ interface NavItem {
         <div class="nav-bar-items">
           <button class="nav-bar-item" (click)="toggleTheme()">
             <mat-icon>{{ isDark ? 'light_mode' : 'dark_mode' }}</mat-icon>
-            <span>{{ isDark ? 'Light theme' : 'Dark theme' }}</span>
+            <span>{{ (isDark ? 'shell.account.lightTheme' : 'shell.account.darkTheme') | translate }}</span>
           </button>
 
           <button *ngIf="authService.isManager"
                   class="nav-bar-item"
                   (click)="onManagementModeToggle(!managementModeEnabled)">
             <mat-icon>{{ managementModeEnabled ? 'person' : 'admin_panel_settings' }}</mat-icon>
-            <span>{{ managementModeEnabled ? 'Worker mode' : 'Manager mode' }}</span>
+            <span>{{ (managementModeEnabled ? 'shell.account.memberMode' : 'shell.account.managerMode') | translate }}</span>
           </button>
 
           <button *ngIf="!authService.isLoggedIn"
@@ -115,7 +124,7 @@ interface NavItem {
                   [class.active]="activePanel === 'login'"
                   (click)="openPanel('login')">
             <mat-icon>login</mat-icon>
-            <span>Sign in</span>
+            <span>{{ 'shell.account.signIn' | translate }}</span>
           </button>
 
           <button *ngIf="authService.isLoggedIn"
@@ -123,20 +132,20 @@ interface NavItem {
                   [class.active]="activePanel === 'profile'"
                   (click)="openPanel('profile')">
             <mat-icon>account_circle</mat-icon>
-            <span>Account</span>
+            <span>{{ 'shell.account.account' | translate }}</span>
           </button>
           <button *ngIf="authService.isLoggedIn"
                   class="nav-bar-item"
                   [class.active]="activePanel === 'password'"
                   (click)="openPanel('password')">
             <mat-icon>lock</mat-icon>
-            <span>Change password</span>
+            <span>{{ 'shell.account.changePassword' | translate }}</span>
           </button>
           <button *ngIf="authService.isLoggedIn"
                   class="nav-bar-item"
                   (click)="onSignOut()">
             <mat-icon>logout</mat-icon>
-            <span>Sign out</span>
+            <span>{{ 'shell.account.signOut' | translate }}</span>
           </button>
         </div>
       </nav>
@@ -149,25 +158,25 @@ interface NavItem {
                   [class.active]="activePanel === 'manage-teams'"
                   (click)="openPanel('manage-teams')">
             <mat-icon>group_work</mat-icon>
-            <span>Teams</span>
+            <span>{{ 'shell.management.teams' | translate }}</span>
           </button>
           <button class="nav-bar-item"
-                  [class.active]="activePanel === 'manage-workers'"
-                  (click)="openPanel('manage-workers')">
+                  [class.active]="activePanel === 'manage-members'"
+                  (click)="openPanel('manage-members')">
             <mat-icon>manage_accounts</mat-icon>
-            <span>Workers</span>
+            <span>{{ 'shell.management.members' | translate }}</span>
           </button>
           <button class="nav-bar-item"
                   [class.active]="activePanel === 'manage-import-export'"
                   (click)="openPanel('manage-import-export')">
             <mat-icon>import_export</mat-icon>
-            <span>Import / Export</span>
+            <span>{{ 'shell.management.importExport' | translate }}</span>
           </button>
           <button class="nav-bar-item"
                   [class.active]="activePanel === 'manage-settings'"
                   (click)="openPanel('manage-settings')">
             <mat-icon>settings</mat-icon>
-            <span>Settings</span>
+            <span>{{ 'shell.management.settings' | translate }}</span>
           </button>
         </div>
       </nav>
@@ -192,7 +201,7 @@ interface NavItem {
         <app-account-profile *ngIf="activePanel === 'profile'"></app-account-profile>
         <app-account-password *ngIf="activePanel === 'password'"></app-account-password>
         <app-manage-teams *ngIf="activePanel === 'manage-teams'"></app-manage-teams>
-        <app-manage-workers *ngIf="activePanel === 'manage-workers'"></app-manage-workers>
+        <app-manage-members *ngIf="activePanel === 'manage-members'"></app-manage-members>
         <app-manage-import-export *ngIf="activePanel === 'manage-import-export'"></app-manage-import-export>
         <app-manage-settings *ngIf="activePanel === 'manage-settings'"></app-manage-settings>
       </div>
@@ -620,7 +629,7 @@ export class ShellComponent {
   private readonly TABLET_BREAKPOINT = 768;
 
   navItems: NavItem[] = [
-    { path: '/schedule', icon: 'calendar_month', label: 'Schedule' }
+    { path: '/schedule', icon: 'calendar_month', label: 'shell.nav.schedule' }
   ];
 
   currentPath = '';
@@ -630,13 +639,15 @@ export class ShellComponent {
   activeNavBar: NavBarType | null = null;
   activePanel: PanelType | null = null;
   version = APP_VERSION;
+  currentLang = 'en';
 
   constructor(
     private router: Router,
     public authService: AuthService,
     private userPreferencesService: UserPreferencesService,
     private snackBar: MatSnackBar,
-    private panelService: SlideInPanelService
+    private panelService: SlideInPanelService,
+    private translate: TranslateService
   ) {
     const isNarrow = window.innerWidth < this.TABLET_BREAKPOINT;
     this.isExpanded = isNarrow ? false : this.userPreferencesService.preferences.navigationExpanded;
@@ -664,6 +675,8 @@ export class ShellComponent {
       this.activePanel = null;
       this.panelService.closeAll();
     });
+
+    this.currentLang = this.translate.currentLang || 'en';
 
     // Auto-open login panel when not logged in
     if (!this.authService.isLoggedIn) {
@@ -785,9 +798,16 @@ export class ShellComponent {
     this.userPreferencesService.setManagementMode(enabled);
   }
 
+  toggleLanguage(): void {
+    const newLang = this.currentLang === 'en' ? 'nl' : 'en';
+    this.currentLang = newLang;
+    this.translate.use(newLang);
+    this.userPreferencesService.setLanguage(newLang);
+  }
+
   onSignOut(): void {
     this.authService.logout();
-    this.snackBar.open('You have been signed out', 'Close', { duration: 3000 });
+    this.snackBar.open(this.translate.instant('shell.messages.signedOut'), this.translate.instant('common.close'), { duration: 3000 });
     this.activeNavBar = null;
     this.activePanel = null;
   }

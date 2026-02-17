@@ -8,6 +8,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AuthService } from '../../shared/services/auth.service';
 
 @Component({
@@ -22,19 +23,20 @@ import { AuthService } from '../../shared/services/auth.service';
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule
+    MatSnackBarModule,
+    TranslateModule
   ],
   template: `
     <mat-card class="password-card">
       <mat-card-header>
         <mat-icon mat-card-avatar>lock</mat-icon>
-        <mat-card-title>Change Password</mat-card-title>
+        <mat-card-title>{{ 'password.title' | translate }}</mat-card-title>
       </mat-card-header>
 
       <mat-card-content>
         <form (ngSubmit)="onChangePassword()" class="password-form">
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Current Password</mat-label>
+            <mat-label>{{ 'password.currentPassword' | translate }}</mat-label>
             <input matInput
                    [(ngModel)]="passwordForm.currentPassword"
                    name="currentPassword"
@@ -46,7 +48,7 @@ import { AuthService } from '../../shared/services/auth.service';
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>New Password</mat-label>
+            <mat-label>{{ 'password.newPassword' | translate }}</mat-label>
             <input matInput
                    [(ngModel)]="passwordForm.newPassword"
                    name="newPassword"
@@ -58,7 +60,7 @@ import { AuthService } from '../../shared/services/auth.service';
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Confirm New Password</mat-label>
+            <mat-label>{{ 'password.confirmPassword' | translate }}</mat-label>
             <input matInput
                    [(ngModel)]="passwordForm.confirmPassword"
                    name="confirmPassword"
@@ -73,7 +75,7 @@ import { AuthService } from '../../shared/services/auth.service';
                   type="submit"
                   [disabled]="passwordLoading">
             <mat-spinner *ngIf="passwordLoading" diameter="20"></mat-spinner>
-            <span *ngIf="!passwordLoading">Change Password</span>
+            <span *ngIf="!passwordLoading">{{ 'password.changeButton' | translate }}</span>
           </button>
         </form>
       </mat-card-content>
@@ -128,17 +130,18 @@ export class AccountPasswordComponent {
 
   constructor(
     private authService: AuthService,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private translate: TranslateService
   ) {}
 
   onChangePassword(): void {
     if (!this.passwordForm.currentPassword || !this.passwordForm.newPassword || !this.passwordForm.confirmPassword) {
-      this.snackBar.open('Please fill in all password fields', 'Close', { duration: 3000 });
+      this.snackBar.open(this.translate.instant('password.messages.fieldsRequired'), this.translate.instant('common.close'), { duration: 3000 });
       return;
     }
 
     if (this.passwordForm.newPassword !== this.passwordForm.confirmPassword) {
-      this.snackBar.open('New passwords do not match', 'Close', { duration: 3000 });
+      this.snackBar.open(this.translate.instant('password.messages.mismatch'), this.translate.instant('common.close'), { duration: 3000 });
       return;
     }
 
@@ -151,15 +154,15 @@ export class AccountPasswordComponent {
       next: (result) => {
         this.passwordLoading = false;
         if (result.success) {
-          this.snackBar.open('Password changed successfully', 'Close', { duration: 3000 });
+          this.snackBar.open(this.translate.instant('password.messages.changed'), this.translate.instant('common.close'), { duration: 3000 });
           this.passwordForm = { currentPassword: '', newPassword: '', confirmPassword: '' };
         } else {
-          this.snackBar.open(result.message || 'Failed to change password', 'Close', { duration: 3000 });
+          this.snackBar.open(result.message || this.translate.instant('password.messages.changeFailed'), this.translate.instant('common.close'), { duration: 3000 });
         }
       },
       error: (error) => {
         this.passwordLoading = false;
-        this.snackBar.open('Failed to change password', 'Close', { duration: 3000 });
+        this.snackBar.open(this.translate.instant('password.messages.changeFailed'), this.translate.instant('common.close'), { duration: 3000 });
         console.error('Change password error:', error);
       }
     });

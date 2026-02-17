@@ -2,7 +2,9 @@ import { Component, Inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { SlideInPanelRef, SLIDE_IN_PANEL_DATA } from '../services/slide-in-panel.service';
+import { TranslateModule } from '@ngx-translate/core';
 
 export interface ConfirmDialogData {
   title: string;
@@ -18,7 +20,9 @@ export interface ConfirmDialogData {
   imports: [
     CommonModule,
     MatButtonModule,
-    MatIconModule
+    MatIconModule,
+    MatTooltipModule,
+    TranslateModule
   ],
   template: `
     <div class="slide-in-panel">
@@ -38,9 +42,11 @@ export interface ConfirmDialogData {
 
       <div class="panel-actions">
         <span class="spacer"></span>
-        <button mat-button (click)="panelRef.close()">{{ data.cancelText || 'Cancel' }}</button>
-        <button mat-raised-button [color]="data.confirmColor || 'primary'" (click)="confirm()">
-          {{ data.confirmText || 'Confirm' }}
+        <button mat-icon-button (click)="panelRef.close()" [matTooltip]="data.cancelText || ('common.cancel' | translate)">
+          <mat-icon>close</mat-icon>
+        </button>
+        <button mat-icon-button [color]="data.confirmColor || 'primary'" (click)="confirm()" [matTooltip]="data.confirmText || ('common.confirm' | translate)">
+          <mat-icon>check</mat-icon>
         </button>
       </div>
     </div>

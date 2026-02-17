@@ -8,11 +8,12 @@ export type TeamFilterMode = 'and' | 'or';
 export interface UserPreferences {
   theme: 'system' | 'light' | 'dark';
   navigationExpanded: boolean;
-  defaultView: 'schedule' | 'teams' | 'workers';
+  defaultView: 'schedule' | 'teams' | 'members';
   managementMode: boolean;
   scheduleZoom: number;
   scheduleNameColumnOrder: NameColumnField[];
   teamFilterMode: TeamFilterMode;
+  language: 'en' | 'nl';
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
@@ -22,7 +23,8 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   managementMode: true,
   scheduleZoom: 40,
   scheduleNameColumnOrder: ['lastName', 'firstName', 'particles'] as NameColumnField[],
-  teamFilterMode: 'and' as TeamFilterMode
+  teamFilterMode: 'and' as TeamFilterMode,
+  language: 'en' as const
 };
 
 const STORAGE_KEY = 'teamschedule-user-preferences';
@@ -79,7 +81,7 @@ export class UserPreferencesService {
     this.savePreferences();
   }
 
-  setDefaultView(defaultView: 'schedule' | 'teams' | 'workers'): void {
+  setDefaultView(defaultView: 'schedule' | 'teams' | 'members'): void {
     const current = this.preferencesSubject.value;
     this.preferencesSubject.next({ ...current, defaultView });
     this.savePreferences();
@@ -112,6 +114,12 @@ export class UserPreferencesService {
   setTeamFilterMode(mode: TeamFilterMode): void {
     const current = this.preferencesSubject.value;
     this.preferencesSubject.next({ ...current, teamFilterMode: mode });
+    this.savePreferences();
+  }
+
+  setLanguage(language: 'en' | 'nl'): void {
+    const current = this.preferencesSubject.value;
+    this.preferencesSubject.next({ ...current, language });
     this.savePreferences();
   }
 

@@ -1,2 +1,2 @@
--- Add email address field to worker table
-ALTER TABLE worker ADD COLUMN IF NOT EXISTS email VARCHAR(255);
+-- Add email address field to member table
+ALTER TABLE member ADD COLUMN IF NOT EXISTS email VARCHAR(255);

@@ -8,14 +8,16 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
 import { AuthService } from '../services/auth.service';
 import { SlideInPanelRef, SLIDE_IN_PANEL_DATA } from '../services/slide-in-panel.service';
 
-export interface WorkerEditDialogData {
-  worker: {
+export interface MemberEditDialogData {
+  member: {
     id: string;
     firstName: string;
     lastName: string;
@@ -29,29 +31,29 @@ export interface WorkerEditDialogData {
   isManager: boolean;
 }
 
-const UPDATE_WORKER_MUTATION = gql`
-  mutation UpdateWorkerProfile($id: String!, $firstName: String!, $lastName: String!, $particles: String, $email: String) {
-    updateWorkerProfile(id: $id, firstName: $firstName, lastName: $lastName, particles: $particles, email: $email) {
+const UPDATE_MEMBER_MUTATION = gql`
+  mutation UpdateMemberProfile($id: String!, $firstName: String!, $lastName: String!, $particles: String, $email: String) {
+    updateMemberProfile(id: $id, firstName: $firstName, lastName: $lastName, particles: $particles, email: $email) {
       id firstName lastName particles email role
     }
   }
 `;
 
-const ADD_WORKER_TO_TEAM_MUTATION = gql`
-  mutation AddWorkerToTeam($teamId: ID!, $workerId: ID!) {
-    addWorkerToTeam(teamId: $teamId, workerId: $workerId) { id }
+const ADD_MEMBER_TO_TEAM_MUTATION = gql`
+  mutation AddMemberToTeam($teamId: ID!, $memberId: ID!) {
+    addMemberToTeam(teamId: $teamId, memberId: $memberId) { id }
   }
 `;
 
-const REMOVE_WORKER_FROM_TEAM_MUTATION = gql`
-  mutation RemoveWorkerFromTeam($teamId: ID!, $workerId: ID!) {
-    removeWorkerFromTeam(teamId: $teamId, workerId: $workerId) { id }
+const REMOVE_MEMBER_FROM_TEAM_MUTATION = gql`
+  mutation RemoveMemberFromTeam($teamId: ID!, $memberId: ID!) {
+    removeMemberFromTeam(teamId: $teamId, memberId: $memberId) { id }
   }
 `;
 
 const RESET_PASSWORD_MUTATION = gql`
-  mutation ResetPassword($workerId: String!, $newPassword: String!) {
-    resetPassword(workerId: $workerId, newPassword: $newPassword) {
+  mutation ResetPassword($memberId: String!, $newPassword: String!) {
+    resetPassword(memberId: $memberId, newPassword: $newPassword) {
       success
       message
     }
@@ -59,7 +61,7 @@ const RESET_PASSWORD_MUTATION = gql`
 `;
 
 @Component({
-  selector: 'app-worker-edit-dialog',
+  selector: 'app-member-edit-dialog',
   standalone: true,
   imports: [
     CommonModule,
@@ -71,14 +73,16 @@ const RESET_PASSWORD_MUTATION = gql`
     MatSelectModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
-    MatDividerModule
+    MatTooltipModule,
+    MatDividerModule,
+    TranslateModule
   ],
   template: `
     <div class="slide-in-panel">
       <div class="panel-header">
         <h2>
           <mat-icon>edit</mat-icon>
-          Edit Worker
+          {{ 'editMember.title' | translate }}
         </h2>
         <button class="panel-close" (click)="panelRef.close()" [disabled]="saving">
           <mat-icon>close</mat-icon>
@@ -88,43 +92,43 @@ const RESET_PASSWORD_MUTATION = gql`
       <div class="panel-content">
         <div class="form-content">
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Worker ID</mat-label>
-            <input matInput [value]="data.worker.id" disabled>
+            <mat-label>{{ 'editMember.memberId' | translate }}</mat-label>
+            <input matInput [value]="data.member.id" disabled>
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>First Name</mat-label>
+            <mat-label>{{ 'editMember.firstName' | translate }}</mat-label>
             <input matInput [(ngModel)]="editForm.firstName" name="firstName">
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Particles</mat-label>
+            <mat-label>{{ 'editMember.particles' | translate }}</mat-label>
             <input matInput [(ngModel)]="editForm.particles" name="particles"
-                   placeholder="e.g., van, de">
+                   [placeholder]="'editMember.particlesPlaceholder' | translate">
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Last Name</mat-label>
+            <mat-label>{{ 'editMember.lastName' | translate }}</mat-label>
             <input matInput [(ngModel)]="editForm.lastName" name="lastName">
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Email</mat-label>
+            <mat-label>{{ 'editMember.email' | translate }}</mat-label>
             <input matInput [(ngModel)]="editForm.email" name="email" type="email"
-                   placeholder="e.g., john@example.com">
+                   [placeholder]="'editMember.emailPlaceholder' | translate">
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Role</mat-label>
+            <mat-label>{{ 'editMember.role' | translate }}</mat-label>
             <mat-select [(ngModel)]="editForm.role" name="role"
                         [disabled]="!canEditRole">
-              <mat-option value="user">User</mat-option>
-              <mat-option value="manager">Manager</mat-option>
+              <mat-option value="user">{{ 'common.user' | translate }}</mat-option>
+              <mat-option value="manager">{{ 'common.manager' | translate }}</mat-option>
             </mat-select>
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Teams</mat-label>
+            <mat-label>{{ 'editMember.teamsLabel' | translate }}</mat-label>
             <mat-select [(ngModel)]="editForm.teamIds" name="teams" multiple
                         [disabled]="!canEditTeams">
               <mat-option *ngFor="let team of data.allTeams" [value]="team.id">
@@ -133,17 +137,17 @@ const RESET_PASSWORD_MUTATION = gql`
             </mat-select>
           </mat-form-field>
 
-          <!-- Reset Password Section (managers only, for other workers) -->
+          <!-- Reset Password Section (managers only, for other members) -->
           <ng-container *ngIf="canResetPassword">
             <mat-divider style="margin: 16px 0;"></mat-divider>
 
             <h4 style="margin: 0 0 12px 0; color: var(--mat-sys-primary); display: flex; align-items: center; gap: 8px;">
               <mat-icon>lock_reset</mat-icon>
-              Reset Password
+              {{ 'editMember.resetPassword' | translate }}
             </h4>
 
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>New Password</mat-label>
+              <mat-label>{{ 'editMember.newPassword' | translate }}</mat-label>
               <input matInput
                      [(ngModel)]="resetPasswordForm.newPassword"
                      name="newPassword"
@@ -154,7 +158,7 @@ const RESET_PASSWORD_MUTATION = gql`
             </mat-form-field>
 
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Confirm New Password</mat-label>
+              <mat-label>{{ 'editMember.confirmPassword' | translate }}</mat-label>
               <input matInput
                      [(ngModel)]="resetPasswordForm.confirmPassword"
                      name="confirmNewPassword"
@@ -172,7 +176,7 @@ const RESET_PASSWORD_MUTATION = gql`
                     style="margin-top: 8px;">
               <mat-spinner *ngIf="resettingPassword" diameter="18"></mat-spinner>
               <mat-icon *ngIf="!resettingPassword">lock_reset</mat-icon>
-              <span *ngIf="!resettingPassword">Reset Password</span>
+              <span *ngIf="!resettingPassword">{{ 'editMember.resetButton' | translate }}</span>
             </button>
           </ng-container>
         </div>
@@ -180,14 +184,15 @@ const RESET_PASSWORD_MUTATION = gql`
 
       <div class="panel-actions">
         <span class="spacer"></span>
-        <button mat-button (click)="panelRef.close()" [disabled]="saving">
-          Cancel
+        <button mat-icon-button (click)="panelRef.close()" [disabled]="saving" [matTooltip]="'common.cancel' | translate">
+          <mat-icon>close</mat-icon>
         </button>
-        <button mat-raised-button color="primary"
+        <button mat-icon-button color="primary"
                 (click)="onSave()"
-                [disabled]="saving || !isFormValid">
+                [disabled]="saving || !isFormValid"
+                [matTooltip]="'common.save' | translate">
           <mat-spinner *ngIf="saving" diameter="18"></mat-spinner>
-          <span *ngIf="!saving">Save</span>
+          <mat-icon *ngIf="!saving">check</mat-icon>
         </button>
       </div>
     </div>
@@ -212,7 +217,7 @@ const RESET_PASSWORD_MUTATION = gql`
     }
   `]
 })
-export class WorkerEditDialogComponent {
+export class MemberEditDialogComponent {
   editForm: {
     firstName: string;
     lastName: string;
@@ -232,18 +237,19 @@ export class WorkerEditDialogComponent {
   saving = false;
 
   constructor(
-    public panelRef: SlideInPanelRef<WorkerEditDialogComponent, boolean>,
-    @Inject(SLIDE_IN_PANEL_DATA) public data: WorkerEditDialogData,
+    public panelRef: SlideInPanelRef<MemberEditDialogComponent, boolean>,
+    @Inject(SLIDE_IN_PANEL_DATA) public data: MemberEditDialogData,
     private authService: AuthService,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private translate: TranslateService
   ) {
     this.editForm = {
-      firstName: data.worker.firstName,
-      lastName: data.worker.lastName,
-      particles: data.worker.particles || '',
-      email: data.worker.email || '',
-      role: data.worker.role,
-      teamIds: data.worker.teams.map(t => t.id)
+      firstName: data.member.firstName,
+      lastName: data.member.lastName,
+      particles: data.member.particles || '',
+      email: data.member.email || '',
+      role: data.member.role,
+      teamIds: data.member.teams.map(t => t.id)
     };
   }
 
@@ -275,9 +281,9 @@ export class WorkerEditDialogComponent {
     try {
       // Update profile
       await apolloClient.mutate({
-        mutation: UPDATE_WORKER_MUTATION,
+        mutation: UPDATE_MEMBER_MUTATION,
         variables: {
-          id: this.data.worker.id,
+          id: this.data.member.id,
           firstName: this.editForm.firstName,
           lastName: this.editForm.lastName,
           particles: this.editForm.particles || null,
@@ -285,11 +291,11 @@ export class WorkerEditDialogComponent {
         }
       });
 
-      // Update role if changed (only for other workers)
-      if (this.canEditRole && this.editForm.role !== this.data.worker.role) {
+      // Update role if changed (only for other members)
+      if (this.canEditRole && this.editForm.role !== this.data.member.role) {
         await new Promise<void>((resolve, reject) => {
           this.authService.updateRole(
-            this.data.worker.id,
+            this.data.member.id,
             this.editForm.role as 'user' | 'manager'
           ).subscribe({ next: () => resolve(), error: (e) => reject(e) });
         });
@@ -297,14 +303,14 @@ export class WorkerEditDialogComponent {
 
       // Update team assignments (managers only)
       if (this.canEditTeams) {
-        const currentTeamIds = this.data.worker.teams.map(t => t.id);
+        const currentTeamIds = this.data.member.teams.map(t => t.id);
         const newTeamIds = this.editForm.teamIds;
 
         for (const teamId of currentTeamIds) {
           if (!newTeamIds.includes(teamId)) {
             await apolloClient.mutate({
-              mutation: REMOVE_WORKER_FROM_TEAM_MUTATION,
-              variables: { teamId, workerId: this.data.worker.id }
+              mutation: REMOVE_MEMBER_FROM_TEAM_MUTATION,
+              variables: { teamId, memberId: this.data.member.id }
             });
           }
         }
@@ -312,8 +318,8 @@ export class WorkerEditDialogComponent {
         for (const teamId of newTeamIds) {
           if (!currentTeamIds.includes(teamId)) {
             await apolloClient.mutate({
-              mutation: ADD_WORKER_TO_TEAM_MUTATION,
-              variables: { teamId, workerId: this.data.worker.id }
+              mutation: ADD_MEMBER_TO_TEAM_MUTATION,
+              variables: { teamId, memberId: this.data.member.id }
             });
           }
         }
@@ -329,11 +335,11 @@ export class WorkerEditDialogComponent {
         ).subscribe();
       }
 
-      this.snackBar.open('Worker updated', 'Close', { duration: 3000 });
+      this.snackBar.open(this.translate.instant('editMember.messages.updated'), this.translate.instant('common.close'), { duration: 3000 });
       this.panelRef.close(true);
     } catch (error: any) {
-      console.error('Failed to update worker:', error);
-      this.snackBar.open(error.message || 'Failed to update worker', 'Close', { duration: 5000 });
+      console.error('Failed to update member:', error);
+      this.snackBar.open(error.message || this.translate.instant('editMember.messages.updateFailed'), this.translate.instant('common.close'), { duration: 5000 });
     } finally {
       this.saving = false;
     }
@@ -347,20 +353,20 @@ export class WorkerEditDialogComponent {
       const result: any = await apolloClient.mutate({
         mutation: RESET_PASSWORD_MUTATION,
         variables: {
-          workerId: this.data.worker.id,
+          memberId: this.data.member.id,
           newPassword: this.resetPasswordForm.newPassword
         }
       });
 
       if (result.data.resetPassword.success) {
-        this.snackBar.open('Password reset successfully', 'Close', { duration: 3000 });
+        this.snackBar.open(this.translate.instant('editMember.messages.passwordReset'), this.translate.instant('common.close'), { duration: 3000 });
         this.resetPasswordForm = { newPassword: '', confirmPassword: '' };
       } else {
-        this.snackBar.open(result.data.resetPassword.message || 'Failed to reset password', 'Close', { duration: 5000 });
+        this.snackBar.open(result.data.resetPassword.message || this.translate.instant('editMember.messages.passwordResetFailed'), this.translate.instant('common.close'), { duration: 5000 });
       }
     } catch (error: any) {
       console.error('Failed to reset password:', error);
-      this.snackBar.open(error.message || 'Failed to reset password', 'Close', { duration: 5000 });
+      this.snackBar.open(error.message || this.translate.instant('editMember.messages.passwordResetFailed'), this.translate.instant('common.close'), { duration: 5000 });
     } finally {
       this.resettingPassword = false;
     }

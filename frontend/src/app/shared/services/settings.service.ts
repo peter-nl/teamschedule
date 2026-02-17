@@ -14,14 +14,14 @@ export interface ScheduleSettings {
   sortDirection?: 'asc' | 'desc';
 }
 
-export interface WorkersFilterSettings {
+export interface MembersFilterSettings {
   selectedTeamIds: string[];
 }
 
 interface AppSettings {
   teamsTable?: TableSettings;
-  workersTable?: TableSettings;
-  workersFilter?: WorkersFilterSettings;
+  membersTable?: TableSettings;
+  membersFilter?: MembersFilterSettings;
   schedule?: ScheduleSettings;
 }
 
@@ -33,12 +33,12 @@ const STORAGE_KEY = 'teamschedule-settings';
 export class SettingsService {
   private settings: AppSettings = {};
 
-  private workersTableSubject = new BehaviorSubject<TableSettings | undefined>(undefined);
-  public workersTable$ = this.workersTableSubject.asObservable();
+  private membersTableSubject = new BehaviorSubject<TableSettings | undefined>(undefined);
+  public membersTable$ = this.membersTableSubject.asObservable();
 
   constructor() {
     this.loadSettings();
-    this.workersTableSubject.next(this.settings.workersTable);
+    this.membersTableSubject.next(this.settings.membersTable);
   }
 
   private loadSettings(): void {
@@ -70,22 +70,22 @@ export class SettingsService {
     this.saveSettings();
   }
 
-  getWorkersTableSettings(): TableSettings | undefined {
-    return this.settings.workersTable;
+  getMembersTableSettings(): TableSettings | undefined {
+    return this.settings.membersTable;
   }
 
-  setWorkersTableSettings(settings: TableSettings): void {
-    this.settings.workersTable = settings;
+  setMembersTableSettings(settings: TableSettings): void {
+    this.settings.membersTable = settings;
     this.saveSettings();
-    this.workersTableSubject.next(settings);
+    this.membersTableSubject.next(settings);
   }
 
-  getWorkersFilterSettings(): WorkersFilterSettings | undefined {
-    return this.settings.workersFilter;
+  getMembersFilterSettings(): MembersFilterSettings | undefined {
+    return this.settings.membersFilter;
   }
 
-  setWorkersFilterSettings(settings: WorkersFilterSettings): void {
-    this.settings.workersFilter = settings;
+  setMembersFilterSettings(settings: MembersFilterSettings): void {
+    this.settings.membersFilter = settings;
     this.saveSettings();
   }
 

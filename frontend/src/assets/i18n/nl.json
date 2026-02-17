@@ -1,0 +1,397 @@
+{
+  "common": {
+    "close": "Sluiten",
+    "cancel": "Annuleren",
+    "confirm": "Bevestigen",
+    "save": "Opslaan",
+    "delete": "Verwijderen",
+    "add": "Toevoegen",
+    "edit": "Bewerken",
+    "reset": "Herstellen",
+    "reload": "Herladen",
+    "retry": "Opnieuw",
+    "apply": "Toepassen",
+    "loading": "Laden...",
+    "error": "Fout",
+    "morning": "Ochtend",
+    "afternoon": "Middag",
+    "fullDay": "Hele dag",
+    "manager": "Beheerder",
+    "user": "Gebruiker",
+    "light": "Licht",
+    "dark": "Donker"
+  },
+  "days": {
+    "sunday": "Zondag",
+    "monday": "Maandag",
+    "tuesday": "Dinsdag",
+    "wednesday": "Woensdag",
+    "thursday": "Donderdag",
+    "friday": "Vrijdag",
+    "saturday": "Zaterdag"
+  },
+  "shell": {
+    "appTitle": "TeamRooster",
+    "nav": {
+      "schedule": "Rooster",
+      "menu": "Menu"
+    },
+    "account": {
+      "lightTheme": "Licht thema",
+      "darkTheme": "Donker thema",
+      "memberMode": "Lid modus",
+      "managerMode": "Beheerder modus",
+      "signIn": "Inloggen",
+      "account": "Account",
+      "changePassword": "Wachtwoord wijzigen",
+      "signOut": "Uitloggen",
+      "login": "Inloggen"
+    },
+    "management": {
+      "label": "Beheer",
+      "teams": "Teams",
+      "members": "Leden",
+      "importExport": "Import / Export",
+      "settings": "Instellingen"
+    },
+    "messages": {
+      "signedOut": "U bent uitgelogd"
+    }
+  },
+  "login": {
+    "title": "Inloggen",
+    "subtitle": "Log in met uw Lid ID",
+    "memberId": "Lid ID",
+    "memberIdPlaceholder": "Voer uw Lid ID in",
+    "password": "Wachtwoord",
+    "passwordPlaceholder": "Voer uw wachtwoord in",
+    "signIn": "Inloggen",
+    "forgotPassword": "Wachtwoord vergeten?",
+    "emailAddress": "Uw e-mailadres",
+    "sendResetLink": "Herstelkoppeling versturen",
+    "messages": {
+      "fieldsRequired": "Voer zowel Lid ID als wachtwoord in",
+      "welcome": "Welkom terug!",
+      "loginFailed": "Inloggen mislukt",
+      "error": "Er is een fout opgetreden. Probeer het opnieuw."
+    }
+  },
+  "resetPassword": {
+    "title": "Wachtwoord herstellen",
+    "subtitle": "Voer uw nieuwe wachtwoord in",
+    "newPassword": "Nieuw wachtwoord",
+    "confirmPassword": "Bevestig wachtwoord",
+    "resetButton": "Wachtwoord herstellen",
+    "success": "Uw wachtwoord is succesvol hersteld. U bent nu ingelogd.",
+    "messages": {
+      "noToken": "Geen hersteltoken opgegeven. Gebruik de link uit uw e-mail.",
+      "mismatch": "Wachtwoorden komen niet overeen",
+      "tooShort": "Wachtwoord moet minimaal 4 tekens bevatten",
+      "invalidLink": "Ongeldige of verlopen herstelkoppeling",
+      "error": "Er is een fout opgetreden. Probeer het opnieuw."
+    }
+  },
+  "profile": {
+    "title": "Mijn Account",
+    "subtitle": "Lid ID: {{ id }}",
+    "firstName": "Voornaam",
+    "particles": "Tussenvoegsels",
+    "particlesPlaceholder": "bijv. van, de, von",
+    "lastName": "Achternaam",
+    "email": "E-mail",
+    "emailPlaceholder": "bijv. jan@voorbeeld.nl",
+    "saveChanges": "Wijzigingen opslaan",
+    "role": "Rol",
+    "holidays": {
+      "title": "Mijn persoonlijke vrije dagen",
+      "addHoliday": "Vrije dag toevoegen",
+      "loading": "Vrije dagen laden...",
+      "empty": "Geen persoonlijke vrije dagen ingesteld.",
+      "first": "eerste",
+      "last": "laatste"
+    },
+    "messages": {
+      "nameRequired": "Voornaam en achternaam zijn verplicht",
+      "updated": "Profiel succesvol bijgewerkt",
+      "updateFailed": "Profiel bijwerken mislukt",
+      "holidayRemoved": "Vrije dag verwijderd",
+      "holidayRemoveFailed": "Verwijderen van vrije dag mislukt"
+    }
+  },
+  "password": {
+    "title": "Wachtwoord wijzigen",
+    "currentPassword": "Huidig wachtwoord",
+    "newPassword": "Nieuw wachtwoord",
+    "confirmPassword": "Bevestig nieuw wachtwoord",
+    "changeButton": "Wachtwoord wijzigen",
+    "messages": {
+      "fieldsRequired": "Vul alle wachtwoordvelden in",
+      "mismatch": "Nieuwe wachtwoorden komen niet overeen",
+      "changed": "Wachtwoord succesvol gewijzigd",
+      "changeFailed": "Wachtwoord wijzigen mislukt"
+    }
+  },
+  "schedule": {
+    "searchMembers": "Leden zoeken",
+    "filterByTeams": "Filteren op teams",
+    "loading": "Rooster laden...",
+    "zoomIn": "Inzoomen",
+    "zoomOut": "Uitzoomen",
+    "goToMyRow": "Ga naar mijn rij",
+    "goToToday": "Ga naar vandaag",
+    "columns": {
+      "first": "Voornaam",
+      "particles": "Tv.",
+      "last": "Achternaam"
+    },
+    "messages": {
+      "loadFailed": "Rooster laden mislukt"
+    },
+    "dayParts": {
+      "morning": "(ochtend)",
+      "afternoon": "(middag)"
+    }
+  },
+  "scheduleFilter": {
+    "title": "Filteren op teams",
+    "noTeam": "[geen team]",
+    "clearAll": "Alle filters wissen",
+    "andMode": "EN-modus: leden moeten in ALLE geselecteerde teams zitten. Klik om naar OF te schakelen.",
+    "orMode": "OF-modus: leden kunnen in EEN van de geselecteerde teams zitten. Klik om naar EN te schakelen."
+  },
+  "scheduleSearch": {
+    "title": "Leden zoeken",
+    "label": "Zoeken op naam",
+    "placeholder": "Typ om te zoeken...",
+    "clearSearch": "Zoekopdracht wissen",
+    "hint": "Zoekt in voornaam, achternaam en tussenvoegsels kolommen."
+  },
+  "settings": {
+    "title": "Applicatie-instellingen",
+    "subtitle": "Applicatie-brede instellingen configureren",
+    "dateRange": {
+      "title": "Roosterperiode",
+      "description": "Definieer de begin- en einddatum van het rooster. Vrije dagen van leden buiten dit bereik worden permanent verwijderd.",
+      "startDate": "Startdatum",
+      "endDate": "Einddatum",
+      "saveButton": "Periode opslaan",
+      "confirmDelete": "Het wijzigen van de roosterperiode verwijdert permanent alle vrije dagen van leden die buiten het nieuwe bereik vallen.\n\nWeet u zeker dat u wilt doorgaan?"
+    },
+    "holidays": {
+      "title": "Feestdagen (Nederland)",
+      "description": "Feestdagen opgehaald via de Nager.Date API. Deze worden gemarkeerd in het rooster.",
+      "loading": "Feestdagen laden...",
+      "empty": "Geen feestdagen geladen."
+    },
+    "workingDays": {
+      "title": "Werkdagen",
+      "description": "Selecteer welke dagen werkdagen zijn. Niet-werkdagen worden gemarkeerd in het rooster.",
+      "weekStartsOn": "Week begint op"
+    },
+    "colors": {
+      "title": "Roosterkleuren",
+      "description": "Pas het uiterlijk van speciale dagen in het rooster aan.",
+      "nonWorkingDays": "Niet-werkdagen",
+      "publicHolidays": "Feestdagen"
+    },
+    "holidayTypes": {
+      "title": "Vrije dag-typen",
+      "description": "Definieer vrije dag-typen met aparte kleuren voor licht en donker thema. Deze worden gebruikt wanneer leden persoonlijke vrije dagen registreren.",
+      "newTypeName": "Nieuw type naam",
+      "newTypePlaceholder": "bijv. Ziekte"
+    },
+    "email": {
+      "title": "E-mailservice",
+      "description": "Configureer SMTP e-mailinstellingen voor wachtwoord-herstel e-mails en meldingen.",
+      "smtpHost": "SMTP-host",
+      "smtpHostPlaceholder": "smtp.forwardemail.net",
+      "port": "Poort",
+      "encryption": "Versleuteling",
+      "starttls": "STARTTLS (poort 587)",
+      "ssl": "SSL/TLS (poort 465)",
+      "none": "Geen (poort 25)",
+      "starttlsHint": "Start onversleuteld, upgradet naar TLS. Meest gebruikelijk voor poort 587.",
+      "sslHint": "Directe versleutelde verbinding. Gebruikt met poort 465.",
+      "noneHint": "Geen versleuteling. Niet aanbevolen voor productiegebruik.",
+      "username": "Gebruikersnaam",
+      "password": "Wachtwoord",
+      "passwordPlaceholder": "Invoeren om in te stellen/wijzigen",
+      "fromAddress": "Afzenderadres",
+      "fromPlaceholder": "noreply@voorbeeld.nl",
+      "saveConfig": "Configuratie opslaan",
+      "sendTest": "Test e-mail versturen",
+      "testPrompt": "Voer e-mailadres in om test naar te sturen:"
+    }
+  },
+  "teams": {
+    "addTeam": "Team toevoegen",
+    "searchTeams": "Teams zoeken",
+    "name": "Naam",
+    "members": "Leden",
+    "assignMembers": "Leden toewijzen",
+    "noTeamsFound": "Geen teams gevonden",
+    "messages": {
+      "loadFailed": "Teams laden mislukt",
+      "updated": "Team bijgewerkt",
+      "updateFailed": "Team bijwerken mislukt"
+    }
+  },
+  "members": {
+    "addMember": "Lid toevoegen",
+    "searchMembers": "Leden zoeken",
+    "filterByTeams": "Filteren op teams",
+    "firstName": "Voornaam",
+    "particles": "Tussenvoegsels",
+    "lastName": "Achternaam",
+    "id": "ID",
+    "email": "E-mail",
+    "role": "Rol",
+    "teamsColumn": "Teams",
+    "noMembersFound": "Geen leden gevonden",
+    "messages": {
+      "loadFailed": "Leden laden mislukt"
+    }
+  },
+  "importExport": {
+    "title": "Import / Export",
+    "subtitle": "Vrije dag-gegevens van leden importeren en exporteren",
+    "export": {
+      "title": "Vrije dagen exporteren",
+      "description": "Download alle vrije dag-periodes van leden als een JSON-bestand. Dit bevat Lid ID's, namen, datums, dagdelen, beschrijvingen en vrije dag-typen.",
+      "button": "Exporteren naar JSON",
+      "success": "{{ count }} vrije dag-periode(s) geëxporteerd.",
+      "failed": "Export mislukt: {{ error }}"
+    },
+    "import": {
+      "title": "Vrije dagen importeren",
+      "description": "Importeer vrije dag-periodes van leden uit een JSON-bestand. Het bestand moet overeenkomen met het exportformaat. Vrije dagen worden toegevoegd aan bestaande gegevens (niet vervangen). Leden moeten al in het systeem bestaan.",
+      "selectFile": "JSON-bestand selecteren",
+      "importButton": "{{ count }} vrije dag-periode(s) importeren",
+      "invalidArray": "Ongeldig bestand: een JSON-array verwacht.",
+      "invalidJson": "Ongeldig JSON-bestand.",
+      "failed": "Import mislukt: {{ error }}"
+    }
+  },
+  "holidayDialog": {
+    "addTitle": "Vrije dag toevoegen",
+    "editTitle": "Vrije dag bewerken",
+    "startDate": "Startdatum",
+    "endDate": "Einddatum",
+    "dayPart": "Dagdeel",
+    "afternoonOnly": "Alleen middag",
+    "morningOnly": "Alleen ochtend",
+    "firstDay": "Eerste dag",
+    "lastDay": "Laatste dag",
+    "type": "Type",
+    "description": "Beschrijving (optioneel)",
+    "descriptionPlaceholder": "bijv. Vakantie, Vrije dag",
+    "editWarning": "U bewerkt de gegevens van lid <strong>{{ name }}</strong>",
+    "messages": {
+      "added": "Vrije dag toegevoegd",
+      "addFailed": "Vrije dag toevoegen mislukt",
+      "updated": "Vrije dag bijgewerkt",
+      "updateFailed": "Vrije dag bijwerken mislukt",
+      "removed": "Vrije dag verwijderd",
+      "removeFailed": "Vrije dag verwijderen mislukt"
+    }
+  },
+  "addTeam": {
+    "title": "Nieuw team toevoegen",
+    "teamName": "Teamnaam",
+    "teamNamePlaceholder": "bijv. Ontwikkelteam",
+    "assignMembers": "Leden toewijzen",
+    "assignMembersHint": "Optioneel - selecteer een of meer leden",
+    "addButton": "Team toevoegen",
+    "messages": {
+      "success": "Team succesvol toegevoegd",
+      "failed": "Team toevoegen mislukt"
+    }
+  },
+  "addMember": {
+    "title": "Nieuw lid toevoegen",
+    "memberId": "Lid ID",
+    "memberIdPlaceholder": "bijv. jjanssen001",
+    "memberIdHint": "Unieke identificatie voor het lid",
+    "firstName": "Voornaam",
+    "particles": "Tussenvoegsels",
+    "particlesPlaceholder": "bijv. van, de, von",
+    "particlesHint": "Optioneel naamvoorvoegsel",
+    "lastName": "Achternaam",
+    "email": "E-mail",
+    "emailPlaceholder": "bijv. jan@voorbeeld.nl",
+    "assignTeams": "Toewijzen aan teams",
+    "assignTeamsHint": "Optioneel - selecteer een of meer teams",
+    "password": "Wachtwoord",
+    "passwordHint": "Initieel wachtwoord voor het lid",
+    "confirmPassword": "Bevestig wachtwoord",
+    "addButton": "Lid toevoegen",
+    "messages": {
+      "success": "Lid succesvol toegevoegd",
+      "failed": "Lid toevoegen mislukt"
+    }
+  },
+  "editMember": {
+    "title": "Lid bewerken",
+    "memberId": "Lid ID",
+    "firstName": "Voornaam",
+    "particles": "Tussenvoegsels",
+    "particlesPlaceholder": "bijv. van, de",
+    "lastName": "Achternaam",
+    "email": "E-mail",
+    "emailPlaceholder": "bijv. jan@voorbeeld.nl",
+    "role": "Rol",
+    "teamsLabel": "Teams",
+    "resetPassword": "Wachtwoord herstellen",
+    "newPassword": "Nieuw wachtwoord",
+    "confirmPassword": "Bevestig nieuw wachtwoord",
+    "resetButton": "Wachtwoord herstellen",
+    "messages": {
+      "updated": "Lid bijgewerkt",
+      "updateFailed": "Lid bijwerken mislukt",
+      "passwordReset": "Wachtwoord succesvol hersteld",
+      "passwordResetFailed": "Wachtwoord herstellen mislukt"
+    }
+  },
+  "editTeam": {
+    "title": "Team bewerken",
+    "teamId": "Team-ID",
+    "teamName": "Teamnaam",
+    "members": "Leden",
+    "messages": {
+      "updated": "Team bijgewerkt",
+      "updateFailed": "Team bijwerken mislukt"
+    }
+  },
+  "memberDetail": {
+    "title": "Lidgegevens",
+    "memberId": "Lid ID",
+    "name": "Naam",
+    "email": "E-mail",
+    "notSet": "Niet ingesteld",
+    "role": "Rol",
+    "teams": "Teams",
+    "noTeams": "Geen teams toegewezen",
+    "deleteTitle": "Lid verwijderen",
+    "deleteMessage": "Weet u zeker dat u \"{{ name }}\" wilt verwijderen?",
+    "messages": {
+      "loadFailed": "Lidgegevens laden mislukt",
+      "deleted": "Lid verwijderd",
+      "deleteFailed": "Lid verwijderen mislukt"
+    }
+  },
+  "teamsList": {
+    "title": "Teams",
+    "searchLabel": "Teams zoeken",
+    "searchPlaceholder": "Zoeken op naam",
+    "loading": "Teams laden...",
+    "id": "ID",
+    "name": "Naam",
+    "memberCount": "Aantal leden",
+    "actions": "Acties",
+    "viewTeam": "Team bekijken",
+    "editTeam": "Team bewerken",
+    "noTeamsMatch": "Geen teams gevonden die overeenkomen met \"{{ search }}\"",
+    "noTeams": "Geen teams beschikbaar. Maak uw eerste team aan!",
+    "loadFailed": "Teams laden mislukt"
+  }
+}

@@ -1,11 +1,11 @@
 export interface Team {
   id: string;
   name: string;
-  workers?: Worker[];
-  workerCount?: number;
+  members?: Member[];
+  memberCount?: number;
 }
 
-export interface Worker {
+export interface Member {
   id: string;
   firstName: string;
   lastName: string;

@@ -12,6 +12,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
 import { SlideInPanelService } from '../../shared/services/slide-in-panel.service';
@@ -20,7 +21,7 @@ import { TeamEditDialogComponent, TeamEditDialogData } from '../../shared/compon
 import { ScheduleSearchPanelComponent, ScheduleSearchPanelData, ScheduleSearchPanelResult } from '../schedule/schedule-filter/schedule-search-panel.component';
 import { AddTeamDialogComponent } from '../../shell/add-team-dialog.component';
 
-interface Worker {
+interface Member {
   id: string;
   firstName: string;
   lastName: string;
@@ -31,7 +32,7 @@ interface Worker {
 interface Team {
   id: string;
   name: string;
-  workers: Worker[];
+  members: Member[];
 }
 
 const GET_TEAMS_QUERY = gql`
@@ -39,7 +40,7 @@ const GET_TEAMS_QUERY = gql`
     teams {
       id
       name
-      workers {
+      members {
         id
         firstName
         lastName
@@ -50,9 +51,9 @@ const GET_TEAMS_QUERY = gql`
   }
 `;
 
-const GET_WORKERS_QUERY = gql`
-  query GetWorkers {
-    workers {
+const GET_MEMBERS_QUERY = gql`
+  query GetMembers {
+    members {
       id
       firstName
       lastName
@@ -62,17 +63,17 @@ const GET_WORKERS_QUERY = gql`
   }
 `;
 
-const ADD_WORKER_TO_TEAM_MUTATION = gql`
-  mutation AddWorkerToTeam($teamId: ID!, $workerId: ID!) {
-    addWorkerToTeam(teamId: $teamId, workerId: $workerId) {
+const ADD_MEMBER_TO_TEAM_MUTATION = gql`
+  mutation AddMemberToTeam($teamId: ID!, $memberId: ID!) {
+    addMemberToTeam(teamId: $teamId, memberId: $memberId) {
       id
     }
   }
 `;
 
-const REMOVE_WORKER_FROM_TEAM_MUTATION = gql`
-  mutation RemoveWorkerFromTeam($teamId: ID!, $workerId: ID!) {
-    removeWorkerFromTeam(teamId: $teamId, workerId: $workerId) {
+const REMOVE_MEMBER_FROM_TEAM_MUTATION = gql`
+  mutation RemoveMemberFromTeam($teamId: ID!, $memberId: ID!) {
+    removeMemberFromTeam(teamId: $teamId, memberId: $memberId) {
       id
     }
   }
@@ -94,19 +95,20 @@ const REMOVE_WORKER_FROM_TEAM_MUTATION = gql`
     MatFormFieldModule,
     MatSelectModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule
+    MatSnackBarModule,
+    TranslateModule
   ],
   template: `
     <div class="manage-container">
       <div class="header">
         <button mat-icon-button
                 (click)="openAddTeam()"
-                matTooltip="Add team">
+                [matTooltip]="'teams.addTeam' | translate">
           <mat-icon>group_add</mat-icon>
         </button>
         <button mat-icon-button
                 (click)="openSearchPanel()"
-                matTooltip="Search teams"
+                [matTooltip]="'teams.searchTeams' | translate"
                 [class.filter-active]="searchText.length > 0"
                 [matBadge]="searchText ? '!' : ''"
                 [matBadgeHidden]="!searchText"
@@ -127,38 +129,38 @@ const REMOVE_WORKER_FROM_TEAM_MUTATION = gql`
             <th mat-header-cell *matHeaderCellDef>
               <div class="header-cell" cdkDropList cdkDropListOrientation="horizontal"
                    (cdkDropListDropped)="dropColumn($event)" [cdkDropListData]="'name'">
-                <span mat-sort-header>Name</span>
+                <span mat-sort-header>{{ 'teams.name' | translate }}</span>
                 <mat-icon class="drag-handle" cdkDrag [cdkDragData]="'name'">drag_indicator</mat-icon>
               </div>
             </th>
             <td mat-cell *matCellDef="let team" (dblclick)="openEdit(team)" class="name-cell">{{ team.name }}</td>
           </ng-container>
 
-          <ng-container matColumnDef="workerCount">
+          <ng-container matColumnDef="memberCount">
             <th mat-header-cell *matHeaderCellDef>
               <div class="header-cell" cdkDropList cdkDropListOrientation="horizontal"
-                   (cdkDropListDropped)="dropColumn($event)" [cdkDropListData]="'workerCount'">
-                <span mat-sort-header>Workers</span>
-                <mat-icon class="drag-handle" cdkDrag [cdkDragData]="'workerCount'">drag_indicator</mat-icon>
+                   (cdkDropListDropped)="dropColumn($event)" [cdkDropListData]="'memberCount'">
+                <span mat-sort-header>{{ 'teams.members' | translate }}</span>
+                <mat-icon class="drag-handle" cdkDrag [cdkDragData]="'memberCount'">drag_indicator</mat-icon>
               </div>
             </th>
-            <td mat-cell *matCellDef="let team">{{ team.workers.length }}</td>
+            <td mat-cell *matCellDef="let team">{{ team.members.length }}</td>
           </ng-container>
 
-          <ng-container matColumnDef="workerAssignment">
+          <ng-container matColumnDef="memberAssignment">
             <th mat-header-cell *matHeaderCellDef>
               <div class="header-cell" cdkDropList cdkDropListOrientation="horizontal"
-                   (cdkDropListDropped)="dropColumn($event)" [cdkDropListData]="'workerAssignment'">
-                <span>Assign Workers</span>
-                <mat-icon class="drag-handle" cdkDrag [cdkDragData]="'workerAssignment'">drag_indicator</mat-icon>
+                   (cdkDropListDropped)="dropColumn($event)" [cdkDropListData]="'memberAssignment'">
+                <span>{{ 'teams.assignMembers' | translate }}</span>
+                <mat-icon class="drag-handle" cdkDrag [cdkDragData]="'memberAssignment'">drag_indicator</mat-icon>
               </div>
             </th>
             <td mat-cell *matCellDef="let team" (click)="$event.stopPropagation()">
-              <mat-form-field appearance="outline" class="workers-select">
-                <mat-select [value]="getWorkerIds(team)" multiple
-                            (selectionChange)="onWorkerAssignmentChange(team, $event.value)">
-                  <mat-option *ngFor="let worker of allWorkers" [value]="worker.id">
-                    {{ displayName(worker) }}
+              <mat-form-field appearance="outline" class="members-select">
+                <mat-select [value]="getMemberIds(team)" multiple
+                            (selectionChange)="onMemberAssignmentChange(team, $event.value)">
+                  <mat-option *ngFor="let member of allMembers" [value]="member.id">
+                    {{ displayName(member) }}
                   </mat-option>
                 </mat-select>
               </mat-form-field>
@@ -171,7 +173,7 @@ const REMOVE_WORKER_FROM_TEAM_MUTATION = gql`
 
         <div *ngIf="filteredTeams.length === 0" class="empty-list">
           <mat-icon>group_off</mat-icon>
-          <p>No teams found</p>
+          <p>{{ 'teams.noTeamsFound' | translate }}</p>
         </div>
       </div>
     </div>
@@ -264,17 +266,17 @@ const REMOVE_WORKER_FROM_TEAM_MUTATION = gql`
       color: var(--mat-sys-primary);
     }
 
-    .workers-select {
+    .members-select {
       width: 100%;
       min-width: 200px;
       --mdc-outlined-text-field-container-shape: 8px;
     }
 
-    :host ::ng-deep .workers-select .mat-mdc-form-field-subscript-wrapper {
+    :host ::ng-deep .members-select .mat-mdc-form-field-subscript-wrapper {
       display: none;
     }
 
-    :host ::ng-deep .workers-select .mat-mdc-text-field-wrapper {
+    :host ::ng-deep .members-select .mat-mdc-text-field-wrapper {
       padding-top: 0;
       padding-bottom: 0;
     }
@@ -298,9 +300,9 @@ const REMOVE_WORKER_FROM_TEAM_MUTATION = gql`
 export class ManageTeamsComponent implements OnInit {
   teams: Team[] = [];
   filteredTeams: Team[] = [];
-  allWorkers: Worker[] = [];
+  allMembers: Member[] = [];
   loading = true;
-  displayedColumns = ['name', 'workerCount', 'workerAssignment'];
+  displayedColumns = ['name', 'memberCount', 'memberAssignment'];
   searchText = '';
 
   private currentSort: Sort = { active: '', direction: '' };
@@ -309,37 +311,38 @@ export class ManageTeamsComponent implements OnInit {
   constructor(
     private snackBar: MatSnackBar,
     private panelService: SlideInPanelService,
-    private userPreferencesService: UserPreferencesService
+    private userPreferencesService: UserPreferencesService,
+    private translate: TranslateService
   ) {}
 
   ngOnInit(): void {
     this.loadData();
   }
 
-  displayName(worker: Worker): string {
-    const parts = [worker.firstName];
-    if (worker.particles) parts.push(worker.particles);
-    parts.push(worker.lastName);
+  displayName(member: Member): string {
+    const parts = [member.firstName];
+    if (member.particles) parts.push(member.particles);
+    parts.push(member.lastName);
     return parts.join(' ');
   }
 
-  getWorkerIds(team: Team): string[] {
-    return team.workers.map(w => w.id);
+  getMemberIds(team: Team): string[] {
+    return team.members.map(m => m.id);
   }
 
   async loadData(): Promise<void> {
     this.loading = true;
     try {
-      const [teamsResult, workersResult]: any[] = await Promise.all([
+      const [teamsResult, membersResult]: any[] = await Promise.all([
         apolloClient.query({ query: GET_TEAMS_QUERY, fetchPolicy: 'network-only' }),
-        apolloClient.query({ query: GET_WORKERS_QUERY, fetchPolicy: 'network-only' })
+        apolloClient.query({ query: GET_MEMBERS_QUERY, fetchPolicy: 'network-only' })
       ]);
       this.teams = teamsResult.data.teams;
-      this.allWorkers = workersResult.data.workers;
+      this.allMembers = membersResult.data.members;
       this.filterTeams();
     } catch (error) {
       console.error('Failed to load data:', error);
-      this.snackBar.open('Failed to load teams', 'Close', { duration: 3000 });
+      this.snackBar.open(this.translate.instant('teams.messages.loadFailed'), this.translate.instant('common.close'), { duration: 3000 });
     } finally {
       this.loading = false;
     }
@@ -373,8 +376,8 @@ export class ManageTeamsComponent implements OnInit {
       switch (active) {
         case 'name':
           return a.name.localeCompare(b.name) * dir;
-        case 'workerCount':
-          return (a.workers.length - b.workers.length) * dir;
+        case 'memberCount':
+          return (a.members.length - b.members.length) * dir;
         default:
           return 0;
       }
@@ -429,9 +432,9 @@ export class ManageTeamsComponent implements OnInit {
           team: {
             id: team.id,
             name: team.name,
-            workerIds: team.workers.map(w => w.id)
+            memberIds: team.members.map(m => m.id)
           },
-          allWorkers: this.allWorkers
+          allMembers: this.allMembers
         }
       }
     );
@@ -443,36 +446,36 @@ export class ManageTeamsComponent implements OnInit {
     });
   }
 
-  async onWorkerAssignmentChange(team: Team, newWorkerIds: string[]): Promise<void> {
+  async onMemberAssignmentChange(team: Team, newMemberIds: string[]): Promise<void> {
     if (this.saving) return;
     this.saving = true;
 
-    const currentWorkerIds = team.workers.map(w => w.id);
+    const currentMemberIds = team.members.map(m => m.id);
 
     try {
-      for (const workerId of currentWorkerIds) {
-        if (!newWorkerIds.includes(workerId)) {
+      for (const memberId of currentMemberIds) {
+        if (!newMemberIds.includes(memberId)) {
           await apolloClient.mutate({
-            mutation: REMOVE_WORKER_FROM_TEAM_MUTATION,
-            variables: { teamId: team.id, workerId }
+            mutation: REMOVE_MEMBER_FROM_TEAM_MUTATION,
+            variables: { teamId: team.id, memberId }
           });
         }
       }
 
-      for (const workerId of newWorkerIds) {
-        if (!currentWorkerIds.includes(workerId)) {
+      for (const memberId of newMemberIds) {
+        if (!currentMemberIds.includes(memberId)) {
           await apolloClient.mutate({
-            mutation: ADD_WORKER_TO_TEAM_MUTATION,
-            variables: { teamId: team.id, workerId }
+            mutation: ADD_MEMBER_TO_TEAM_MUTATION,
+            variables: { teamId: team.id, memberId }
           });
         }
       }
 
-      this.snackBar.open('Team updated', 'Close', { duration: 3000 });
+      this.snackBar.open(this.translate.instant('teams.messages.updated'), this.translate.instant('common.close'), { duration: 3000 });
       await this.loadData();
     } catch (error: any) {
       console.error('Failed to update team:', error);
-      this.snackBar.open(error.message || 'Failed to update team', 'Close', { duration: 5000 });
+      this.snackBar.open(error.message || this.translate.instant('teams.messages.updateFailed'), this.translate.instant('common.close'), { duration: 5000 });
     } finally {
       this.saving = false;
     }

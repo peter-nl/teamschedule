@@ -8,6 +8,8 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
 import { SlideInPanelRef, SLIDE_IN_PANEL_DATA } from '../services/slide-in-panel.service';
@@ -16,9 +18,9 @@ export interface TeamEditDialogData {
   team: {
     id: string;
     name: string;
-    workerIds: string[];
+    memberIds: string[];
   };
-  allWorkers: { id: string; firstName: string; lastName: string; particles: string | null }[];
+  allMembers: { id: string; firstName: string; lastName: string; particles: string | null }[];
 }
 
 const UPDATE_TEAM_MUTATION = gql`
@@ -29,15 +31,15 @@ const UPDATE_TEAM_MUTATION = gql`
   }
 `;
 
-const ADD_WORKER_TO_TEAM_MUTATION = gql`
-  mutation AddWorkerToTeam($teamId: ID!, $workerId: ID!) {
-    addWorkerToTeam(teamId: $teamId, workerId: $workerId) { id }
+const ADD_MEMBER_TO_TEAM_MUTATION = gql`
+  mutation AddMemberToTeam($teamId: ID!, $memberId: ID!) {
+    addMemberToTeam(teamId: $teamId, memberId: $memberId) { id }
   }
 `;
 
-const REMOVE_WORKER_FROM_TEAM_MUTATION = gql`
-  mutation RemoveWorkerFromTeam($teamId: ID!, $workerId: ID!) {
-    removeWorkerFromTeam(teamId: $teamId, workerId: $workerId) { id }
+const REMOVE_MEMBER_FROM_TEAM_MUTATION = gql`
+  mutation RemoveMemberFromTeam($teamId: ID!, $memberId: ID!) {
+    removeMemberFromTeam(teamId: $teamId, memberId: $memberId) { id }
   }
 `;
 
@@ -53,14 +55,16 @@ const REMOVE_WORKER_FROM_TEAM_MUTATION = gql`
     MatInputModule,
     MatSelectModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule
+    MatSnackBarModule,
+    MatTooltipModule,
+    TranslateModule
   ],
   template: `
     <div class="slide-in-panel">
       <div class="panel-header">
         <h2>
           <mat-icon>edit</mat-icon>
-          Edit Team
+          {{ 'editTeam.title' | translate }}
         </h2>
         <button class="panel-close" (click)="panelRef.close()" [disabled]="saving">
           <mat-icon>close</mat-icon>
@@ -70,20 +74,20 @@ const REMOVE_WORKER_FROM_TEAM_MUTATION = gql`
       <div class="panel-content">
         <div class="form-content">
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Team ID</mat-label>
+            <mat-label>{{ 'editTeam.teamId' | translate }}</mat-label>
             <input matInput [value]="data.team.id" disabled>
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Team Name</mat-label>
+            <mat-label>{{ 'editTeam.teamName' | translate }}</mat-label>
             <input matInput [(ngModel)]="editForm.name" name="name">
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Workers</mat-label>
-            <mat-select [(ngModel)]="editForm.workerIds" name="workers" multiple>
-              <mat-option *ngFor="let worker of data.allWorkers" [value]="worker.id">
-                {{ displayName(worker) }}
+            <mat-label>{{ 'editTeam.members' | translate }}</mat-label>
+            <mat-select [(ngModel)]="editForm.memberIds" name="members" multiple>
+              <mat-option *ngFor="let member of data.allMembers" [value]="member.id">
+                {{ displayName(member) }}
               </mat-option>
             </mat-select>
           </mat-form-field>
@@ -92,14 +96,15 @@ const REMOVE_WORKER_FROM_TEAM_MUTATION = gql`
 
       <div class="panel-actions">
         <span class="spacer"></span>
-        <button mat-button (click)="panelRef.close()" [disabled]="saving">
-          Cancel
+        <button mat-icon-button (click)="panelRef.close()" [disabled]="saving" [matTooltip]="'common.cancel' | translate">
+          <mat-icon>close</mat-icon>
         </button>
-        <button mat-raised-button color="primary"
+        <button mat-icon-button color="primary"
                 (click)="onSave()"
-                [disabled]="saving || !isFormValid">
+                [disabled]="saving || !isFormValid"
+                [matTooltip]="'common.save' | translate">
           <mat-spinner *ngIf="saving" diameter="18"></mat-spinner>
-          <span *ngIf="!saving">Save</span>
+          <mat-icon *ngIf="!saving">check</mat-icon>
         </button>
       </div>
     </div>
@@ -127,7 +132,7 @@ const REMOVE_WORKER_FROM_TEAM_MUTATION = gql`
 export class TeamEditDialogComponent {
   editForm: {
     name: string;
-    workerIds: string[];
+    memberIds: string[];
   };
 
   saving = false;
@@ -135,18 +140,19 @@ export class TeamEditDialogComponent {
   constructor(
     public panelRef: SlideInPanelRef<TeamEditDialogComponent, boolean>,
     @Inject(SLIDE_IN_PANEL_DATA) public data: TeamEditDialogData,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private translate: TranslateService
   ) {
     this.editForm = {
       name: data.team.name,
-      workerIds: [...data.team.workerIds]
+      memberIds: [...data.team.memberIds]
     };
   }
 
-  displayName(worker: { firstName: string; lastName: string; particles: string | null }): string {
-    const parts = [worker.firstName];
-    if (worker.particles) parts.push(worker.particles);
-    parts.push(worker.lastName);
+  displayName(member: { firstName: string; lastName: string; particles: string | null }): string {
+    const parts = [member.firstName];
+    if (member.particles) parts.push(member.particles);
+    parts.push(member.lastName);
     return parts.join(' ');
   }
 
@@ -165,33 +171,33 @@ export class TeamEditDialogComponent {
         });
       }
 
-      // Update worker assignments
-      const currentWorkerIds = this.data.team.workerIds;
-      const newWorkerIds = this.editForm.workerIds;
+      // Update member assignments
+      const currentMemberIds = this.data.team.memberIds;
+      const newMemberIds = this.editForm.memberIds;
 
-      for (const workerId of currentWorkerIds) {
-        if (!newWorkerIds.includes(workerId)) {
+      for (const memberId of currentMemberIds) {
+        if (!newMemberIds.includes(memberId)) {
           await apolloClient.mutate({
-            mutation: REMOVE_WORKER_FROM_TEAM_MUTATION,
-            variables: { teamId: this.data.team.id, workerId }
+            mutation: REMOVE_MEMBER_FROM_TEAM_MUTATION,
+            variables: { teamId: this.data.team.id, memberId }
           });
         }
       }
 
-      for (const workerId of newWorkerIds) {
-        if (!currentWorkerIds.includes(workerId)) {
+      for (const memberId of newMemberIds) {
+        if (!currentMemberIds.includes(memberId)) {
           await apolloClient.mutate({
-            mutation: ADD_WORKER_TO_TEAM_MUTATION,
-            variables: { teamId: this.data.team.id, workerId }
+            mutation: ADD_MEMBER_TO_TEAM_MUTATION,
+            variables: { teamId: this.data.team.id, memberId }
           });
         }
       }
 
-      this.snackBar.open('Team updated', 'Close', { duration: 3000 });
+      this.snackBar.open(this.translate.instant('editTeam.messages.updated'), this.translate.instant('common.close'), { duration: 3000 });
       this.panelRef.close(true);
     } catch (error: any) {
       console.error('Failed to update team:', error);
-      this.snackBar.open(error.message || 'Failed to update team', 'Close', { duration: 5000 });
+      this.snackBar.open(error.message || this.translate.instant('editTeam.messages.updateFailed'), this.translate.instant('common.close'), { duration: 5000 });
     } finally {
       this.saving = false;
     }

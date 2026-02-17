@@ -3,12 +3,12 @@ import { Observable, from } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../../app.config';
-import { Worker } from '../../../shared/models/worker.model';
+import { Member } from '../../../shared/models/member.model';
 import { Team } from '../../../shared/models/team.model';
 
-const GET_WORKERS_WITH_TEAMS = gql`
-  query GetWorkersWithTeams {
-    workers {
+const GET_MEMBERS_WITH_TEAMS = gql`
+  query GetMembersWithTeams {
+    members {
       id
       firstName
       lastName
@@ -36,14 +36,14 @@ const GET_TEAMS = gql`
 })
 export class ScheduleService {
 
-  getWorkersWithTeams(): Observable<Worker[]> {
+  getMembersWithTeams(): Observable<Member[]> {
     return from(
       apolloClient.query({
-        query: GET_WORKERS_WITH_TEAMS,
+        query: GET_MEMBERS_WITH_TEAMS,
         fetchPolicy: 'network-only'
       })
     ).pipe(
-      map((result: any) => result.data.workers)
+      map((result: any) => result.data.members)
     );
   }
 

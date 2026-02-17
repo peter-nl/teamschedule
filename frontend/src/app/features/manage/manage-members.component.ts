@@ -11,22 +11,23 @@ import { MatBadgeModule } from '@angular/material/badge';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatChipsModule } from '@angular/material/chips';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
 import { SlideInPanelService } from '../../shared/services/slide-in-panel.service';
 import { AuthService } from '../../shared/services/auth.service';
 import { UserPreferencesService, TeamFilterMode } from '../../shared/services/user-preferences.service';
-import { WorkerEditDialogComponent, WorkerEditDialogData } from '../../shared/components/worker-edit-dialog.component';
+import { MemberEditDialogComponent, MemberEditDialogData } from '../../shared/components/member-edit-dialog.component';
 import { ScheduleFilterPanelComponent, ScheduleFilterPanelData, ScheduleFilterPanelResult } from '../schedule/schedule-filter/schedule-filter-panel.component';
 import { ScheduleSearchPanelComponent, ScheduleSearchPanelData, ScheduleSearchPanelResult } from '../schedule/schedule-filter/schedule-search-panel.component';
-import { AddWorkerDialogComponent } from '../../shell/add-worker-dialog.component';
+import { AddMemberDialogComponent } from '../../shell/add-member-dialog.component';
 
 interface Team {
   id: string;
   name: string;
 }
 
-interface Worker {
+interface Member {
   id: string;
   firstName: string;
   lastName: string;
@@ -36,9 +37,9 @@ interface Worker {
   teams: Team[];
 }
 
-const GET_WORKERS_QUERY = gql`
-  query GetWorkers {
-    workers {
+const GET_MEMBERS_QUERY = gql`
+  query GetMembers {
+    members {
       id
       firstName
       lastName
@@ -63,7 +64,7 @@ const GET_TEAMS_QUERY = gql`
 `;
 
 @Component({
-  selector: 'app-manage-workers',
+  selector: 'app-manage-members',
   standalone: true,
   imports: [
     CommonModule,
@@ -77,19 +78,20 @@ const GET_TEAMS_QUERY = gql`
     MatBadgeModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
-    MatChipsModule
+    MatChipsModule,
+    TranslateModule
   ],
   template: `
     <div class="manage-container">
       <div class="header">
         <button mat-icon-button
-                (click)="openAddWorker()"
-                matTooltip="Add worker">
+                (click)="openAddMember()"
+                [matTooltip]="'members.addMember' | translate">
           <mat-icon>person_add</mat-icon>
         </button>
         <button mat-icon-button
                 (click)="openSearchPanel()"
-                matTooltip="Search workers"
+                [matTooltip]="'members.searchMembers' | translate"
                 [class.filter-active]="searchText.length > 0"
                 [matBadge]="searchText ? '!' : ''"
                 [matBadgeHidden]="!searchText"
@@ -99,7 +101,7 @@ const GET_TEAMS_QUERY = gql`
         </button>
         <button mat-icon-button
                 (click)="openFilterPanel()"
-                matTooltip="Filter by teams"
+                [matTooltip]="'members.filterByTeams' | translate"
                 [class.filter-active]="selectedTeamIds.size > 0"
                 [matBadge]="selectedTeamIds.size > 0 ? '' + selectedTeamIds.size : ''"
                 [matBadgeHidden]="selectedTeamIds.size === 0"
@@ -114,75 +116,75 @@ const GET_TEAMS_QUERY = gql`
       </div>
 
       <div class="table-container" *ngIf="!loading">
-        <table mat-table [dataSource]="filteredWorkers" matSort (matSortChange)="onSortChange($event)" class="workers-table">
+        <table mat-table [dataSource]="filteredMembers" matSort (matSortChange)="onSortChange($event)" class="members-table">
 
           <ng-container matColumnDef="firstName">
             <th mat-header-cell *matHeaderCellDef>
               <div class="header-cell" cdkDropList cdkDropListOrientation="horizontal"
                    (cdkDropListDropped)="dropColumn($event)" [cdkDropListData]="'firstName'">
-                <span mat-sort-header>First Name</span>
+                <span mat-sort-header>{{ 'members.firstName' | translate }}</span>
                 <mat-icon class="drag-handle" cdkDrag [cdkDragData]="'firstName'">drag_indicator</mat-icon>
               </div>
             </th>
-            <td mat-cell *matCellDef="let worker">{{ worker.firstName }}</td>
+            <td mat-cell *matCellDef="let member">{{ member.firstName }}</td>
           </ng-container>
 
           <ng-container matColumnDef="particles">
             <th mat-header-cell *matHeaderCellDef>
               <div class="header-cell" cdkDropList cdkDropListOrientation="horizontal"
                    (cdkDropListDropped)="dropColumn($event)" [cdkDropListData]="'particles'">
-                <span mat-sort-header>Particles</span>
+                <span mat-sort-header>{{ 'members.particles' | translate }}</span>
                 <mat-icon class="drag-handle" cdkDrag [cdkDragData]="'particles'">drag_indicator</mat-icon>
               </div>
             </th>
-            <td mat-cell *matCellDef="let worker" [class.muted]="!worker.particles">{{ worker.particles || '—' }}</td>
+            <td mat-cell *matCellDef="let member" [class.muted]="!member.particles">{{ member.particles || '—' }}</td>
           </ng-container>
 
           <ng-container matColumnDef="lastName">
             <th mat-header-cell *matHeaderCellDef>
               <div class="header-cell" cdkDropList cdkDropListOrientation="horizontal"
                    (cdkDropListDropped)="dropColumn($event)" [cdkDropListData]="'lastName'">
-                <span mat-sort-header>Last Name</span>
+                <span mat-sort-header>{{ 'members.lastName' | translate }}</span>
                 <mat-icon class="drag-handle" cdkDrag [cdkDragData]="'lastName'">drag_indicator</mat-icon>
               </div>
             </th>
-            <td mat-cell *matCellDef="let worker">{{ worker.lastName }}</td>
+            <td mat-cell *matCellDef="let member">{{ member.lastName }}</td>
           </ng-container>
 
           <ng-container matColumnDef="id">
             <th mat-header-cell *matHeaderCellDef>
               <div class="header-cell" cdkDropList cdkDropListOrientation="horizontal"
                    (cdkDropListDropped)="dropColumn($event)" [cdkDropListData]="'id'">
-                <span mat-sort-header>ID</span>
+                <span mat-sort-header>{{ 'members.id' | translate }}</span>
                 <mat-icon class="drag-handle" cdkDrag [cdkDragData]="'id'">drag_indicator</mat-icon>
               </div>
             </th>
-            <td mat-cell *matCellDef="let worker">{{ worker.id }}</td>
+            <td mat-cell *matCellDef="let member">{{ member.id }}</td>
           </ng-container>
 
           <ng-container matColumnDef="email">
             <th mat-header-cell *matHeaderCellDef>
               <div class="header-cell" cdkDropList cdkDropListOrientation="horizontal"
                    (cdkDropListDropped)="dropColumn($event)" [cdkDropListData]="'email'">
-                <span mat-sort-header>Email</span>
+                <span mat-sort-header>{{ 'members.email' | translate }}</span>
                 <mat-icon class="drag-handle" cdkDrag [cdkDragData]="'email'">drag_indicator</mat-icon>
               </div>
             </th>
-            <td mat-cell *matCellDef="let worker" [class.muted]="!worker.email">{{ worker.email || '—' }}</td>
+            <td mat-cell *matCellDef="let member" [class.muted]="!member.email">{{ member.email || '—' }}</td>
           </ng-container>
 
           <ng-container matColumnDef="role">
             <th mat-header-cell *matHeaderCellDef>
               <div class="header-cell" cdkDropList cdkDropListOrientation="horizontal"
                    (cdkDropListDropped)="dropColumn($event)" [cdkDropListData]="'role'">
-                <span mat-sort-header>Role</span>
+                <span mat-sort-header>{{ 'members.role' | translate }}</span>
                 <mat-icon class="drag-handle" cdkDrag [cdkDragData]="'role'">drag_indicator</mat-icon>
               </div>
             </th>
-            <td mat-cell *matCellDef="let worker">
-              <span class="role-badge" [class.manager]="worker.role === 'manager'">
-                <mat-icon>{{ worker.role === 'manager' ? 'admin_panel_settings' : 'person' }}</mat-icon>
-                {{ worker.role === 'manager' ? 'Manager' : 'User' }}
+            <td mat-cell *matCellDef="let member">
+              <span class="role-badge" [class.manager]="member.role === 'manager'">
+                <mat-icon>{{ member.role === 'manager' ? 'admin_panel_settings' : 'person' }}</mat-icon>
+                {{ (member.role === 'manager' ? 'common.manager' : 'common.user') | translate }}
               </span>
             </td>
           </ng-container>
@@ -191,27 +193,27 @@ const GET_TEAMS_QUERY = gql`
             <th mat-header-cell *matHeaderCellDef>
               <div class="header-cell" cdkDropList cdkDropListOrientation="horizontal"
                    (cdkDropListDropped)="dropColumn($event)" [cdkDropListData]="'teams'">
-                <span>Teams</span>
+                <span>{{ 'members.teamsColumn' | translate }}</span>
                 <mat-icon class="drag-handle" cdkDrag [cdkDragData]="'teams'">drag_indicator</mat-icon>
               </div>
             </th>
-            <td mat-cell *matCellDef="let worker">
-              <mat-chip-set *ngIf="worker.teams.length > 0">
-                <mat-chip *ngFor="let team of worker.teams" class="team-chip">{{ team.name }}</mat-chip>
+            <td mat-cell *matCellDef="let member">
+              <mat-chip-set *ngIf="member.teams.length > 0">
+                <mat-chip *ngFor="let team of member.teams" class="team-chip">{{ team.name }}</mat-chip>
               </mat-chip-set>
-              <span *ngIf="worker.teams.length === 0" class="muted">—</span>
+              <span *ngIf="member.teams.length === 0" class="muted">—</span>
             </td>
           </ng-container>
 
           <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
-          <tr mat-row *matRowDef="let worker; columns: displayedColumns;"
-              (dblclick)="openEdit(worker)"
-              class="worker-row"></tr>
+          <tr mat-row *matRowDef="let member; columns: displayedColumns;"
+              (dblclick)="openEdit(member)"
+              class="member-row"></tr>
         </table>
 
-        <div *ngIf="filteredWorkers.length === 0" class="empty-list">
+        <div *ngIf="filteredMembers.length === 0" class="empty-list">
           <mat-icon>person_off</mat-icon>
-          <p>No workers found</p>
+          <p>{{ 'members.noMembersFound' | translate }}</p>
         </div>
       </div>
     </div>
@@ -249,7 +251,7 @@ const GET_TEAMS_QUERY = gql`
       background: var(--mat-sys-surface-container);
     }
 
-    .workers-table {
+    .members-table {
       width: 100%;
     }
 
@@ -292,11 +294,11 @@ const GET_TEAMS_QUERY = gql`
       opacity: 0.3;
     }
 
-    .worker-row {
+    .member-row {
       cursor: pointer;
     }
 
-    .worker-row:hover {
+    .member-row:hover {
       background: var(--mat-sys-surface-container-highest);
     }
 
@@ -342,9 +344,9 @@ const GET_TEAMS_QUERY = gql`
     }
   `]
 })
-export class ManageWorkersComponent implements OnInit {
-  workers: Worker[] = [];
-  filteredWorkers: Worker[] = [];
+export class ManageMembersComponent implements OnInit {
+  members: Member[] = [];
+  filteredMembers: Member[] = [];
   allTeams: Team[] = [];
   loading = true;
   displayedColumns = ['firstName', 'particles', 'lastName', 'id', 'email', 'role', 'teams'];
@@ -359,7 +361,8 @@ export class ManageWorkersComponent implements OnInit {
     private authService: AuthService,
     private snackBar: MatSnackBar,
     private panelService: SlideInPanelService,
-    private userPreferencesService: UserPreferencesService
+    private userPreferencesService: UserPreferencesService,
+    private translate: TranslateService
   ) {
     this.teamFilterMode = this.userPreferencesService.preferences.teamFilterMode;
   }
@@ -371,51 +374,51 @@ export class ManageWorkersComponent implements OnInit {
   async loadData(): Promise<void> {
     this.loading = true;
     try {
-      const [workersResult, teamsResult]: any[] = await Promise.all([
-        apolloClient.query({ query: GET_WORKERS_QUERY, fetchPolicy: 'network-only' }),
+      const [membersResult, teamsResult]: any[] = await Promise.all([
+        apolloClient.query({ query: GET_MEMBERS_QUERY, fetchPolicy: 'network-only' }),
         apolloClient.query({ query: GET_TEAMS_QUERY, fetchPolicy: 'network-only' })
       ]);
-      this.workers = workersResult.data.workers;
+      this.members = membersResult.data.members;
       this.allTeams = teamsResult.data.teams;
-      this.filterWorkers();
+      this.filterMembers();
     } catch (error) {
       console.error('Failed to load data:', error);
-      this.snackBar.open('Failed to load workers', 'Close', { duration: 3000 });
+      this.snackBar.open(this.translate.instant('members.messages.loadFailed'), this.translate.instant('common.close'), { duration: 3000 });
     } finally {
       this.loading = false;
     }
   }
 
-  filterWorkers(): void {
-    let filtered = this.workers;
+  filterMembers(): void {
+    let filtered = this.members;
 
     // Text search
     if (this.searchText) {
       const term = this.searchText.toLowerCase();
-      filtered = filtered.filter(w =>
-        w.id.toLowerCase().includes(term) ||
-        w.firstName.toLowerCase().includes(term) ||
-        w.lastName.toLowerCase().includes(term) ||
-        (w.particles || '').toLowerCase().includes(term) ||
-        (w.email || '').toLowerCase().includes(term)
+      filtered = filtered.filter(m =>
+        m.id.toLowerCase().includes(term) ||
+        m.firstName.toLowerCase().includes(term) ||
+        m.lastName.toLowerCase().includes(term) ||
+        (m.particles || '').toLowerCase().includes(term) ||
+        (m.email || '').toLowerCase().includes(term)
       );
     }
 
     // Team filter
     if (this.selectedTeamIds.size > 0) {
-      filtered = filtered.filter(w => {
-        if (this.selectedTeamIds.has('__no_team__') && w.teams.length === 0) {
+      filtered = filtered.filter(m => {
+        if (this.selectedTeamIds.has('__no_team__') && m.teams.length === 0) {
           return true;
         }
-        const workerTeamIds = w.teams.map(t => t.id);
+        const memberTeamIds = m.teams.map(t => t.id);
         const selectedIds = Array.from(this.selectedTeamIds).filter(id => id !== '__no_team__');
         if (selectedIds.length === 0) {
-          return this.selectedTeamIds.has('__no_team__') && w.teams.length === 0;
+          return this.selectedTeamIds.has('__no_team__') && m.teams.length === 0;
         }
         if (this.teamFilterMode === 'and') {
-          return selectedIds.every(id => workerTeamIds.includes(id));
+          return selectedIds.every(id => memberTeamIds.includes(id));
         } else {
-          return selectedIds.some(id => workerTeamIds.includes(id));
+          return selectedIds.some(id => memberTeamIds.includes(id));
         }
       });
     }
@@ -425,15 +428,15 @@ export class ManageWorkersComponent implements OnInit {
       filtered = this.sortData(filtered);
     }
 
-    this.filteredWorkers = filtered;
+    this.filteredMembers = filtered;
   }
 
   onSortChange(sort: Sort): void {
     this.currentSort = sort;
-    this.filterWorkers();
+    this.filterMembers();
   }
 
-  private sortData(data: Worker[]): Worker[] {
+  private sortData(data: Member[]): Member[] {
     const { active, direction } = this.currentSort;
     const dir = direction === 'asc' ? 1 : -1;
 
@@ -474,12 +477,12 @@ export class ManageWorkersComponent implements OnInit {
     }
   }
 
-  getWorkerCountForTeam(teamId: string): number {
-    return this.workers.filter(w => w.teams.some(t => t.id === teamId)).length;
+  getMemberCountForTeam(teamId: string): number {
+    return this.members.filter(m => m.teams.some(t => t.id === teamId)).length;
   }
 
-  getWorkerCountWithoutTeam(): number {
-    return this.workers.filter(w => w.teams.length === 0).length;
+  getMemberCountWithoutTeam(): number {
+    return this.members.filter(m => m.teams.length === 0).length;
   }
 
   openSearchPanel(): void {
@@ -491,7 +494,7 @@ export class ManageWorkersComponent implements OnInit {
           searchText: this.searchText,
           onSearchChange: (text: string) => {
             this.searchText = text;
-            this.filterWorkers();
+            this.filterMembers();
           }
         }
       }
@@ -499,7 +502,7 @@ export class ManageWorkersComponent implements OnInit {
     panelRef.afterClosed().subscribe(result => {
       if (result) {
         this.searchText = result.searchText;
-        this.filterWorkers();
+        this.filterMembers();
       }
     });
   }
@@ -513,16 +516,16 @@ export class ManageWorkersComponent implements OnInit {
           teams: this.allTeams,
           selectedTeamIds: new Set(this.selectedTeamIds),
           teamFilterMode: this.teamFilterMode,
-          getWorkerCountForTeam: (teamId: string) => this.getWorkerCountForTeam(teamId),
-          getWorkerCountWithoutTeam: () => this.getWorkerCountWithoutTeam(),
+          getMemberCountForTeam: (teamId: string) => this.getMemberCountForTeam(teamId),
+          getMemberCountWithoutTeam: () => this.getMemberCountWithoutTeam(),
           onSelectionChange: (ids: string[]) => {
             this.selectedTeamIds = new Set(ids);
-            this.filterWorkers();
+            this.filterMembers();
           },
           onFilterModeChange: (mode: TeamFilterMode) => {
             this.teamFilterMode = mode;
             this.userPreferencesService.setTeamFilterMode(mode);
-            this.filterWorkers();
+            this.filterMembers();
           }
         }
       }
@@ -530,25 +533,25 @@ export class ManageWorkersComponent implements OnInit {
     panelRef.afterClosed().subscribe(result => {
       if (result) {
         this.selectedTeamIds = new Set(result.selectedTeamIds);
-        this.filterWorkers();
+        this.filterMembers();
       }
     });
   }
 
-  openEdit(worker: Worker): void {
+  openEdit(member: Member): void {
     const isNarrow = window.innerWidth < 768;
     const navExpanded = this.userPreferencesService.preferences.navigationExpanded;
     const railWidth = isNarrow ? 0 : (navExpanded ? 220 : 80);
     const leftOffset = railWidth > 0 ? `${railWidth}px` : undefined;
 
-    const editRef = this.panelService.open<WorkerEditDialogComponent, WorkerEditDialogData, boolean>(
-      WorkerEditDialogComponent,
+    const editRef = this.panelService.open<MemberEditDialogComponent, MemberEditDialogData, boolean>(
+      MemberEditDialogComponent,
       {
         leftOffset,
         data: {
-          worker: { ...worker, teams: [...worker.teams] },
+          member: { ...member, teams: [...member.teams] },
           allTeams: this.allTeams,
-          isSelf: worker.id === this.authService.currentUser?.id,
+          isSelf: member.id === this.authService.currentUser?.id,
           isManager: this.authService.isManager
         }
       }
@@ -561,14 +564,14 @@ export class ManageWorkersComponent implements OnInit {
     });
   }
 
-  openAddWorker(): void {
+  openAddMember(): void {
     const isNarrow = window.innerWidth < 768;
     const navExpanded = this.userPreferencesService.preferences.navigationExpanded;
     const railWidth = isNarrow ? 0 : (navExpanded ? 220 : 80);
     const leftOffset = railWidth > 0 ? `${railWidth}px` : undefined;
 
-    const addRef = this.panelService.open<AddWorkerDialogComponent, void, boolean>(
-      AddWorkerDialogComponent,
+    const addRef = this.panelService.open<AddMemberDialogComponent, void, boolean>(
+      AddMemberDialogComponent,
       { leftOffset }
     );
 

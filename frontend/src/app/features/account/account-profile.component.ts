@@ -8,9 +8,11 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AuthService } from '../../shared/services/auth.service';
-import { WorkerHolidayService, WorkerHolidayPeriod } from '../../core/services/worker-holiday.service';
+import { MemberHolidayService, MemberHolidayPeriod } from '../../core/services/member-holiday.service';
 import { UserPreferencesService } from '../../shared/services/user-preferences.service';
 import { SlideInPanelService } from '../../shared/services/slide-in-panel.service';
 import { HolidayDialogComponent, HolidayDialogData, HolidayDialogResult } from '../../shared/components/holiday-dialog.component';
@@ -28,20 +30,22 @@ import { HolidayDialogComponent, HolidayDialogData, HolidayDialogResult } from '
     MatIconModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
-    MatDividerModule
+    MatTooltipModule,
+    MatDividerModule,
+    TranslateModule
   ],
   template: `
     <mat-card class="profile-card">
       <mat-card-header>
         <mat-icon mat-card-avatar>account_circle</mat-icon>
-        <mat-card-title>My Account</mat-card-title>
-        <mat-card-subtitle>Worker ID: {{ authService.currentUser?.id }}</mat-card-subtitle>
+        <mat-card-title>{{ 'profile.title' | translate }}</mat-card-title>
+        <mat-card-subtitle>{{ 'profile.subtitle' | translate:{ id: authService.currentUser?.id } }}</mat-card-subtitle>
       </mat-card-header>
 
       <mat-card-content>
         <form (ngSubmit)="onUpdateProfile()" class="profile-form">
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>First Name</mat-label>
+            <mat-label>{{ 'profile.firstName' | translate }}</mat-label>
             <input matInput
                    [(ngModel)]="profileForm.firstName"
                    name="firstName"
@@ -49,15 +53,15 @@ import { HolidayDialogComponent, HolidayDialogData, HolidayDialogResult } from '
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Particles (prefix)</mat-label>
+            <mat-label>{{ 'profile.particles' | translate }}</mat-label>
             <input matInput
                    [(ngModel)]="profileForm.particles"
                    name="particles"
-                   placeholder="e.g., van, de, von">
+                   [placeholder]="'profile.particlesPlaceholder' | translate">
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Last Name</mat-label>
+            <mat-label>{{ 'profile.lastName' | translate }}</mat-label>
             <input matInput
                    [(ngModel)]="profileForm.lastName"
                    name="lastName"
@@ -65,30 +69,32 @@ import { HolidayDialogComponent, HolidayDialogData, HolidayDialogResult } from '
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Email</mat-label>
+            <mat-label>{{ 'profile.email' | translate }}</mat-label>
             <input matInput
                    [(ngModel)]="profileForm.email"
                    name="email"
                    type="email"
-                   placeholder="e.g., john@example.com">
+                   [placeholder]="'profile.emailPlaceholder' | translate">
           </mat-form-field>
 
-          <button mat-raised-button
-                  color="primary"
-                  type="submit"
-                  [disabled]="profileLoading">
-            <mat-spinner *ngIf="profileLoading" diameter="20"></mat-spinner>
-            <span *ngIf="!profileLoading">Save Changes</span>
-          </button>
+          <div class="form-actions">
+            <button mat-icon-button type="button" (click)="resetProfileForm()" [matTooltip]="'common.cancel' | translate">
+              <mat-icon>close</mat-icon>
+            </button>
+            <button mat-icon-button color="primary" type="submit" [disabled]="profileLoading" [matTooltip]="'profile.saveChanges' | translate">
+              <mat-spinner *ngIf="profileLoading" diameter="20"></mat-spinner>
+              <mat-icon *ngIf="!profileLoading">check</mat-icon>
+            </button>
+          </div>
         </form>
 
         <mat-divider class="section-divider"></mat-divider>
 
-        <h3 class="section-title">Role</h3>
+        <h3 class="section-title">{{ 'profile.role' | translate }}</h3>
         <div class="role-section">
           <div class="role-display">
             <mat-icon>{{ authService.currentUser?.role === 'manager' ? 'admin_panel_settings' : 'person' }}</mat-icon>
-            <span class="role-label">{{ authService.currentUser?.role === 'manager' ? 'Manager' : 'User' }}</span>
+            <span class="role-label">{{ (authService.currentUser?.role === 'manager' ? 'common.manager' : 'common.user') | translate }}</span>
           </div>
         </div>
 
@@ -96,23 +102,23 @@ import { HolidayDialogComponent, HolidayDialogData, HolidayDialogResult } from '
 
         <h3 class="section-title">
           <mat-icon class="section-icon">beach_access</mat-icon>
-          My Personal Holidays
+          {{ 'profile.holidays.title' | translate }}
         </h3>
         <div class="holidays-section">
           <button mat-raised-button
                   color="primary"
                   (click)="openAddHolidayDialog()">
             <mat-icon>add</mat-icon>
-            Add Holiday
+            {{ 'profile.holidays.addHoliday' | translate }}
           </button>
 
           <div *ngIf="holidaysLoading" class="holidays-loading">
             <mat-progress-spinner mode="indeterminate" diameter="24"></mat-progress-spinner>
-            <span>Loading holidays...</span>
+            <span>{{ 'profile.holidays.loading' | translate }}</span>
           </div>
 
           <div *ngIf="!holidaysLoading && myHolidays.length === 0" class="holidays-empty">
-            No personal holidays set.
+            {{ 'profile.holidays.empty' | translate }}
           </div>
 
           <div *ngIf="!holidaysLoading && myHolidays.length > 0" class="holidays-list">
@@ -123,11 +129,11 @@ import { HolidayDialogComponent, HolidayDialogData, HolidayDialogResult } from '
                 <span class="holiday-date">
                   {{ formatHolidayPeriod(holiday) }}
                   <span *ngIf="holiday.startDate === holiday.endDate && holiday.startDayPart !== 'full'" class="day-part-label">
-                    ({{ holiday.startDayPart === 'morning' ? 'Morning' : 'Afternoon' }})
+                    ({{ (holiday.startDayPart === 'morning' ? 'common.morning' : 'common.afternoon') | translate }})
                   </span>
                   <span *ngIf="holiday.startDate !== holiday.endDate" class="day-part-label">
-                    <span *ngIf="holiday.startDayPart !== 'full'"> (first: {{ holiday.startDayPart === 'afternoon' ? 'Afternoon' : 'Morning' }})</span>
-                    <span *ngIf="holiday.endDayPart !== 'full'"> (last: {{ holiday.endDayPart === 'morning' ? 'Morning' : 'Afternoon' }})</span>
+                    <span *ngIf="holiday.startDayPart !== 'full'"> ({{ 'profile.holidays.first' | translate }}: {{ (holiday.startDayPart === 'afternoon' ? 'common.afternoon' : 'common.morning') | translate }})</span>
+                    <span *ngIf="holiday.endDayPart !== 'full'"> ({{ 'profile.holidays.last' | translate }}: {{ (holiday.endDayPart === 'morning' ? 'common.morning' : 'common.afternoon') | translate }})</span>
                   </span>
                 </span>
                 <span *ngIf="holiday.holidayType" class="holiday-type-badge"
@@ -171,6 +177,12 @@ import { HolidayDialogComponent, HolidayDialogData, HolidayDialogResult } from '
 
     .full-width {
       width: 100%;
+    }
+
+    .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 4px;
     }
 
     .section-divider {
@@ -312,7 +324,7 @@ export class AccountProfileComponent {
   };
   profileLoading = false;
 
-  myHolidays: WorkerHolidayPeriod[] = [];
+  myHolidays: MemberHolidayPeriod[] = [];
   holidaysLoading = false;
   removingHolidayId: string | null = null;
   isDark = false;
@@ -320,9 +332,10 @@ export class AccountProfileComponent {
   constructor(
     public authService: AuthService,
     private snackBar: MatSnackBar,
-    private workerHolidayService: WorkerHolidayService,
+    private memberHolidayService: MemberHolidayService,
     private userPreferencesService: UserPreferencesService,
-    private panelService: SlideInPanelService
+    private panelService: SlideInPanelService,
+    private translate: TranslateService
   ) {
     this.userPreferencesService.isDarkTheme$.subscribe(isDark => {
       this.isDark = isDark;
@@ -343,9 +356,21 @@ export class AccountProfileComponent {
     });
   }
 
+  resetProfileForm(): void {
+    const user = this.authService.currentUser;
+    if (user) {
+      this.profileForm = {
+        firstName: user.firstName,
+        lastName: user.lastName,
+        particles: user.particles || '',
+        email: user.email || ''
+      };
+    }
+  }
+
   onUpdateProfile(): void {
     if (!this.profileForm.firstName || !this.profileForm.lastName) {
-      this.snackBar.open('First name and last name are required', 'Close', { duration: 3000 });
+      this.snackBar.open(this.translate.instant('profile.messages.nameRequired'), this.translate.instant('common.close'), { duration: 3000 });
       return;
     }
 
@@ -359,19 +384,19 @@ export class AccountProfileComponent {
     ).subscribe({
       next: () => {
         this.profileLoading = false;
-        this.snackBar.open('Profile updated successfully', 'Close', { duration: 3000 });
+        this.snackBar.open(this.translate.instant('profile.messages.updated'), this.translate.instant('common.close'), { duration: 3000 });
       },
       error: (error) => {
         this.profileLoading = false;
-        this.snackBar.open('Failed to update profile', 'Close', { duration: 3000 });
+        this.snackBar.open(this.translate.instant('profile.messages.updateFailed'), this.translate.instant('common.close'), { duration: 3000 });
         console.error('Update profile error:', error);
       }
     });
   }
 
-  private loadMyHolidays(workerId: string): void {
+  private loadMyHolidays(memberId: string): void {
     this.holidaysLoading = true;
-    this.workerHolidayService.loadWorkerHolidays(workerId).subscribe({
+    this.memberHolidayService.loadMemberHolidays(memberId).subscribe({
       next: (periods) => {
         this.myHolidays = [...periods].sort((a, b) => a.startDate.localeCompare(b.startDate));
         this.holidaysLoading = false;
@@ -390,8 +415,7 @@ export class AccountProfileComponent {
     const panelRef = this.panelService.open<HolidayDialogComponent, HolidayDialogData, HolidayDialogResult>(
       HolidayDialogComponent,
       {
-        width: '480px',
-        data: { mode: 'add', workerId: user.id }
+        data: { mode: 'add', memberId: user.id }
       }
     );
 
@@ -400,15 +424,14 @@ export class AccountProfileComponent {
     });
   }
 
-  openEditHolidayDialog(holiday: WorkerHolidayPeriod): void {
+  openEditHolidayDialog(holiday: MemberHolidayPeriod): void {
     const user = this.authService.currentUser;
     if (!user) return;
 
     const panelRef = this.panelService.open<HolidayDialogComponent, HolidayDialogData, HolidayDialogResult>(
       HolidayDialogComponent,
       {
-        width: '480px',
-        data: { mode: 'edit', workerId: user.id, period: holiday }
+        data: { mode: 'edit', memberId: user.id, period: holiday }
       }
     );
 
@@ -417,35 +440,36 @@ export class AccountProfileComponent {
     });
   }
 
-  onRemoveHoliday(holiday: WorkerHolidayPeriod, event?: Event): void {
+  onRemoveHoliday(holiday: MemberHolidayPeriod, event?: Event): void {
     event?.stopPropagation();
     const user = this.authService.currentUser;
     if (!user) return;
 
     this.removingHolidayId = holiday.id;
-    this.workerHolidayService.removeHoliday(holiday.id).subscribe({
+    this.memberHolidayService.removeHoliday(holiday.id).subscribe({
       next: () => {
         this.removingHolidayId = null;
-        this.snackBar.open('Holiday removed', 'Close', { duration: 3000 });
+        this.snackBar.open(this.translate.instant('profile.messages.holidayRemoved'), this.translate.instant('common.close'), { duration: 3000 });
         this.loadMyHolidays(user.id);
       },
       error: (error) => {
         this.removingHolidayId = null;
-        this.snackBar.open('Failed to remove holiday', 'Close', { duration: 3000 });
+        this.snackBar.open(this.translate.instant('profile.messages.holidayRemoveFailed'), this.translate.instant('common.close'), { duration: 3000 });
         console.error('Remove holiday error:', error);
       }
     });
   }
 
-  formatHolidayPeriod(period: WorkerHolidayPeriod): string {
+  formatHolidayPeriod(period: MemberHolidayPeriod): string {
     const opts: Intl.DateTimeFormatOptions = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
+    const locale = this.translate.currentLang === 'nl' ? 'nl-NL' : 'en-US';
     const start = new Date(period.startDate + 'T00:00:00');
     if (period.startDate === period.endDate) {
-      return start.toLocaleDateString('en-US', opts);
+      return start.toLocaleDateString(locale, opts);
     }
     const end = new Date(period.endDate + 'T00:00:00');
-    const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const endStr = end.toLocaleDateString('en-US', opts);
+    const startStr = start.toLocaleDateString(locale, { month: 'short', day: 'numeric' });
+    const endStr = end.toLocaleDateString(locale, opts);
     return `${startStr} – ${endStr}`;
   }
 }

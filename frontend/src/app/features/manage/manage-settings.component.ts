@@ -13,6 +13,8 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { provideNativeDateAdapter } from '@angular/material/core';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
 import { AppSettingsService } from '../../core/services/app-settings.service';
@@ -65,7 +67,9 @@ interface HolidayYearGroup {
     MatInputModule,
     MatSelectModule,
     MatDatepickerModule,
-    MatSnackBarModule
+    MatSnackBarModule,
+    MatTooltipModule,
+    TranslateModule
   ],
   providers: [provideNativeDateAdapter()],
   template: `
@@ -73,8 +77,8 @@ interface HolidayYearGroup {
       <mat-card class="settings-card">
         <mat-card-header>
           <mat-icon mat-card-avatar>settings</mat-icon>
-          <mat-card-title>Application Settings</mat-card-title>
-          <mat-card-subtitle>Configure application-wide settings</mat-card-subtitle>
+          <mat-card-title>{{ 'settings.title' | translate }}</mat-card-title>
+          <mat-card-subtitle>{{ 'settings.subtitle' | translate }}</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
 
@@ -82,31 +86,32 @@ interface HolidayYearGroup {
           <div class="settings-section">
             <div class="section-header">
               <div>
-                <h3>Schedule Date Range</h3>
-                <p class="section-description">Define the start and end dates for the schedule. Worker holidays outside this range will be permanently deleted.</p>
+                <h3>{{ 'settings.dateRange.title' | translate }}</h3>
+                <p class="section-description">{{ 'settings.dateRange.description' | translate }}</p>
               </div>
             </div>
 
             <div class="date-range-form">
               <mat-form-field appearance="outline" class="date-field">
-                <mat-label>Start date</mat-label>
+                <mat-label>{{ 'settings.dateRange.startDate' | translate }}</mat-label>
                 <input matInput [matDatepicker]="startPicker" [(ngModel)]="scheduleStartDateObj" name="scheduleStart">
                 <mat-datepicker-toggle matSuffix [for]="startPicker"></mat-datepicker-toggle>
                 <mat-datepicker #startPicker></mat-datepicker>
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="date-field">
-                <mat-label>End date</mat-label>
+                <mat-label>{{ 'settings.dateRange.endDate' | translate }}</mat-label>
                 <input matInput [matDatepicker]="endPicker" [(ngModel)]="scheduleEndDateObj" name="scheduleEnd">
                 <mat-datepicker-toggle matSuffix [for]="endPicker"></mat-datepicker-toggle>
                 <mat-datepicker #endPicker></mat-datepicker>
               </mat-form-field>
 
-              <button mat-raised-button color="primary"
+              <button mat-icon-button color="primary"
                       (click)="saveScheduleDateRange()"
-                      [disabled]="dateRangeSaving || !isDateRangeValid">
+                      [disabled]="dateRangeSaving || !isDateRangeValid"
+                      [matTooltip]="'settings.dateRange.saveButton' | translate">
                 <mat-spinner *ngIf="dateRangeSaving" diameter="18"></mat-spinner>
-                Save Date Range
+                <mat-icon *ngIf="!dateRangeSaving">save</mat-icon>
               </button>
             </div>
 
@@ -123,21 +128,21 @@ interface HolidayYearGroup {
           <div class="settings-section">
             <div class="section-header">
               <div>
-                <h3>Public Holidays (Netherlands)</h3>
-                <p class="section-description">Holidays retrieved from the Nager.Date API. These are highlighted in the schedule.</p>
+                <h3>{{ 'settings.holidays.title' | translate }}</h3>
+                <p class="section-description">{{ 'settings.holidays.description' | translate }}</p>
               </div>
-              <button mat-button class="reset-button" (click)="resetHolidays()">
-                <mat-icon>restart_alt</mat-icon> Reload
+              <button mat-icon-button (click)="resetHolidays()" [matTooltip]="'common.reload' | translate">
+                <mat-icon>restart_alt</mat-icon>
               </button>
             </div>
 
             <div *ngIf="holidaysLoading" class="holidays-loading">
               <mat-progress-spinner mode="indeterminate" diameter="24"></mat-progress-spinner>
-              <span>Loading holidays...</span>
+              <span>{{ 'settings.holidays.loading' | translate }}</span>
             </div>
 
             <div *ngIf="!holidaysLoading && holidays.length === 0" class="holidays-empty">
-              No holidays loaded.
+              {{ 'settings.holidays.empty' | translate }}
             </div>
 
             <div *ngIf="!holidaysLoading && holidays.length > 0" class="holidays-columns-scroll">
@@ -160,11 +165,11 @@ interface HolidayYearGroup {
           <div class="settings-section">
             <div class="section-header">
               <div>
-                <h3>Working Days</h3>
-                <p class="section-description">Select which days are working days. Non-working days will be highlighted in the schedule.</p>
+                <h3>{{ 'settings.workingDays.title' | translate }}</h3>
+                <p class="section-description">{{ 'settings.workingDays.description' | translate }}</p>
               </div>
-              <button mat-button class="reset-button" (click)="resetWorkingDays()">
-                <mat-icon>restart_alt</mat-icon> Reset
+              <button mat-icon-button (click)="resetWorkingDays()" [matTooltip]="'common.reset' | translate">
+                <mat-icon>restart_alt</mat-icon>
               </button>
             </div>
 
@@ -173,15 +178,15 @@ interface HolidayYearGroup {
                 *ngFor="let day of orderedDays"
                 [checked]="workingDays[day.jsIndex]"
                 (change)="onDayToggle(day.jsIndex, $event.checked)">
-                {{ day.label }}
+                {{ day.label | translate }}
               </mat-checkbox>
             </div>
 
             <mat-form-field appearance="outline" class="week-start-field">
-              <mat-label>Week starts on</mat-label>
+              <mat-label>{{ 'settings.workingDays.weekStartsOn' | translate }}</mat-label>
               <mat-select [value]="weekStartDay" (selectionChange)="onWeekStartDayChange($event.value)">
-                <mat-option [value]="1">Monday</mat-option>
-                <mat-option [value]="0">Sunday</mat-option>
+                <mat-option [value]="1">{{ 'days.monday' | translate }}</mat-option>
+                <mat-option [value]="0">{{ 'days.sunday' | translate }}</mat-option>
               </mat-select>
             </mat-form-field>
           </div>
@@ -191,26 +196,26 @@ interface HolidayYearGroup {
           <div class="settings-section">
             <div class="section-header">
               <div>
-                <h3>Schedule Colors</h3>
-                <p class="section-description">Customize the appearance of special days in the schedule.</p>
+                <h3>{{ 'settings.colors.title' | translate }}</h3>
+                <p class="section-description">{{ 'settings.colors.description' | translate }}</p>
               </div>
-              <button mat-button class="reset-button" (click)="resetColors()">
-                <mat-icon>restart_alt</mat-icon> Reset
+              <button mat-icon-button (click)="resetColors()" [matTooltip]="'common.reset' | translate">
+                <mat-icon>restart_alt</mat-icon>
               </button>
             </div>
 
             <div class="color-settings">
               <div class="color-setting">
-                <span class="color-setting-label">Non-working days</span>
+                <span class="color-setting-label">{{ 'settings.colors.nonWorkingDays' | translate }}</span>
                 <div class="color-setting-pickers">
                   <div class="color-pair">
-                    <label>Light</label>
+                    <label>{{ 'common.light' | translate }}</label>
                     <input type="color" [value]="nonWorkingDayColorLight"
                       (input)="onColorChange('nonWorkingDayLight', $event)">
                     <div class="color-preview-small" [style.background-color]="nonWorkingDayColorLight"></div>
                   </div>
                   <div class="color-pair">
-                    <label>Dark</label>
+                    <label>{{ 'common.dark' | translate }}</label>
                     <input type="color" [value]="nonWorkingDayColorDark"
                       (input)="onColorChange('nonWorkingDayDark', $event)">
                     <div class="color-preview-small" [style.background-color]="nonWorkingDayColorDark"></div>
@@ -219,16 +224,16 @@ interface HolidayYearGroup {
               </div>
 
               <div class="color-setting">
-                <span class="color-setting-label">Public holidays</span>
+                <span class="color-setting-label">{{ 'settings.colors.publicHolidays' | translate }}</span>
                 <div class="color-setting-pickers">
                   <div class="color-pair">
-                    <label>Light</label>
+                    <label>{{ 'common.light' | translate }}</label>
                     <input type="color" [value]="holidayColorLight"
                       (input)="onColorChange('holidayLight', $event)">
                     <div class="color-preview-small" [style.background-color]="holidayColorLight"></div>
                   </div>
                   <div class="color-pair">
-                    <label>Dark</label>
+                    <label>{{ 'common.dark' | translate }}</label>
                     <input type="color" [value]="holidayColorDark"
                       (input)="onColorChange('holidayDark', $event)">
                     <div class="color-preview-small" [style.background-color]="holidayColorDark"></div>
@@ -243,8 +248,8 @@ interface HolidayYearGroup {
           <div class="settings-section">
             <div class="section-header">
               <div>
-                <h3>Holiday Types</h3>
-                <p class="section-description">Define holiday types with separate colors for light and dark themes. These are used when workers log personal holidays.</p>
+                <h3>{{ 'settings.holidayTypes.title' | translate }}</h3>
+                <p class="section-description">{{ 'settings.holidayTypes.description' | translate }}</p>
               </div>
             </div>
 
@@ -255,13 +260,13 @@ interface HolidayYearGroup {
                        (keydown.enter)="$any($event.target).blur()">
                 <div class="holiday-type-colors">
                   <div class="color-pair">
-                    <label>Light</label>
+                    <label>{{ 'common.light' | translate }}</label>
                     <input type="color" [value]="type.colorLight"
                       (input)="onTypeColorLightChange(type, $event)">
                     <div class="color-preview-small" [style.background-color]="type.colorLight"></div>
                   </div>
                   <div class="color-pair">
-                    <label>Dark</label>
+                    <label>{{ 'common.dark' | translate }}</label>
                     <input type="color" [value]="type.colorDark"
                       (input)="onTypeColorDarkChange(type, $event)">
                     <div class="color-preview-small" [style.background-color]="type.colorDark"></div>
@@ -275,21 +280,21 @@ interface HolidayYearGroup {
 
             <div class="add-holiday-type-form">
               <mat-form-field appearance="outline" class="type-name-field">
-                <mat-label>New type name</mat-label>
-                <input matInput [(ngModel)]="newTypeName" placeholder="e.g. Ziekte">
+                <mat-label>{{ 'settings.holidayTypes.newTypeName' | translate }}</mat-label>
+                <input matInput [(ngModel)]="newTypeName" [placeholder]="'settings.holidayTypes.newTypePlaceholder' | translate">
               </mat-form-field>
               <div class="color-pair">
-                <label>Light</label>
+                <label>{{ 'common.light' | translate }}</label>
                 <input type="color" [(ngModel)]="newTypeColorLight">
                 <div class="color-preview-small" [style.background-color]="newTypeColorLight"></div>
               </div>
               <div class="color-pair">
-                <label>Dark</label>
+                <label>{{ 'common.dark' | translate }}</label>
                 <input type="color" [(ngModel)]="newTypeColorDark">
                 <div class="color-preview-small" [style.background-color]="newTypeColorDark"></div>
               </div>
-              <button mat-button color="primary" (click)="addHolidayType()" [disabled]="!newTypeName.trim()">
-                <mat-icon>add</mat-icon> Add
+              <button mat-icon-button color="primary" (click)="addHolidayType()" [disabled]="!newTypeName.trim()" [matTooltip]="'common.add' | translate">
+                <mat-icon>add</mat-icon>
               </button>
             </div>
           </div>
@@ -299,58 +304,60 @@ interface HolidayYearGroup {
           <div class="settings-section">
             <div class="section-header">
               <div>
-                <h3>Email Service</h3>
-                <p class="section-description">Configure SMTP email settings for password reset emails and notifications.</p>
+                <h3>{{ 'settings.email.title' | translate }}</h3>
+                <p class="section-description">{{ 'settings.email.description' | translate }}</p>
               </div>
             </div>
 
             <div class="email-config-form">
               <mat-form-field appearance="outline" class="full-width">
-                <mat-label>SMTP Host</mat-label>
-                <input matInput [(ngModel)]="emailConfig.host" name="smtpHost" placeholder="smtp.forwardemail.net">
+                <mat-label>{{ 'settings.email.smtpHost' | translate }}</mat-label>
+                <input matInput [(ngModel)]="emailConfig.host" name="smtpHost" [placeholder]="'settings.email.smtpHostPlaceholder' | translate">
               </mat-form-field>
 
               <div class="email-row">
                 <mat-form-field appearance="outline" class="port-field">
-                  <mat-label>Port</mat-label>
+                  <mat-label>{{ 'settings.email.port' | translate }}</mat-label>
                   <input matInput type="number" [(ngModel)]="emailConfig.port" name="smtpPort">
                 </mat-form-field>
                 <mat-form-field appearance="outline" class="encryption-field">
-                  <mat-label>Encryption</mat-label>
+                  <mat-label>{{ 'settings.email.encryption' | translate }}</mat-label>
                   <mat-select [(ngModel)]="emailConfig.encryption" name="smtpEncryption">
-                    <mat-option value="starttls">STARTTLS (port 587)</mat-option>
-                    <mat-option value="ssl">SSL/TLS (port 465)</mat-option>
-                    <mat-option value="none">None (port 25)</mat-option>
+                    <mat-option value="starttls">{{ 'settings.email.starttls' | translate }}</mat-option>
+                    <mat-option value="ssl">{{ 'settings.email.ssl' | translate }}</mat-option>
+                    <mat-option value="none">{{ 'settings.email.none' | translate }}</mat-option>
                   </mat-select>
                   <mat-hint>{{ encryptionHint }}</mat-hint>
                 </mat-form-field>
               </div>
 
               <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Username</mat-label>
+                <mat-label>{{ 'settings.email.username' | translate }}</mat-label>
                 <input matInput [(ngModel)]="emailConfig.user" name="smtpUser">
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Password</mat-label>
+                <mat-label>{{ 'settings.email.password' | translate }}</mat-label>
                 <input matInput type="password" [(ngModel)]="emailConfig.password" name="smtpPass"
-                       placeholder="Enter to set/change">
+                       [placeholder]="'settings.email.passwordPlaceholder' | translate">
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="full-width">
-                <mat-label>From Address</mat-label>
-                <input matInput [(ngModel)]="emailConfig.from" name="smtpFrom" placeholder="noreply@example.com">
+                <mat-label>{{ 'settings.email.fromAddress' | translate }}</mat-label>
+                <input matInput [(ngModel)]="emailConfig.from" name="smtpFrom" [placeholder]="'settings.email.fromPlaceholder' | translate">
               </mat-form-field>
 
               <div class="email-actions">
-                <button mat-raised-button color="primary" (click)="saveEmailConfig()"
-                        [disabled]="emailSaving || !emailConfig.host || !emailConfig.user || !emailConfig.password">
+                <button mat-icon-button color="primary" (click)="saveEmailConfig()"
+                        [disabled]="emailSaving || !emailConfig.host || !emailConfig.user || !emailConfig.password"
+                        [matTooltip]="'settings.email.saveConfig' | translate">
                   <mat-spinner *ngIf="emailSaving" diameter="18"></mat-spinner>
-                  Save Configuration
+                  <mat-icon *ngIf="!emailSaving">save</mat-icon>
                 </button>
-                <button mat-button (click)="testEmailConfig()" [disabled]="emailTesting || !emailConfigured">
+                <button mat-icon-button (click)="testEmailConfig()" [disabled]="emailTesting || !emailConfigured"
+                        [matTooltip]="'settings.email.sendTest' | translate">
                   <mat-spinner *ngIf="emailTesting" diameter="18"></mat-spinner>
-                  Send Test Email
+                  <mat-icon *ngIf="!emailTesting">send</mat-icon>
                 </button>
               </div>
 
@@ -701,13 +708,13 @@ interface HolidayYearGroup {
 })
 export class ManageSettingsComponent implements OnInit {
   private static readonly ALL_DAYS: DayConfig[] = [
-    { label: 'Sunday', jsIndex: 0 },
-    { label: 'Monday', jsIndex: 1 },
-    { label: 'Tuesday', jsIndex: 2 },
-    { label: 'Wednesday', jsIndex: 3 },
-    { label: 'Thursday', jsIndex: 4 },
-    { label: 'Friday', jsIndex: 5 },
-    { label: 'Saturday', jsIndex: 6 }
+    { label: 'days.sunday', jsIndex: 0 },
+    { label: 'days.monday', jsIndex: 1 },
+    { label: 'days.tuesday', jsIndex: 2 },
+    { label: 'days.wednesday', jsIndex: 3 },
+    { label: 'days.thursday', jsIndex: 4 },
+    { label: 'days.friday', jsIndex: 5 },
+    { label: 'days.saturday', jsIndex: 6 }
   ];
 
   orderedDays: DayConfig[] = [];
@@ -744,9 +751,9 @@ export class ManageSettingsComponent implements OnInit {
 
   get encryptionHint(): string {
     switch (this.emailConfig.encryption) {
-      case 'starttls': return 'Starts unencrypted, upgrades to TLS. Most common for port 587.';
-      case 'ssl': return 'Direct encrypted connection. Used with port 465.';
-      case 'none': return 'No encryption. Not recommended for production use.';
+      case 'starttls': return this.translate.instant('settings.email.starttlsHint');
+      case 'ssl': return this.translate.instant('settings.email.sslHint');
+      case 'none': return this.translate.instant('settings.email.noneHint');
     }
   }
   emailSaving = false;
@@ -763,7 +770,8 @@ export class ManageSettingsComponent implements OnInit {
     private appSettingsService: AppSettingsService,
     private holidayService: HolidayService,
     private holidayTypeService: HolidayTypeService,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private translate: TranslateService
   ) {
     const s = this.appSettingsService.settings;
     this.workingDays = [...s.workingDays];
@@ -876,9 +884,7 @@ export class ManageSettingsComponent implements OnInit {
     this.scheduleStartDate = this.formatDate(this.scheduleStartDateObj!);
     this.scheduleEndDate = this.formatDate(this.scheduleEndDateObj!);
 
-    const proceed = window.confirm(
-      'Changing the schedule date range will permanently delete any worker holiday data that falls outside the new range.\n\nAre you sure you want to continue?'
-    );
+    const proceed = window.confirm(this.translate.instant('settings.dateRange.confirmDelete'));
     if (!proceed) return;
 
     this.dateRangeSaving = true;
@@ -1009,7 +1015,7 @@ export class ManageSettingsComponent implements OnInit {
   }
 
   testEmailConfig(): void {
-    const testAddress = window.prompt('Enter email address to send test to:');
+    const testAddress = window.prompt(this.translate.instant('settings.email.testPrompt'));
     if (!testAddress) return;
     this.emailTesting = true;
     this.emailStatusMessage = null;

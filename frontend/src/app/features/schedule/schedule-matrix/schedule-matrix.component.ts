@@ -6,20 +6,21 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatButtonModule } from '@angular/material/button';
 import { MatBadgeModule } from '@angular/material/badge';
 import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { forkJoin } from 'rxjs';
 import { ScheduleService } from '../services/schedule.service';
-import { Worker } from '../../../shared/models/worker.model';
+import { Member } from '../../../shared/models/member.model';
 import { Team } from '../../../shared/models/team.model';
 import { SettingsService } from '../../../shared/services/settings.service';
 import { AppSettingsService } from '../../../core/services/app-settings.service';
 import { HolidayService } from '../../../core/services/holiday.service';
-import { WorkerHolidayService, ExpandedDayEntry, WorkerHolidayPeriod } from '../../../core/services/worker-holiday.service';
+import { MemberHolidayService, ExpandedDayEntry, MemberHolidayPeriod } from '../../../core/services/member-holiday.service';
 import { HolidayTypeService } from '../../../core/services/holiday-type.service';
 import { UserPreferencesService, NameColumnField, TeamFilterMode } from '../../../shared/services/user-preferences.service';
 import { AuthService } from '../../../shared/services/auth.service';
 import { SlideInPanelService } from '../../../shared/services/slide-in-panel.service';
 import { HolidayDialogComponent, HolidayDialogData, HolidayDialogResult } from '../../../shared/components/holiday-dialog.component';
-import { WorkerDetailDialogComponent } from '../../../shared/components/worker-detail-dialog.component';
+import { MemberDetailDialogComponent } from '../../../shared/components/member-detail-dialog.component';
 import { ScheduleFilterPanelComponent, ScheduleFilterPanelData, ScheduleFilterPanelResult } from '../schedule-filter/schedule-filter-panel.component';
 import { ScheduleSearchPanelComponent, ScheduleSearchPanelData, ScheduleSearchPanelResult } from '../schedule-filter/schedule-search-panel.component';
 
@@ -62,7 +63,8 @@ interface CellRenderData {
     MatTooltipModule,
     MatButtonModule,
     MatBadgeModule,
-    DragDropModule
+    DragDropModule,
+    TranslateModule
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -71,7 +73,7 @@ interface CellRenderData {
       <div class="header">
         <button mat-icon-button
                 (click)="openSearchPanel()"
-                matTooltip="Search workers"
+                [matTooltip]="'schedule.searchMembers' | translate"
                 [class.filter-active]="searchText.length > 0"
                 [matBadge]="searchText ? '!' : ''"
                 [matBadgeHidden]="!searchText"
@@ -81,7 +83,7 @@ interface CellRenderData {
         </button>
         <button mat-icon-button
                 (click)="openFilterPanel()"
-                matTooltip="Filter by teams"
+                [matTooltip]="'schedule.filterByTeams' | translate"
                 [class.filter-active]="selectedTeamIds.size > 0"
                 [matBadge]="selectedTeamIds.size > 0 ? '' + selectedTeamIds.size : ''"
                 [matBadgeHidden]="selectedTeamIds.size === 0"
@@ -94,7 +96,7 @@ interface CellRenderData {
       <!-- Loading State -->
       <div *ngIf="loading" class="loading-container">
         <mat-progress-spinner mode="indeterminate" diameter="50"></mat-progress-spinner>
-        <p>Loading schedule...</p>
+        <p>{{ 'schedule.loading' | translate }}</p>
       </div>
 
       <!-- Error State -->
@@ -107,20 +109,20 @@ interface CellRenderData {
       <div *ngIf="!loading && !error" class="matrix-wrapper">
         <div class="floating-controls top-right">
           <div class="control-group">
-            <button mat-icon-button (click)="zoomIn()" [disabled]="cellWidth >= 48" matTooltip="Zoom in">
+            <button mat-icon-button (click)="zoomIn()" [disabled]="cellWidth >= 48" [matTooltip]="'schedule.zoomIn' | translate">
               <mat-icon>add</mat-icon>
             </button>
-            <button mat-icon-button (click)="zoomOut()" [disabled]="cellWidth <= 16" matTooltip="Zoom out">
+            <button mat-icon-button (click)="zoomOut()" [disabled]="cellWidth <= 16" [matTooltip]="'schedule.zoomOut' | translate">
               <mat-icon>remove</mat-icon>
             </button>
           </div>
         </div>
         <div class="floating-controls bottom-right">
           <div class="control-group">
-            <button mat-icon-button (click)="scrollToMyRow()" *ngIf="currentUserId" matTooltip="Go to my row">
+            <button mat-icon-button (click)="scrollToMyRow()" *ngIf="currentUserId" [matTooltip]="'schedule.goToMyRow' | translate">
               <mat-icon>person_pin</mat-icon>
             </button>
-            <button mat-icon-button (click)="scrollToToday(true)" matTooltip="Go to today">
+            <button mat-icon-button (click)="scrollToToday(true)" [matTooltip]="'schedule.goToToday' | translate">
               <mat-icon>today</mat-icon>
             </button>
           </div>
@@ -128,7 +130,7 @@ interface CellRenderData {
         <div class="matrix-grid">
           <!-- Fixed Header Section -->
           <div class="matrix-header">
-            <div class="worker-names-column">
+            <div class="member-names-column">
               <div class="year-header-cell">{{ visibleYear }}</div>
               <div class="month-header-cell">{{ visibleMonth }}</div>
               <div class="week-header-cell"></div>
@@ -209,16 +211,16 @@ interface CellRenderData {
           <div class="matrix-body">
             <!-- Fixed name column -->
             <div class="body-names-column" #bodyNamesContainer>
-              <div *ngFor="let worker of filteredWorkers; let rowIndex = index; trackBy: trackByWorkerId"
-                   class="worker-name-cell"
+              <div *ngFor="let member of filteredMembers; let rowIndex = index; trackBy: trackByMemberId"
+                   class="member-name-cell"
                    [class.odd-row]="rowIndex % 2 === 1"
-                   [class.my-row]="currentUserId === worker.id"
+                   [class.my-row]="currentUserId === member.id"
                    [style.height.px]="rowHeight"
-                   (dblclick)="openWorkerDetail(worker)">
+                   (dblclick)="openMemberDetail(member)">
                 <span *ngFor="let col of nameColumnOrder"
                       class="name-col-value"
                       [class.particles-col]="col === 'particles'"
-                      >{{ getNameField(worker, col) }}</span>
+                      >{{ getNameField(member, col) }}</span>
               </div>
             </div>
             <!-- Scrollable date area -->
@@ -228,25 +230,25 @@ interface CellRenderData {
                  (mousedown)="onMouseDown($event)"
                  (touchstart)="onTouchStart($event)"
                  (scroll)="onScroll()">
-              <div *ngFor="let worker of filteredWorkers; let rowIndex = index; trackBy: trackByWorkerId"
-                   class="worker-row">
+              <div *ngFor="let member of filteredMembers; let rowIndex = index; trackBy: trackByMemberId"
+                   class="member-row">
                 <div *ngFor="let col of dateColumns; trackBy: trackByDateKey"
                      class="schedule-cell"
                      [class.non-working]="col.isNonWorkingDay"
                      [class.holiday]="col.isHoliday"
-                     [class.worker-holiday]="cellRenderMap.has(worker.id + ':' + col.dateKey)"
+                     [class.member-holiday]="cellRenderMap.has(member.id + ':' + col.dateKey)"
                      [class.today]="col.isToday"
                      [class.odd-row]="rowIndex % 2 === 1"
-                     [class.my-row]="currentUserId === worker.id"
-                     [class.editable]="editableWorkerIds.has(worker.id)"
+                     [class.my-row]="currentUserId === member.id"
+                     [class.editable]="editableMemberIds.has(member.id)"
                      [style.width.px]="cellWidth"
                      [style.height.px]="rowHeight"
-                     [style.background-color]="cellRenderMap.get(worker.id + ':' + col.dateKey)?.bgColor ?? getCellColor(col)"
-                     [style.background-image]="cellRenderMap.get(worker.id + ':' + col.dateKey)?.bgImage"
-                     [matTooltip]="cellRenderMap.get(worker.id + ':' + col.dateKey)?.tooltip || col.holidayName"
-                     [matTooltipDisabled]="!col.isHoliday && !cellRenderMap.has(worker.id + ':' + col.dateKey)"
-                     (dblclick)="onCellDblClick(worker, col)"
-                     (touchstart)="onCellTouchStart($event, worker, col)"
+                     [style.background-color]="cellRenderMap.get(member.id + ':' + col.dateKey)?.bgColor ?? getCellColor(col)"
+                     [style.background-image]="cellRenderMap.get(member.id + ':' + col.dateKey)?.bgImage"
+                     [matTooltip]="cellRenderMap.get(member.id + ':' + col.dateKey)?.tooltip || col.holidayName"
+                     [matTooltipDisabled]="!col.isHoliday && !cellRenderMap.has(member.id + ':' + col.dateKey)"
+                     (dblclick)="onCellDblClick(member, col)"
+                     (touchstart)="onCellTouchStart($event, member, col)"
                      (touchend)="onCellTouchEnd()">
                 </div>
               </div>
@@ -379,7 +381,7 @@ interface CellRenderData {
       cursor: grabbing;
     }
 
-    .matrix-header > .worker-names-column {
+    .matrix-header > .member-names-column {
       flex-shrink: 0;
       width: 260px;
       border-right: 2px solid var(--mat-sys-outline-variant);
@@ -502,7 +504,7 @@ interface CellRenderData {
       opacity: 0.3;
     }
 
-    .worker-name-cell {
+    .member-name-cell {
       padding: 0;
       display: flex;
       align-items: stretch;
@@ -515,7 +517,7 @@ interface CellRenderData {
       cursor: pointer;
     }
 
-    .worker-name-cell:hover {
+    .member-name-cell:hover {
       background: var(--mat-sys-surface-container-highest);
     }
 
@@ -542,11 +544,11 @@ interface CellRenderData {
       max-width: 70px;
     }
 
-    .worker-name-cell.odd-row {
+    .member-name-cell.odd-row {
       background: var(--mat-sys-surface-container-low);
     }
 
-    .worker-name-cell.my-row {
+    .member-name-cell.my-row {
       background: var(--mat-sys-primary-container);
     }
 
@@ -645,7 +647,7 @@ interface CellRenderData {
       font-weight: 500;
     }
 
-    .worker-row {
+    .member-row {
       display: flex;
     }
 
@@ -677,7 +679,7 @@ interface CellRenderData {
       border-right: 2px solid var(--mat-sys-primary);
     }
 
-    .worker-name-cell.my-row,
+    .member-name-cell.my-row,
     .schedule-cell.my-row {
       border-top: 2px solid var(--mat-sys-primary);
       border-bottom: 2px solid var(--mat-sys-primary);
@@ -704,8 +706,8 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
   @ViewChild('headerScrollContainer') headerScrollContainer!: ElementRef<HTMLDivElement>;
   @ViewChild('bodyNamesContainer') bodyNamesContainer!: ElementRef<HTMLDivElement>;
 
-  workers: Worker[] = [];
-  filteredWorkers: Worker[] = [];
+  members: Member[] = [];
+  filteredMembers: Member[] = [];
   teams: Team[] = [];
   dateColumns: DateColumn[] = [];
   selectedTeamIds: Set<string> = new Set();
@@ -714,10 +716,10 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
   loading = true;
   error: string | null = null;
 
-  // Pre-computed render data for worker×date cells (only cells with worker holidays)
+  // Pre-computed render data for member×date cells (only cells with member holidays)
   cellRenderMap = new Map<string, CellRenderData>();
-  // Pre-computed set of worker IDs that the current user can edit
-  editableWorkerIds = new Set<string>();
+  // Pre-computed set of member IDs that the current user can edit
+  editableMemberIds = new Set<string>();
   // Current user ID cached for template comparisons
   currentUserId: string | null = null;
 
@@ -783,12 +785,13 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     private settingsService: SettingsService,
     private appSettingsService: AppSettingsService,
     private holidayService: HolidayService,
-    private workerHolidayService: WorkerHolidayService,
+    private memberHolidayService: MemberHolidayService,
     private holidayTypeService: HolidayTypeService,
     private userPreferencesService: UserPreferencesService,
     private authService: AuthService,
     private cdr: ChangeDetectorRef,
-    private panelService: SlideInPanelService
+    private panelService: SlideInPanelService,
+    private translate: TranslateService
   ) {
     const settings = this.settingsService.getScheduleSettings();
     if (settings?.selectedTeamIds) {
@@ -826,7 +829,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
       this.managementModeEnabled = prefs.managementMode;
       this.navigationExpanded = prefs.navigationExpanded;
       this.teamFilterMode = prefs.teamFilterMode || 'and';
-      this.rebuildEditableWorkerIds();
+      this.rebuildEditableMemberIds();
       if (prefs.scheduleZoom >= this.ZOOM_MIN && prefs.scheduleZoom <= this.ZOOM_MAX && prefs.scheduleZoom !== this.cellWidth) {
         this.cellWidth = prefs.scheduleZoom;
       }
@@ -836,15 +839,15 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
       this.cdr.markForCheck();
     });
 
-    // Sync sort from workers table
-    const workersSortSettings = this.settingsService.getWorkersTableSettings();
-    if (workersSortSettings && workersSortSettings.sortColumn &&
-        ['firstName', 'particles', 'lastName'].includes(workersSortSettings.sortColumn)) {
-      this.sortColumn = workersSortSettings.sortColumn as NameColumnField;
-      this.sortDirection = workersSortSettings.sortDirection === 'desc' ? 'desc' : 'asc';
+    // Sync sort from members table
+    const membersSortSettings = this.settingsService.getMembersTableSettings();
+    if (membersSortSettings && membersSortSettings.sortColumn &&
+        ['firstName', 'particles', 'lastName'].includes(membersSortSettings.sortColumn)) {
+      this.sortColumn = membersSortSettings.sortColumn as NameColumnField;
+      this.sortDirection = membersSortSettings.sortDirection === 'desc' ? 'desc' : 'asc';
     }
 
-    this.settingsService.workersTable$.subscribe(settings => {
+    this.settingsService.membersTable$.subscribe(settings => {
       if (settings && settings.sortColumn &&
           ['firstName', 'particles', 'lastName'].includes(settings.sortColumn)) {
         this.sortColumn = settings.sortColumn as NameColumnField;
@@ -852,6 +855,13 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
         this.applySorting();
         this.cdr.markForCheck();
       }
+    });
+
+    // Re-generate date columns when language changes (day/month names)
+    this.translate.onLangChange.subscribe(() => {
+      this.generateDateColumns();
+      this.updateVisibleDateInfo();
+      this.cdr.markForCheck();
     });
 
     // Bind event handlers for drag-to-scroll
@@ -866,7 +876,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     this.generateDateColumns();
     // Load data when user is logged in, or when they log in later
     this.authService.currentUser$.subscribe(user => {
-      if (user && !this.workers.length) {
+      if (user && !this.members.length) {
         this.currentUserId = user.id;
         // Load date range from backend, then regenerate columns and load data
         this.appSettingsService.loadDateRange().subscribe(range => {
@@ -877,8 +887,8 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
           this.cdr.markForCheck();
         });
       } else if (!user) {
-        this.workers = [];
-        this.filteredWorkers = [];
+        this.members = [];
+        this.filteredMembers = [];
         this.currentUserId = null;
         this.loading = false;
         this.cdr.markForCheck();
@@ -887,10 +897,10 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
 
     // Subscribe to date range changes (e.g. from settings panel)
     this.appSettingsService.dateRange$.subscribe(range => {
-      if (this.workers.length > 0) {
+      if (this.members.length > 0) {
         this.generateDateColumns(range.startDate, range.endDate);
         this.loadHolidays();
-        this.loadWorkerHolidays();
+        this.loadMemberHolidays();
         this.cdr.markForCheck();
       }
     });
@@ -901,8 +911,8 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
       this.cdr.markForCheck();
     });
 
-    // Subscribe to worker holiday changes - rebuild cell render map
-    this.workerHolidayService.holidays$.subscribe(() => {
+    // Subscribe to member holiday changes - rebuild cell render map
+    this.memberHolidayService.holidays$.subscribe(() => {
       this.rebuildCellRenderMap();
       this.cdr.markForCheck();
     });
@@ -1101,16 +1111,20 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     }
   }
 
+  private getDateLocale(): string {
+    return this.translate.currentLang === 'nl' ? 'nl-NL' : 'en-US';
+  }
+
   private getDayName(date: Date): string {
-    return date.toLocaleDateString('en-US', { weekday: 'short' });
+    return date.toLocaleDateString(this.getDateLocale(), { weekday: 'short' });
   }
 
   private getMonthName(date: Date): string {
-    return date.toLocaleDateString('en-US', { month: 'short' });
+    return date.toLocaleDateString(this.getDateLocale(), { month: 'short' });
   }
 
   private getMonthFullName(date: Date): string {
-    return date.toLocaleDateString('en-US', { month: 'long' });
+    return date.toLocaleDateString(this.getDateLocale(), { month: 'long' });
   }
 
   private getISOWeekNumber(date: Date): number {
@@ -1130,20 +1144,20 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     this.loading = true;
 
     forkJoin({
-      workers: this.scheduleService.getWorkersWithTeams(),
+      members: this.scheduleService.getMembersWithTeams(),
       teams: this.scheduleService.getTeams()
     }).subscribe({
       next: (result) => {
-        this.workers = result.workers;
+        this.members = result.members;
         this.teams = result.teams;
-        this.filterWorkers();
+        this.filterMembers();
         this.loading = false;
         this.cdr.markForCheck();
         this.scrollToToday();
-        this.loadWorkerHolidays();
+        this.loadMemberHolidays();
       },
       error: (error) => {
-        this.error = error.message || 'Failed to load schedule';
+        this.error = error.message || this.translate.instant('schedule.messages.loadFailed');
         this.loading = false;
         this.cdr.markForCheck();
       }
@@ -1159,19 +1173,19 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
           teams: this.teams,
           selectedTeamIds: new Set(this.selectedTeamIds),
           teamFilterMode: this.teamFilterMode,
-          getWorkerCountForTeam: (teamId: string) => this.getWorkerCountForTeam(teamId),
-          getWorkerCountWithoutTeam: () => this.getWorkerCountWithoutTeam(),
+          getMemberCountForTeam: (teamId: string) => this.getMemberCountForTeam(teamId),
+          getMemberCountWithoutTeam: () => this.getMemberCountWithoutTeam(),
           onSelectionChange: (ids: string[]) => {
             this.selectedTeamIds = new Set(ids);
             this.selectedTeamIdsArray = ids;
-            this.filterWorkers();
+            this.filterMembers();
             this.rebuildCellRenderMap();
             this.cdr.markForCheck();
           },
           onFilterModeChange: (mode: TeamFilterMode) => {
             this.teamFilterMode = mode;
             this.userPreferencesService.setTeamFilterMode(mode);
-            this.filterWorkers();
+            this.filterMembers();
             this.rebuildCellRenderMap();
             this.cdr.markForCheck();
           }
@@ -1182,7 +1196,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
       if (result) {
         this.selectedTeamIds = new Set(result.selectedTeamIds);
         this.selectedTeamIdsArray = result.selectedTeamIds;
-        this.filterWorkers();
+        this.filterMembers();
         this.rebuildCellRenderMap();
         this.saveSettings();
         this.cdr.markForCheck();
@@ -1199,7 +1213,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
           searchText: this.searchText,
           onSearchChange: (text: string) => {
             this.searchText = text;
-            this.filterWorkers();
+            this.filterMembers();
             this.rebuildCellRenderMap();
             this.cdr.markForCheck();
           }
@@ -1209,7 +1223,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     panelRef.afterClosed().subscribe(result => {
       if (result) {
         this.searchText = result.searchText;
-        this.filterWorkers();
+        this.filterMembers();
         this.rebuildCellRenderMap();
         this.saveSettings();
         this.cdr.markForCheck();
@@ -1226,19 +1240,19 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     });
   }
 
-  filterWorkers(): void {
-    let result = this.workers;
+  filterMembers(): void {
+    let result = this.members;
 
     // Team filter (AND or OR logic based on mode)
     if (this.selectedTeamIds.size > 0) {
       const matchFn = this.teamFilterMode === 'and' ? 'every' : 'some';
-      result = result.filter(worker => {
-        const workerTeamIds = new Set(worker.teams?.map(team => team.id) || []);
+      result = result.filter(member => {
+        const memberTeamIds = new Set(member.teams?.map(team => team.id) || []);
         return Array.from(this.selectedTeamIds)[matchFn](teamId => {
           if (teamId === '__no_team__') {
-            return !worker.teams || worker.teams.length === 0;
+            return !member.teams || member.teams.length === 0;
           }
-          return workerTeamIds.has(teamId);
+          return memberTeamIds.has(teamId);
         });
       });
     }
@@ -1246,31 +1260,42 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     // Search filter
     if (this.searchText) {
       const term = this.searchText.toLowerCase();
-      result = result.filter(worker =>
-        worker.firstName.toLowerCase().includes(term) ||
-        worker.lastName.toLowerCase().includes(term) ||
-        (worker.particles || '').toLowerCase().includes(term)
+      result = result.filter(member =>
+        member.firstName.toLowerCase().includes(term) ||
+        member.lastName.toLowerCase().includes(term) ||
+        (member.particles || '').toLowerCase().includes(term)
       );
     }
 
-    this.filteredWorkers = result;
+    this.filteredMembers = result;
     this.applySorting();
-    this.rebuildEditableWorkerIds();
+    this.rebuildEditableMemberIds();
   }
 
   getColumnLabel(col: NameColumnField): string {
     switch (col) {
-      case 'firstName': return 'First';
-      case 'particles': return 'Part.';
-      case 'lastName': return 'Last';
+      case 'firstName': return this.translate.instant('schedule.columns.first');
+      case 'particles': return this.translate.instant('schedule.columns.particles');
+      case 'lastName': return this.translate.instant('schedule.columns.last');
     }
   }
 
-  getNameField(worker: Worker, col: NameColumnField): string {
+  getNameField(member: Member, col: NameColumnField): string {
     switch (col) {
-      case 'firstName': return worker.firstName;
-      case 'particles': return worker.particles || '';
-      case 'lastName': return worker.lastName;
+      case 'firstName': return member.firstName;
+      case 'particles': return member.particles || '';
+      case 'lastName': return member.lastName;
+    }
+  }
+
+  onCellTouchEnd(): void {
+    this.cancelLongPress();
+  }
+
+  private cancelLongPress(): void {
+    if (this.longPressTimer) {
+      clearTimeout(this.longPressTimer);
+      this.longPressTimer = null;
     }
   }
 
@@ -1290,11 +1315,11 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     this.saveSettings();
     this.cdr.markForCheck();
 
-    // Sync to workers table
-    this.settingsService.setWorkersTableSettings({
+    // Sync to members table
+    this.settingsService.setMembersTableSettings({
       sortColumn: this.sortColumn || '',
       sortDirection: this.sortColumn ? this.sortDirection : '',
-      pageSize: this.settingsService.getWorkersTableSettings()?.pageSize || 10
+      pageSize: this.settingsService.getMembersTableSettings()?.pageSize || 10
     });
   }
 
@@ -1307,66 +1332,66 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     if (!this.sortColumn) return;
     const col = this.sortColumn;
     const dir = this.sortDirection === 'asc' ? 1 : -1;
-    this.filteredWorkers = [...this.filteredWorkers].sort((a, b) => {
+    this.filteredMembers = [...this.filteredMembers].sort((a, b) => {
       const aVal = this.getNameField(a, col).toLowerCase();
       const bVal = this.getNameField(b, col).toLowerCase();
       return aVal.localeCompare(bVal) * dir;
     });
   }
 
-  trackByWorkerId(_index: number, worker: Worker): string {
-    return worker.id;
+  trackByMemberId(_index: number, member: Member): string {
+    return member.id;
   }
 
   trackByDateKey(_index: number, col: DateColumn): string {
     return col.dateKey;
   }
 
-  private workerMatchesTeam(worker: Worker, teamId: string): boolean {
+  private memberMatchesTeam(member: Member, teamId: string): boolean {
     if (teamId === '__no_team__') {
-      return !worker.teams || worker.teams.length === 0;
+      return !member.teams || member.teams.length === 0;
     }
-    return worker.teams?.some(team => team.id === teamId) || false;
+    return member.teams?.some(team => team.id === teamId) || false;
   }
 
-  private workerMatchesSelection(worker: Worker, selection: Set<string>, mode: TeamFilterMode): boolean {
+  private memberMatchesSelection(member: Member, selection: Set<string>, mode: TeamFilterMode): boolean {
     const matchFn = mode === 'and' ? 'every' : 'some';
-    return Array.from(selection)[matchFn](teamId => this.workerMatchesTeam(worker, teamId));
+    return Array.from(selection)[matchFn](teamId => this.memberMatchesTeam(member, teamId));
   }
 
-  getWorkerCountForTeam(teamId: string): number {
+  getMemberCountForTeam(teamId: string): number {
     if (this.selectedTeamIds.size === 0 || this.selectedTeamIds.has(teamId)) {
       // No filters active or this team already selected: show total membership
-      return this.workers.filter(w => this.workerMatchesTeam(w, teamId)).length;
+      return this.members.filter(m => this.memberMatchesTeam(m, teamId)).length;
     }
 
     if (this.teamFilterMode === 'and') {
-      // AND: how many workers match when this team is ADDED to current selection
+      // AND: how many members match when this team is ADDED to current selection
       const testSelection = new Set([...this.selectedTeamIds, teamId]);
-      return this.workers.filter(w => this.workerMatchesSelection(w, testSelection, 'and')).length;
+      return this.members.filter(m => this.memberMatchesSelection(m, testSelection, 'and')).length;
     } else {
-      // OR: how many ADDITIONAL workers this team would contribute
-      return this.workers.filter(w =>
-        this.workerMatchesTeam(w, teamId) && !this.workerMatchesSelection(w, this.selectedTeamIds, 'or')
+      // OR: how many ADDITIONAL members this team would contribute
+      return this.members.filter(m =>
+        this.memberMatchesTeam(m, teamId) && !this.memberMatchesSelection(m, this.selectedTeamIds, 'or')
       ).length;
     }
   }
 
-  getWorkerCountWithoutTeam(): number {
+  getMemberCountWithoutTeam(): number {
     const teamId = '__no_team__';
     if (this.selectedTeamIds.size === 0 || this.selectedTeamIds.has(teamId)) {
-      return this.workers.filter(w => this.workerMatchesTeam(w, teamId)).length;
+      return this.members.filter(m => this.memberMatchesTeam(m, teamId)).length;
     }
 
     if (this.teamFilterMode === 'and') {
-      // AND + real teams: no worker can be teamless AND in a team
+      // AND + real teams: no member can be teamless AND in a team
       const hasRealTeams = Array.from(this.selectedTeamIds).some(id => id !== '__no_team__');
       if (hasRealTeams) return 0;
-      return this.workers.filter(w => this.workerMatchesTeam(w, teamId)).length;
+      return this.members.filter(m => this.memberMatchesTeam(m, teamId)).length;
     } else {
-      // OR: additional teamless workers not already matched
-      return this.workers.filter(w =>
-        this.workerMatchesTeam(w, teamId) && !this.workerMatchesSelection(w, this.selectedTeamIds, 'or')
+      // OR: additional teamless members not already matched
+      return this.members.filter(m =>
+        this.memberMatchesTeam(m, teamId) && !this.memberMatchesSelection(m, this.selectedTeamIds, 'or')
       ).length;
     }
   }
@@ -1388,7 +1413,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
 
   scrollToMyRow(): void {
     if (!this.currentUserId) return;
-    const myIndex = this.filteredWorkers.findIndex(w => w.id === this.currentUserId);
+    const myIndex = this.filteredMembers.findIndex(m => m.id === this.currentUserId);
     if (myIndex === -1 || !this.scrollContainer) return;
 
     const targetRow = Math.max(0, myIndex - 3);
@@ -1450,19 +1475,19 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     return null;
   }
 
-  private loadWorkerHolidays(): void {
+  private loadMemberHolidays(): void {
     if (this.dateColumns.length === 0) return;
     const startDate = this.dateColumns[0].dateKey;
     const endDate = this.dateColumns[this.dateColumns.length - 1].dateKey;
-    this.workerHolidayService.loadAllHolidays(startDate, endDate).subscribe();
+    this.memberHolidayService.loadAllHolidays(startDate, endDate).subscribe();
   }
 
-  /** Pre-compute render data for all worker×date cells that have worker holidays */
+  /** Pre-compute render data for all member×date cells that have member holidays */
   private rebuildCellRenderMap(): void {
     this.cellRenderMap.clear();
-    for (const worker of this.filteredWorkers) {
+    for (const member of this.filteredMembers) {
       for (const col of this.dateColumns) {
-        const holiday = this.workerHolidayService.getHoliday(worker.id, col.dateKey);
+        const holiday = this.memberHolidayService.getHoliday(member.id, col.dateKey);
         if (holiday) {
           const color = this.getHolidayColor(holiday);
           let bgColor: string | null = null;
@@ -1477,12 +1502,12 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
           }
 
           const typeName = holiday.holidayType?.name || 'Vakantie';
-          const partLabel = holiday.dayPart === 'morning' ? ' (morning)'
-                          : holiday.dayPart === 'afternoon' ? ' (afternoon)'
+          const partLabel = holiday.dayPart === 'morning' ? ' ' + this.translate.instant('schedule.dayParts.morning')
+                          : holiday.dayPart === 'afternoon' ? ' ' + this.translate.instant('schedule.dayParts.afternoon')
                           : '';
           const desc = holiday.description ? `: ${holiday.description}` : '';
 
-          this.cellRenderMap.set(`${worker.id}:${col.dateKey}`, {
+          this.cellRenderMap.set(`${member.id}:${col.dateKey}`, {
             bgColor,
             bgImage,
             tooltip: `${typeName}${partLabel}${desc}`,
@@ -1493,19 +1518,19 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     }
   }
 
-  private rebuildEditableWorkerIds(): void {
-    this.editableWorkerIds.clear();
+  private rebuildEditableMemberIds(): void {
+    this.editableMemberIds.clear();
     const isManager = this.authService.isManager && this.managementModeEnabled;
-    for (const worker of this.filteredWorkers) {
-      if (isManager || worker.id === this.currentUserId) {
-        this.editableWorkerIds.add(worker.id);
+    for (const member of this.filteredMembers) {
+      if (isManager || member.id === this.currentUserId) {
+        this.editableMemberIds.add(member.id);
       }
     }
   }
 
-  private getHolidayColor(workerHoliday: ExpandedDayEntry): string {
-    if (workerHoliday.holidayType) {
-      return this.isDark ? workerHoliday.holidayType.colorDark : workerHoliday.holidayType.colorLight;
+  private getHolidayColor(memberHoliday: ExpandedDayEntry): string {
+    if (memberHoliday.holidayType) {
+      return this.isDark ? memberHoliday.holidayType.colorDark : memberHoliday.holidayType.colorLight;
     }
     const defaultType = this.holidayTypeService.getDefaultType();
     if (defaultType) {
@@ -1514,112 +1539,99 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     return '#c8e6c9';
   }
 
-  private canEditCell(worker: Worker): boolean {
-    return this.editableWorkerIds.has(worker.id);
+  private canEditCell(member: Member): boolean {
+    return this.editableMemberIds.has(member.id);
   }
 
-  onCellDblClick(worker: Worker, col: DateColumn): void {
-    if (!this.canEditCell(worker)) return;
+  onCellDblClick(member: Member, col: DateColumn): void {
+    if (!this.canEditCell(member)) return;
 
-    if (this.workerHolidayService.hasHoliday(worker.id, col.dateKey)) {
-      const dayEntry = this.workerHolidayService.getHoliday(worker.id, col.dateKey);
+    if (this.memberHolidayService.hasHoliday(member.id, col.dateKey)) {
+      const dayEntry = this.memberHolidayService.getHoliday(member.id, col.dateKey);
       if (!dayEntry) return;
 
-      const period = this.workerHolidayService.getPeriod(dayEntry.periodId);
+      const period = this.memberHolidayService.getPeriod(dayEntry.periodId);
       if (!period) return;
 
-      this.openEditHolidayDialog(period, worker);
+      this.openEditHolidayDialog(period, member);
     } else {
-      this.openAddHolidayDialog(col.date, worker);
+      this.openAddHolidayDialog(col.date, member);
     }
   }
 
-  onCellTouchStart(event: TouchEvent, worker: Worker, col: DateColumn): void {
-    if (!this.canEditCell(worker)) return;
+  onCellTouchStart(event: TouchEvent, member: Member, col: DateColumn): void {
+    if (!this.canEditCell(member)) return;
 
     this.longPressTimer = setTimeout(() => {
       this.longPressTimer = null;
 
-      if (this.workerHolidayService.hasHoliday(worker.id, col.dateKey)) {
-        const dayEntry = this.workerHolidayService.getHoliday(worker.id, col.dateKey);
+      if (this.memberHolidayService.hasHoliday(member.id, col.dateKey)) {
+        const dayEntry = this.memberHolidayService.getHoliday(member.id, col.dateKey);
         if (!dayEntry) return;
 
-        const period = this.workerHolidayService.getPeriod(dayEntry.periodId);
+        const period = this.memberHolidayService.getPeriod(dayEntry.periodId);
         if (!period) return;
 
-        this.openEditHolidayDialog(period, worker);
+        this.openEditHolidayDialog(period, member);
       } else {
-        this.openAddHolidayDialog(col.date, worker);
+        this.openAddHolidayDialog(col.date, member);
       }
     }, 500);
   }
 
-  onCellTouchEnd(): void {
-    this.cancelLongPress();
+  private getMemberName(member: Member): string {
+    return member.particles
+      ? `${member.firstName} ${member.particles} ${member.lastName}`
+      : `${member.firstName} ${member.lastName}`;
   }
 
-  private cancelLongPress(): void {
-    if (this.longPressTimer) {
-      clearTimeout(this.longPressTimer);
-      this.longPressTimer = null;
-    }
-  }
-
-  private getWorkerName(worker: Worker): string {
-    return worker.particles
-      ? `${worker.firstName} ${worker.particles} ${worker.lastName}`
-      : `${worker.firstName} ${worker.lastName}`;
-  }
-
-  private openAddHolidayDialog(date: Date, worker: Worker): void {
-    const isOther = worker.id !== this.currentUserId;
+  private openAddHolidayDialog(date: Date, member: Member): void {
+    const isOther = member.id !== this.currentUserId;
     const panelRef = this.panelService.open<HolidayDialogComponent, HolidayDialogData, HolidayDialogResult>(
       HolidayDialogComponent,
       {
-        width: '480px',
         data: {
           mode: 'add',
-          workerId: worker.id,
+          memberId: member.id,
           initialDate: date,
-          workerName: isOther ? this.getWorkerName(worker) : undefined
+          memberName: isOther ? this.getMemberName(member) : undefined
         }
       }
     );
 
     panelRef.afterClosed().subscribe(result => {
       if (result) {
-        this.loadWorkerHolidays();
+        this.loadMemberHolidays();
       }
     });
   }
 
-  private openEditHolidayDialog(period: WorkerHolidayPeriod, worker: Worker): void {
-    const isOther = worker.id !== this.currentUserId;
+  private openEditHolidayDialog(period: MemberHolidayPeriod, member: Member): void {
+    const isOther = member.id !== this.currentUserId;
     const panelRef = this.panelService.open<HolidayDialogComponent, HolidayDialogData, HolidayDialogResult>(
       HolidayDialogComponent,
       {
-        width: '480px',
         data: {
           mode: 'edit',
-          workerId: worker.id,
+          memberId: member.id,
           period,
-          workerName: isOther ? this.getWorkerName(worker) : undefined
+          memberName: isOther ? this.getMemberName(member) : undefined
         }
       }
     );
 
     panelRef.afterClosed().subscribe(result => {
       if (result) {
-        this.loadWorkerHolidays();
+        this.loadMemberHolidays();
       }
     });
   }
 
-  openWorkerDetail(worker: Worker): void {
+  openMemberDetail(member: Member): void {
     const railWidth = this.navigationExpanded ? 220 : 80;
-    const panelRef = this.panelService.open(WorkerDetailDialogComponent, {
+    const panelRef = this.panelService.open(MemberDetailDialogComponent, {
       leftOffset: `${railWidth}px`,
-      data: { workerId: worker.id, leftOffset: `${railWidth}px` }
+      data: { memberId: member.id, leftOffset: `${railWidth}px` }
     });
 
     panelRef.afterClosed().subscribe(result => {

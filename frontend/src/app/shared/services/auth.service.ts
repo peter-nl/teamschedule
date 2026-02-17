@@ -3,7 +3,7 @@ import { BehaviorSubject, Observable, from, map } from 'rxjs';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
 
-export interface AuthWorker {
+export interface AuthMember {
   id: string;
   firstName: string;
   lastName: string;
@@ -15,17 +15,17 @@ export interface AuthWorker {
 export interface AuthPayload {
   success: boolean;
   message: string | null;
-  worker: AuthWorker | null;
+  member: AuthMember | null;
   token: string | null;
 }
 
 const LOGIN_MUTATION = gql`
-  mutation Login($workerId: String!, $password: String!) {
-    login(workerId: $workerId, password: $password) {
+  mutation Login($memberId: String!, $password: String!) {
+    login(memberId: $memberId, password: $password) {
       success
       message
       token
-      worker {
+      member {
         id
         firstName
         lastName
@@ -38,8 +38,8 @@ const LOGIN_MUTATION = gql`
 `;
 
 const UPDATE_PROFILE_MUTATION = gql`
-  mutation UpdateWorkerProfile($id: String!, $firstName: String!, $lastName: String!, $particles: String, $email: String) {
-    updateWorkerProfile(id: $id, firstName: $firstName, lastName: $lastName, particles: $particles, email: $email) {
+  mutation UpdateMemberProfile($id: String!, $firstName: String!, $lastName: String!, $particles: String, $email: String) {
+    updateMemberProfile(id: $id, firstName: $firstName, lastName: $lastName, particles: $particles, email: $email) {
       id
       firstName
       lastName
@@ -51,8 +51,8 @@ const UPDATE_PROFILE_MUTATION = gql`
 `;
 
 const UPDATE_ROLE_MUTATION = gql`
-  mutation UpdateWorkerRole($workerId: String!, $role: String!) {
-    updateWorkerRole(workerId: $workerId, role: $role) {
+  mutation UpdateMemberRole($memberId: String!, $role: String!) {
+    updateMemberRole(memberId: $memberId, role: $role) {
       id
       firstName
       lastName
@@ -64,8 +64,8 @@ const UPDATE_ROLE_MUTATION = gql`
 `;
 
 const CHANGE_PASSWORD_MUTATION = gql`
-  mutation ChangePassword($workerId: String!, $currentPassword: String!, $newPassword: String!) {
-    changePassword(workerId: $workerId, currentPassword: $currentPassword, newPassword: $newPassword) {
+  mutation ChangePassword($memberId: String!, $currentPassword: String!, $newPassword: String!) {
+    changePassword(memberId: $memberId, currentPassword: $currentPassword, newPassword: $newPassword) {
       success
       message
     }
@@ -78,7 +78,7 @@ const STORAGE_KEY = 'teamschedule-auth';
   providedIn: 'root'
 })
 export class AuthService {
-  private currentUserSubject = new BehaviorSubject<AuthWorker | null>(null);
+  private currentUserSubject = new BehaviorSubject<AuthMember | null>(null);
   public currentUser$ = this.currentUserSubject.asObservable();
   private token: string | null = null;
 
@@ -106,7 +106,7 @@ export class AuthService {
     }
   }
 
-  private storeAuth(user: AuthWorker | null, token: string | null): void {
+  private storeAuth(user: AuthMember | null, token: string | null): void {
     try {
       if (user) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify({ user, token }));
@@ -126,33 +126,33 @@ export class AuthService {
     return this.currentUserSubject.value !== null;
   }
 
-  get currentUser(): AuthWorker | null {
+  get currentUser(): AuthMember | null {
     return this.currentUserSubject.value;
   }
 
-  login(workerId: string, password: string): Observable<AuthPayload> {
+  login(memberId: string, password: string): Observable<AuthPayload> {
     return from(
       apolloClient.mutate({
         mutation: LOGIN_MUTATION,
-        variables: { workerId, password }
+        variables: { memberId, password }
       })
     ).pipe(
       map((result: any) => {
         const payload: AuthPayload = result.data.login;
-        if (payload.success && payload.worker) {
+        if (payload.success && payload.member) {
           this.token = payload.token ?? null;
-          this.storeAuth(payload.worker, this.token);
-          this.currentUserSubject.next(payload.worker);
+          this.storeAuth(payload.member, this.token);
+          this.currentUserSubject.next(payload.member);
         }
         return payload;
       })
     );
   }
 
-  setAuth(worker: AuthWorker, token: string): void {
+  setAuth(member: AuthMember, token: string): void {
     this.token = token;
-    this.currentUserSubject.next(worker);
-    this.storeAuth(worker, token);
+    this.currentUserSubject.next(member);
+    this.storeAuth(member, token);
   }
 
   logout(): void {
@@ -161,7 +161,7 @@ export class AuthService {
     this.storeAuth(null, null);
   }
 
-  updateProfile(firstName: string, lastName: string, particles: string | null, email: string | null): Observable<AuthWorker | null> {
+  updateProfile(firstName: string, lastName: string, particles: string | null, email: string | null): Observable<AuthMember | null> {
     const user = this.currentUser;
     if (!user) {
       throw new Error('Not logged in');
@@ -180,12 +180,12 @@ export class AuthService {
       })
     ).pipe(
       map((result: any) => {
-        const updatedWorker: AuthWorker = result.data.updateWorkerProfile;
-        if (updatedWorker) {
-          this.currentUserSubject.next(updatedWorker);
-          this.storeAuth(updatedWorker, this.token);
+        const updatedMember: AuthMember = result.data.updateMemberProfile;
+        if (updatedMember) {
+          this.currentUserSubject.next(updatedMember);
+          this.storeAuth(updatedMember, this.token);
         }
-        return updatedWorker;
+        return updatedMember;
       })
     );
   }
@@ -200,7 +200,7 @@ export class AuthService {
       apolloClient.mutate({
         mutation: CHANGE_PASSWORD_MUTATION,
         variables: {
-          workerId: user.id,
+          memberId: user.id,
           currentPassword,
           newPassword
         }
@@ -214,7 +214,7 @@ export class AuthService {
     return this.currentUser?.role === 'manager';
   }
 
-  updateRole(workerId: string, role: 'user' | 'manager'): Observable<AuthWorker | null> {
+  updateRole(memberId: string, role: 'user' | 'manager'): Observable<AuthMember | null> {
     const user = this.currentUser;
     if (!user) {
       throw new Error('Not logged in');
@@ -224,19 +224,19 @@ export class AuthService {
       apolloClient.mutate({
         mutation: UPDATE_ROLE_MUTATION,
         variables: {
-          workerId,
+          memberId,
           role
         }
       })
     ).pipe(
       map((result: any) => {
-        const updatedWorker: AuthWorker = result.data.updateWorkerRole;
+        const updatedMember: AuthMember = result.data.updateMemberRole;
         // If updating own role, update current user
-        if (updatedWorker && updatedWorker.id === user.id) {
-          this.currentUserSubject.next(updatedWorker);
-          this.storeAuth(updatedWorker, this.token);
+        if (updatedMember && updatedMember.id === user.id) {
+          this.currentUserSubject.next(updatedMember);
+          this.storeAuth(updatedMember, this.token);
         }
-        return updatedWorker;
+        return updatedMember;
       })
     );
   }

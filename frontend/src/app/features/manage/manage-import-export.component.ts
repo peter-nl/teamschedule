@@ -6,20 +6,21 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
 
-const EXPORT_WORKER_HOLIDAYS = gql`
-  query ExportWorkerHolidays {
-    exportWorkerHolidays {
-      workerId workerName startDate endDate startDayPart endDayPart description holidayTypeName
+const EXPORT_MEMBER_HOLIDAYS = gql`
+  query ExportMemberHolidays {
+    exportMemberHolidays {
+      memberId memberName startDate endDate startDayPart endDayPart description holidayTypeName
     }
   }
 `;
 
-const IMPORT_WORKER_HOLIDAYS = gql`
-  mutation ImportWorkerHolidays($holidays: [WorkerHolidayImportInput!]!) {
-    importWorkerHolidays(holidays: $holidays) {
+const IMPORT_MEMBER_HOLIDAYS = gql`
+  mutation ImportMemberHolidays($holidays: [MemberHolidayImportInput!]!) {
+    importMemberHolidays(holidays: $holidays) {
       success message importedCount skippedCount
     }
   }
@@ -35,15 +36,16 @@ const IMPORT_WORKER_HOLIDAYS = gql`
     MatButtonModule,
     MatDividerModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule
+    MatSnackBarModule,
+    TranslateModule
   ],
   template: `
     <div class="ie-container">
       <mat-card class="ie-card">
         <mat-card-header>
           <mat-icon mat-card-avatar>import_export</mat-icon>
-          <mat-card-title>Import / Export</mat-card-title>
-          <mat-card-subtitle>Import and export worker holiday data</mat-card-subtitle>
+          <mat-card-title>{{ 'importExport.title' | translate }}</mat-card-title>
+          <mat-card-subtitle>{{ 'importExport.subtitle' | translate }}</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
 
@@ -51,8 +53,8 @@ const IMPORT_WORKER_HOLIDAYS = gql`
           <div class="ie-section">
             <div class="section-header">
               <div>
-                <h3>Export Worker Holidays</h3>
-                <p class="section-description">Download all worker holiday periods as a JSON file. This includes worker IDs, names, dates, day parts, descriptions, and holiday types.</p>
+                <h3>{{ 'importExport.export.title' | translate }}</h3>
+                <p class="section-description">{{ 'importExport.export.description' | translate }}</p>
               </div>
             </div>
 
@@ -61,7 +63,7 @@ const IMPORT_WORKER_HOLIDAYS = gql`
                     [disabled]="exporting">
               <mat-spinner *ngIf="exporting" diameter="18"></mat-spinner>
               <mat-icon *ngIf="!exporting">download</mat-icon>
-              Export to JSON
+              {{ 'importExport.export.button' | translate }}
             </button>
 
             <div *ngIf="exportMessage" class="status-message"
@@ -77,8 +79,8 @@ const IMPORT_WORKER_HOLIDAYS = gql`
           <div class="ie-section">
             <div class="section-header">
               <div>
-                <h3>Import Worker Holidays</h3>
-                <p class="section-description">Import worker holiday periods from a JSON file. The file must match the export format. Holidays are added to existing data (not replaced). Workers must already exist in the system.</p>
+                <h3>{{ 'importExport.import.title' | translate }}</h3>
+                <p class="section-description">{{ 'importExport.import.description' | translate }}</p>
               </div>
             </div>
 
@@ -93,7 +95,7 @@ const IMPORT_WORKER_HOLIDAYS = gql`
                       (click)="fileInput.click()"
                       [disabled]="importing">
                 <mat-icon>upload_file</mat-icon>
-                Select JSON File
+                {{ 'importExport.import.selectFile' | translate }}
               </button>
               <span *ngIf="selectedFileName" class="file-name">{{ selectedFileName }}</span>
             </div>
@@ -104,7 +106,7 @@ const IMPORT_WORKER_HOLIDAYS = gql`
                     [disabled]="importing"
                     class="import-button">
               <mat-spinner *ngIf="importing" diameter="18"></mat-spinner>
-              Import {{ importData.length }} holiday period(s)
+              {{ 'importExport.import.importButton' | translate:{ count: importData.length } }}
             </button>
 
             <div *ngIf="importMessage" class="status-message"
@@ -215,30 +217,33 @@ export class ManageImportExportComponent {
   importData: any[] | null = null;
   selectedFileName: string | null = null;
 
-  constructor(private snackBar: MatSnackBar) {}
+  constructor(
+    private snackBar: MatSnackBar,
+    private translate: TranslateService
+  ) {}
 
   async exportHolidays(): Promise<void> {
     this.exporting = true;
     this.exportMessage = null;
     try {
       const result = await apolloClient.query({
-        query: EXPORT_WORKER_HOLIDAYS,
+        query: EXPORT_MEMBER_HOLIDAYS,
         fetchPolicy: 'network-only'
       });
-      const holidays = (result.data as any).exportWorkerHolidays;
+      const holidays = (result.data as any).exportMemberHolidays;
       const json = JSON.stringify(holidays, null, 2);
       const blob = new Blob([json], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `worker-holidays-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `member-holidays-${new Date().toISOString().split('T')[0]}.json`;
       a.click();
       URL.revokeObjectURL(url);
       this.exportSuccess = true;
-      this.exportMessage = `Exported ${holidays.length} holiday period(s).`;
+      this.exportMessage = this.translate.instant('importExport.export.success', { count: holidays.length });
     } catch (err: any) {
       this.exportSuccess = false;
-      this.exportMessage = `Export failed: ${err.message}`;
+      this.exportMessage = this.translate.instant('importExport.export.failed', { error: err.message });
     } finally {
       this.exporting = false;
     }
@@ -258,13 +263,13 @@ export class ManageImportExportComponent {
       try {
         const data = JSON.parse(reader.result as string);
         if (!Array.isArray(data)) {
-          this.importMessage = 'Invalid file: expected a JSON array.';
+          this.importMessage = this.translate.instant('importExport.import.invalidArray');
           this.importSuccess = false;
           return;
         }
         this.importData = data;
       } catch {
-        this.importMessage = 'Invalid JSON file.';
+        this.importMessage = this.translate.instant('importExport.import.invalidJson');
         this.importSuccess = false;
       }
     };
@@ -279,10 +284,10 @@ export class ManageImportExportComponent {
     this.importMessage = null;
     try {
       const result = await apolloClient.mutate({
-        mutation: IMPORT_WORKER_HOLIDAYS,
+        mutation: IMPORT_MEMBER_HOLIDAYS,
         variables: {
           holidays: this.importData.map(h => ({
-            workerId: h.workerId,
+            memberId: h.memberId,
             startDate: h.startDate,
             endDate: h.endDate,
             startDayPart: h.startDayPart || 'full',
@@ -292,14 +297,14 @@ export class ManageImportExportComponent {
           }))
         }
       });
-      const res = (result.data as any).importWorkerHolidays;
+      const res = (result.data as any).importMemberHolidays;
       this.importSuccess = res.success;
       this.importMessage = res.message;
       this.importData = null;
       this.selectedFileName = null;
     } catch (err: any) {
       this.importSuccess = false;
-      this.importMessage = `Import failed: ${err.message}`;
+      this.importMessage = this.translate.instant('importExport.import.failed', { error: err.message });
     } finally {
       this.importing = false;
     }

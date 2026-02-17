@@ -3,7 +3,7 @@ import { BehaviorSubject, Observable, from, map, tap } from 'rxjs';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
 
-export interface WorkerHolidayType {
+export interface MemberHolidayType {
   id: string;
   name: string;
   colorLight: string;
@@ -13,18 +13,18 @@ export interface WorkerHolidayType {
 
 export type DayPart = 'full' | 'morning' | 'afternoon';
 
-export interface WorkerHolidayPeriod {
+export interface MemberHolidayPeriod {
   id: string;
-  workerId: string;
+  memberId: string;
   startDate: string; // YYYY-MM-DD
   endDate: string;   // YYYY-MM-DD
   startDayPart: DayPart;
   endDayPart: DayPart;
   description: string | null;
-  holidayType: WorkerHolidayType | null;
+  holidayType: MemberHolidayType | null;
 }
 
-export interface WorkerHolidayInput {
+export interface MemberHolidayInput {
   startDate: string;
   endDate: string;
   startDayPart: DayPart;
@@ -36,51 +36,51 @@ export interface WorkerHolidayInput {
 // Per-day entry expanded from a period, for O(1) schedule matrix lookups
 export interface ExpandedDayEntry {
   periodId: string;
-  workerId: string;
+  memberId: string;
   date: string;
   dayPart: DayPart;
   description: string | null;
-  holidayType: WorkerHolidayType | null;
+  holidayType: MemberHolidayType | null;
 }
 
 const PERIOD_FIELDS = `
-  id workerId startDate endDate startDayPart endDayPart description
+  id memberId startDate endDate startDayPart endDayPart description
   holidayType { id name colorLight colorDark sortOrder }
 `;
 
-const ALL_WORKER_HOLIDAYS_QUERY = gql`
-  query AllWorkerHolidays($startDate: String!, $endDate: String!) {
-    allWorkerHolidays(startDate: $startDate, endDate: $endDate) {
+const ALL_MEMBER_HOLIDAYS_QUERY = gql`
+  query AllMemberHolidays($startDate: String!, $endDate: String!) {
+    allMemberHolidays(startDate: $startDate, endDate: $endDate) {
       ${PERIOD_FIELDS}
     }
   }
 `;
 
-const WORKER_HOLIDAYS_QUERY = gql`
-  query WorkerHolidays($workerId: String!) {
-    workerHolidays(workerId: $workerId) {
+const MEMBER_HOLIDAYS_QUERY = gql`
+  query MemberHolidays($memberId: String!) {
+    memberHolidays(memberId: $memberId) {
       ${PERIOD_FIELDS}
     }
   }
 `;
 
-const ADD_WORKER_HOLIDAY_MUTATION = gql`
-  mutation AddWorkerHoliday($workerId: String!, $holiday: WorkerHolidayInput!) {
-    addWorkerHoliday(workerId: $workerId, holiday: $holiday) {
+const ADD_MEMBER_HOLIDAY_MUTATION = gql`
+  mutation AddMemberHoliday($memberId: String!, $holiday: MemberHolidayInput!) {
+    addMemberHoliday(memberId: $memberId, holiday: $holiday) {
       ${PERIOD_FIELDS}
     }
   }
 `;
 
-const REMOVE_WORKER_HOLIDAY_MUTATION = gql`
-  mutation RemoveWorkerHoliday($id: ID!) {
-    removeWorkerHoliday(id: $id)
+const REMOVE_MEMBER_HOLIDAY_MUTATION = gql`
+  mutation RemoveMemberHoliday($id: ID!) {
+    removeMemberHoliday(id: $id)
   }
 `;
 
-const UPDATE_WORKER_HOLIDAY_MUTATION = gql`
-  mutation UpdateWorkerHoliday($id: ID!, $holiday: WorkerHolidayInput!) {
-    updateWorkerHoliday(id: $id, holiday: $holiday) {
+const UPDATE_MEMBER_HOLIDAY_MUTATION = gql`
+  mutation UpdateMemberHoliday($id: ID!, $holiday: MemberHolidayInput!) {
+    updateMemberHoliday(id: $id, holiday: $holiday) {
       ${PERIOD_FIELDS}
     }
   }
@@ -89,36 +89,36 @@ const UPDATE_WORKER_HOLIDAY_MUTATION = gql`
 @Injectable({
   providedIn: 'root'
 })
-export class WorkerHolidayService {
+export class MemberHolidayService {
   // Raw periods from the API
-  private periods: WorkerHolidayPeriod[] = [];
+  private periods: MemberHolidayPeriod[] = [];
 
-  // Expanded per-day map for O(1) cell lookups, keyed by "workerId:YYYY-MM-DD"
+  // Expanded per-day map for O(1) cell lookups, keyed by "memberId:YYYY-MM-DD"
   private holidaysMap = new Map<string, ExpandedDayEntry>();
   private holidaysSubject = new BehaviorSubject<Map<string, ExpandedDayEntry>>(this.holidaysMap);
   public holidays$ = this.holidaysSubject.asObservable();
 
   // Periods exposed for the account page list view
-  private periodsSubject = new BehaviorSubject<WorkerHolidayPeriod[]>([]);
+  private periodsSubject = new BehaviorSubject<MemberHolidayPeriod[]>([]);
   public periods$ = this.periodsSubject.asObservable();
 
-  private makeKey(workerId: string, date: string): string {
-    return `${workerId}:${date}`;
+  private makeKey(memberId: string, date: string): string {
+    return `${memberId}:${date}`;
   }
 
-  hasHoliday(workerId: string, dateStr: string): boolean {
-    return this.holidaysMap.has(this.makeKey(workerId, dateStr));
+  hasHoliday(memberId: string, dateStr: string): boolean {
+    return this.holidaysMap.has(this.makeKey(memberId, dateStr));
   }
 
-  getHoliday(workerId: string, dateStr: string): ExpandedDayEntry | undefined {
-    return this.holidaysMap.get(this.makeKey(workerId, dateStr));
+  getHoliday(memberId: string, dateStr: string): ExpandedDayEntry | undefined {
+    return this.holidaysMap.get(this.makeKey(memberId, dateStr));
   }
 
-  getPeriod(periodId: string): WorkerHolidayPeriod | undefined {
+  getPeriod(periodId: string): MemberHolidayPeriod | undefined {
     return this.periods.find(p => p.id === periodId);
   }
 
-  private expandPeriod(period: WorkerHolidayPeriod): void {
+  private expandPeriod(period: MemberHolidayPeriod): void {
     const start = new Date(period.startDate + 'T00:00:00');
     const end = new Date(period.endDate + 'T00:00:00');
     const current = new Date(start);
@@ -135,9 +135,9 @@ export class WorkerHolidayService {
         dayPart = period.endDayPart;
       }
 
-      this.holidaysMap.set(this.makeKey(period.workerId, dateStr), {
+      this.holidaysMap.set(this.makeKey(period.memberId, dateStr), {
         periodId: period.id,
-        workerId: period.workerId,
+        memberId: period.memberId,
         date: dateStr,
         dayPart,
         description: period.description,
@@ -164,15 +164,15 @@ export class WorkerHolidayService {
     this.periodsSubject.next([...this.periods]);
   }
 
-  loadAllHolidays(startDate: string, endDate: string): Observable<WorkerHolidayPeriod[]> {
+  loadAllHolidays(startDate: string, endDate: string): Observable<MemberHolidayPeriod[]> {
     return from(
       apolloClient.query({
-        query: ALL_WORKER_HOLIDAYS_QUERY,
+        query: ALL_MEMBER_HOLIDAYS_QUERY,
         variables: { startDate, endDate },
         fetchPolicy: 'network-only'
       })
     ).pipe(
-      map((result: any) => result.data.allWorkerHolidays as WorkerHolidayPeriod[]),
+      map((result: any) => result.data.allMemberHolidays as MemberHolidayPeriod[]),
       tap(periods => {
         // Remove periods that overlap the queried range, then add fresh data
         this.periods = this.periods.filter(p =>
@@ -184,30 +184,30 @@ export class WorkerHolidayService {
     );
   }
 
-  loadWorkerHolidays(workerId: string): Observable<WorkerHolidayPeriod[]> {
+  loadMemberHolidays(memberId: string): Observable<MemberHolidayPeriod[]> {
     return from(
       apolloClient.query({
-        query: WORKER_HOLIDAYS_QUERY,
-        variables: { workerId },
+        query: MEMBER_HOLIDAYS_QUERY,
+        variables: { memberId },
         fetchPolicy: 'network-only'
       })
     ).pipe(
-      map((result: any) => result.data.workerHolidays as WorkerHolidayPeriod[]),
+      map((result: any) => result.data.memberHolidays as MemberHolidayPeriod[]),
       tap(periods => {
-        // Remove existing periods for this worker, then add fresh data
-        this.periods = this.periods.filter(p => p.workerId !== workerId);
+        // Remove existing periods for this member, then add fresh data
+        this.periods = this.periods.filter(p => p.memberId !== memberId);
         this.periods.push(...periods);
         this.rebuildMap();
       })
     );
   }
 
-  addHoliday(workerId: string, input: WorkerHolidayInput): Observable<WorkerHolidayPeriod> {
+  addHoliday(memberId: string, input: MemberHolidayInput): Observable<MemberHolidayPeriod> {
     // Optimistic update: create a temp period
     const tempId = 'temp-' + Date.now();
-    const tempPeriod: WorkerHolidayPeriod = {
+    const tempPeriod: MemberHolidayPeriod = {
       id: tempId,
-      workerId,
+      memberId,
       startDate: input.startDate,
       endDate: input.endDate,
       startDayPart: input.startDayPart,
@@ -220,9 +220,9 @@ export class WorkerHolidayService {
 
     return from(
       apolloClient.mutate({
-        mutation: ADD_WORKER_HOLIDAY_MUTATION,
+        mutation: ADD_MEMBER_HOLIDAY_MUTATION,
         variables: {
-          workerId,
+          memberId,
           holiday: {
             startDate: input.startDate,
             endDate: input.endDate,
@@ -235,7 +235,7 @@ export class WorkerHolidayService {
       })
     ).pipe(
       map((result: any) => {
-        const returned = result.data.addWorkerHoliday as WorkerHolidayPeriod;
+        const returned = result.data.addMemberHoliday as MemberHolidayPeriod;
         // Replace the temp period with the real one
         this.periods = this.periods.filter(p => p.id !== tempId);
         this.periods.push(returned);
@@ -245,7 +245,7 @@ export class WorkerHolidayService {
     );
   }
 
-  updateHoliday(periodId: string, input: WorkerHolidayInput): Observable<WorkerHolidayPeriod> {
+  updateHoliday(periodId: string, input: MemberHolidayInput): Observable<MemberHolidayPeriod> {
     // Optimistic update: replace the period with a new object (originals may be frozen by Apollo)
     const existing = this.periods.find(p => p.id === periodId);
     if (existing) {
@@ -263,7 +263,7 @@ export class WorkerHolidayService {
 
     return from(
       apolloClient.mutate({
-        mutation: UPDATE_WORKER_HOLIDAY_MUTATION,
+        mutation: UPDATE_MEMBER_HOLIDAY_MUTATION,
         variables: {
           id: periodId,
           holiday: {
@@ -278,7 +278,7 @@ export class WorkerHolidayService {
       })
     ).pipe(
       map((result: any) => {
-        const returned = result.data.updateWorkerHoliday as WorkerHolidayPeriod;
+        const returned = result.data.updateMemberHoliday as MemberHolidayPeriod;
         this.periods = this.periods.filter(p => p.id !== periodId);
         this.periods.push(returned);
         this.rebuildMap();
@@ -294,11 +294,11 @@ export class WorkerHolidayService {
 
     return from(
       apolloClient.mutate({
-        mutation: REMOVE_WORKER_HOLIDAY_MUTATION,
+        mutation: REMOVE_MEMBER_HOLIDAY_MUTATION,
         variables: { id: periodId }
       })
     ).pipe(
-      map((result: any) => result.data.removeWorkerHoliday as boolean)
+      map((result: any) => result.data.removeMemberHoliday as boolean)
     );
   }
 }
