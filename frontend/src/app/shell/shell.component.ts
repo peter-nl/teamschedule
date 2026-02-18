@@ -101,6 +101,7 @@ interface NavItem {
           </a>
         </div>
         <div class="nav-version">v{{ version }}</div>
+        <div class="nav-version-mobile">v{{ version }}</div>
       </nav>
 
       <!-- Account Nav Bar -->
@@ -311,6 +312,10 @@ interface NavItem {
       color: var(--mat-sys-on-surface-variant);
       opacity: 0.5;
       padding: 8px 12px;
+    }
+
+    .nav-version-mobile {
+      display: none;
     }
 
     .nav-item {
@@ -546,6 +551,17 @@ interface NavItem {
       .nav-spacer,
       .nav-version {
         display: none;
+      }
+
+      .nav-version-mobile {
+        display: block;
+        position: absolute;
+        right: 4px;
+        bottom: 2px;
+        font-size: 9px;
+        color: var(--mat-sys-on-surface-variant);
+        opacity: 0.4;
+        pointer-events: none;
       }
 
       .nav-items {

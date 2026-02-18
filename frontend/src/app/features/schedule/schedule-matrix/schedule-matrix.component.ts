@@ -390,16 +390,26 @@ interface CellRenderData {
     .matrix-header > .member-names-column {
       flex-shrink: 0;
       width: 260px;
-      border-right: 2px solid var(--mat-sys-outline-variant);
+      border-right: 1px solid var(--mat-sys-outline-variant);
     }
 
     .name-col-resize-handle {
-      flex: 0 0 6px;
+      flex: 0 0 1px;
       cursor: col-resize;
       background: var(--mat-sys-outline-variant);
       transition: background 0.15s;
       touch-action: none;
       z-index: 5;
+      position: relative;
+    }
+
+    .name-col-resize-handle::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: -4px;
+      width: 9px;
     }
 
     .name-col-resize-handle:hover,
