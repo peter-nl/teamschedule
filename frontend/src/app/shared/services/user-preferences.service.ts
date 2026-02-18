@@ -137,6 +137,16 @@ export class UserPreferencesService {
     const root = document.documentElement;
     root.classList.remove('light-theme', 'dark-theme');
 
+    // Update the color-scheme meta tag so the browser doesn't override
+    const meta = document.querySelector('meta[name="color-scheme"]');
+    if (meta) {
+      if (theme === 'system') {
+        meta.setAttribute('content', 'light dark');
+      } else {
+        meta.setAttribute('content', theme);
+      }
+    }
+
     if (theme === 'system') {
       // Let the system preference take over (handled by CSS media query)
       return;

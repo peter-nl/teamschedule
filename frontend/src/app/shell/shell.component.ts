@@ -328,6 +328,8 @@ interface NavItem {
       border: none;
       background: transparent;
       font-family: inherit;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
     }
 
     .nav-rail.expanded .nav-item {
@@ -403,6 +405,8 @@ interface NavItem {
       font-family: inherit;
       transition: background 0.15s;
       text-align: left;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
     }
 
     .nav-bar-item:hover {

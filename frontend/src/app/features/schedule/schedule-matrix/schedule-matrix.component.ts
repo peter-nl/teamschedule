@@ -130,7 +130,7 @@ interface CellRenderData {
         <div class="matrix-grid">
           <!-- Fixed Header Section -->
           <div class="matrix-header">
-            <div class="member-names-column">
+            <div class="member-names-column" [style.width.px]="nameColumnWidth">
               <div class="year-header-cell">{{ visibleYear }}</div>
               <div class="month-header-cell">{{ visibleMonth }}</div>
               <div class="week-header-cell"></div>
@@ -210,18 +210,24 @@ interface CellRenderData {
           <!-- Scrollable Body Section -->
           <div class="matrix-body">
             <!-- Fixed name column -->
-            <div class="body-names-column" #bodyNamesContainer>
+            <div class="body-names-column" #bodyNamesContainer [style.flex]="'0 0 ' + nameColumnWidth + 'px'">
               <div *ngFor="let member of filteredMembers; let rowIndex = index; trackBy: trackByMemberId"
                    class="member-name-cell"
                    [class.odd-row]="rowIndex % 2 === 1"
                    [class.my-row]="currentUserId === member.id"
                    [style.height.px]="rowHeight"
-                   (dblclick)="openMemberDetail(member)">
+                   (dblclick)="openMemberDetail(member)"
+                   (click)="onNameCellTap(member)">
                 <span *ngFor="let col of nameColumnOrder"
                       class="name-col-value"
                       [class.particles-col]="col === 'particles'"
                       >{{ getNameField(member, col) }}</span>
               </div>
+            </div>
+            <!-- Resize handle for name column -->
+            <div class="name-col-resize-handle"
+                 (mousedown)="onResizeStart($event)"
+                 (touchstart)="onResizeTouchStart($event)">
             </div>
             <!-- Scrollable date area -->
             <div class="body-dates-scroll"
@@ -248,6 +254,7 @@ interface CellRenderData {
                      [matTooltip]="cellRenderMap.get(member.id + ':' + col.dateKey)?.tooltip || col.holidayName"
                      [matTooltipDisabled]="!col.isHoliday && !cellRenderMap.has(member.id + ':' + col.dateKey)"
                      (dblclick)="onCellDblClick(member, col)"
+                     (click)="onCellTap(member, col)"
                      (touchstart)="onCellTouchStart($event, member, col)"
                      (touchend)="onCellTouchEnd()">
                 </div>
@@ -366,7 +373,6 @@ interface CellRenderData {
     .body-names-column {
       flex: 0 0 260px;
       overflow: hidden;
-      border-right: 2px solid var(--mat-sys-outline-variant);
     }
 
     .body-dates-scroll {
@@ -385,6 +391,20 @@ interface CellRenderData {
       flex-shrink: 0;
       width: 260px;
       border-right: 2px solid var(--mat-sys-outline-variant);
+    }
+
+    .name-col-resize-handle {
+      flex: 0 0 6px;
+      cursor: col-resize;
+      background: var(--mat-sys-outline-variant);
+      transition: background 0.15s;
+      touch-action: none;
+      z-index: 5;
+    }
+
+    .name-col-resize-handle:hover,
+    .name-col-resize-handle:active {
+      background: var(--mat-sys-primary);
     }
 
     .date-header-scroll {
@@ -540,8 +560,7 @@ interface CellRenderData {
 
     .name-col-value.particles-col,
     .name-col-header.particles-col {
-      flex: 0 0 70px;
-      max-width: 70px;
+      flex: 0.7 0.7 0;
     }
 
     .member-name-cell.odd-row {
@@ -695,8 +714,57 @@ interface CellRenderData {
     }
 
     @media (max-width: 768px) {
+      .schedule-container {
+        padding: 8px;
+      }
+
       .header {
         margin-bottom: 4px;
+      }
+
+      /* Smaller name text */
+      .member-name-cell {
+        font-size: 11px;
+      }
+
+      .name-col-value {
+        padding: 0 4px;
+      }
+
+      /* Hide drag handles and sort icons (not usable on touch) */
+      .drag-handle,
+      .sort-icon {
+        display: none;
+      }
+
+      .name-col-header {
+        font-size: 10px;
+        padding: 0 4px;
+      }
+
+      /* Hide year and week header rows to save vertical space */
+      .year-header-cell,
+      .year-row {
+        display: none;
+      }
+
+      .week-header-cell,
+      .week-row {
+        display: none;
+      }
+
+      /* Compact month/day headers */
+      .month-header-cell {
+        font-size: 11px;
+        height: 24px;
+      }
+
+      .month-cell {
+        font-size: 11px;
+      }
+
+      .month-row {
+        height: 24px;
       }
     }
   `]
@@ -730,6 +798,18 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
   nameColumnOrder: NameColumnField[] = ['lastName', 'firstName', 'particles'];
   sortColumn: NameColumnField | null = null;
   sortDirection: 'asc' | 'desc' = 'asc';
+
+  // Name column width (resizable)
+  nameColumnWidth = 260;
+  private readonly NAME_COL_MIN = 60;
+  private readonly NAME_COL_MAX = 400;
+  private isResizingNameCol = false;
+  private resizeStartX = 0;
+  private resizeStartWidth = 0;
+  private boundResizeMove: (e: MouseEvent) => void;
+  private boundResizeEnd: (e: MouseEvent) => void;
+  private boundResizeTouchMove: (e: TouchEvent) => void;
+  private boundResizeTouchEnd: () => void;
 
   // Zoom
   cellWidth = 40;
@@ -779,6 +859,18 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
 
   // Long-press state for mobile holiday edit
   private longPressTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Double-tap detection for member name cells (mobile)
+  private lastNameTapTime = 0;
+  private lastNameTapMemberId: string | null = null;
+
+  // Double-tap detection for date cells (mobile)
+  private lastCellTapTime = 0;
+  private lastCellTapKey: string | null = null;
+
+  private get isMobile(): boolean {
+    return window.innerWidth <= 768;
+  }
 
   constructor(
     private scheduleService: ScheduleService,
@@ -869,6 +961,17 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     this.boundMouseUp = this.onMouseUp.bind(this);
     this.boundTouchMove = this.onTouchMove.bind(this);
     this.boundTouchEnd = this.onTouchEnd.bind(this);
+
+    // Bind event handlers for name column resize
+    this.boundResizeMove = this.onResizeMove.bind(this);
+    this.boundResizeEnd = this.onResizeEnd.bind(this);
+    this.boundResizeTouchMove = this.onResizeTouchMove.bind(this);
+    this.boundResizeTouchEnd = this.onResizeTouchEnd.bind(this);
+
+    // Use narrower default on mobile
+    if (window.innerWidth <= 768) {
+      this.nameColumnWidth = 90;
+    }
   }
 
   ngOnInit(): void {
@@ -930,6 +1033,10 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     document.removeEventListener('mouseup', this.boundMouseUp);
     document.removeEventListener('touchmove', this.boundTouchMove);
     document.removeEventListener('touchend', this.boundTouchEnd);
+    document.removeEventListener('mousemove', this.boundResizeMove);
+    document.removeEventListener('mouseup', this.boundResizeEnd);
+    document.removeEventListener('touchmove', this.boundResizeTouchMove);
+    document.removeEventListener('touchend', this.boundResizeTouchEnd);
   }
 
   // Mouse drag handlers
@@ -990,6 +1097,55 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
 
     this.isDragging = false;
     document.removeEventListener('touchmove', this.boundTouchMove);
+  }
+
+  // Name column resize handlers
+  onResizeStart(event: MouseEvent): void {
+    event.preventDefault();
+    this.isResizingNameCol = true;
+    this.resizeStartX = event.clientX;
+    this.resizeStartWidth = this.nameColumnWidth;
+    document.addEventListener('mousemove', this.boundResizeMove);
+    document.addEventListener('mouseup', this.boundResizeEnd);
+  }
+
+  onResizeTouchStart(event: TouchEvent): void {
+    if (event.touches.length !== 1) return;
+    event.preventDefault();
+    this.isResizingNameCol = true;
+    this.resizeStartX = event.touches[0].clientX;
+    this.resizeStartWidth = this.nameColumnWidth;
+    document.addEventListener('touchmove', this.boundResizeTouchMove, { passive: false });
+    document.addEventListener('touchend', this.boundResizeTouchEnd);
+  }
+
+  private onResizeMove(event: MouseEvent): void {
+    if (!this.isResizingNameCol) return;
+    const delta = event.clientX - this.resizeStartX;
+    this.nameColumnWidth = Math.min(this.NAME_COL_MAX, Math.max(this.NAME_COL_MIN, this.resizeStartWidth + delta));
+    this.cdr.markForCheck();
+  }
+
+  private onResizeTouchMove(event: TouchEvent): void {
+    if (!this.isResizingNameCol || event.touches.length !== 1) return;
+    event.preventDefault();
+    const delta = event.touches[0].clientX - this.resizeStartX;
+    this.nameColumnWidth = Math.min(this.NAME_COL_MAX, Math.max(this.NAME_COL_MIN, this.resizeStartWidth + delta));
+    this.cdr.markForCheck();
+  }
+
+  private onResizeEnd(): void {
+    if (!this.isResizingNameCol) return;
+    this.isResizingNameCol = false;
+    document.removeEventListener('mousemove', this.boundResizeMove);
+    document.removeEventListener('mouseup', this.boundResizeEnd);
+  }
+
+  private onResizeTouchEnd(): void {
+    if (!this.isResizingNameCol) return;
+    this.isResizingNameCol = false;
+    document.removeEventListener('touchmove', this.boundResizeTouchMove);
+    document.removeEventListener('touchend', this.boundResizeTouchEnd);
   }
 
   // Scroll handler to sync header horizontal scroll, body names vertical scroll, and update visible year/month
@@ -1168,7 +1324,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     const panelRef = this.panelService.open<ScheduleFilterPanelComponent, ScheduleFilterPanelData, ScheduleFilterPanelResult>(
       ScheduleFilterPanelComponent,
       {
-        width: '360px',
+        ...(this.isMobile ? { leftOffset: '0px' } : { width: '360px' }),
         data: {
           teams: this.teams,
           selectedTeamIds: new Set(this.selectedTeamIds),
@@ -1208,7 +1364,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     const panelRef = this.panelService.open<ScheduleSearchPanelComponent, ScheduleSearchPanelData, ScheduleSearchPanelResult>(
       ScheduleSearchPanelComponent,
       {
-        width: '360px',
+        ...(this.isMobile ? { leftOffset: '0px' } : { width: '360px' }),
         data: {
           searchText: this.searchText,
           onSearchChange: (text: string) => {
@@ -1559,6 +1715,20 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     }
   }
 
+  onCellTap(member: Member, col: DateColumn): void {
+    if (!this.canEditCell(member)) return;
+    const key = member.id + ':' + col.dateKey;
+    const now = Date.now();
+    if (this.lastCellTapKey === key && now - this.lastCellTapTime < 400) {
+      this.lastCellTapTime = 0;
+      this.lastCellTapKey = null;
+      this.onCellDblClick(member, col);
+    } else {
+      this.lastCellTapTime = now;
+      this.lastCellTapKey = key;
+    }
+  }
+
   onCellTouchStart(event: TouchEvent, member: Member, col: DateColumn): void {
     if (!this.canEditCell(member)) return;
 
@@ -1590,6 +1760,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     const panelRef = this.panelService.open<HolidayDialogComponent, HolidayDialogData, HolidayDialogResult>(
       HolidayDialogComponent,
       {
+        ...(this.isMobile ? { leftOffset: '0px' } : {}),
         data: {
           mode: 'add',
           memberId: member.id,
@@ -1611,6 +1782,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     const panelRef = this.panelService.open<HolidayDialogComponent, HolidayDialogData, HolidayDialogResult>(
       HolidayDialogComponent,
       {
+        ...(this.isMobile ? { leftOffset: '0px' } : {}),
         data: {
           mode: 'edit',
           memberId: member.id,
@@ -1627,8 +1799,21 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     });
   }
 
+  onNameCellTap(member: Member): void {
+    const now = Date.now();
+    if (this.lastNameTapMemberId === member.id && now - this.lastNameTapTime < 400) {
+      this.lastNameTapTime = 0;
+      this.lastNameTapMemberId = null;
+      this.openMemberDetail(member);
+    } else {
+      this.lastNameTapTime = now;
+      this.lastNameTapMemberId = member.id;
+    }
+  }
+
   openMemberDetail(member: Member): void {
-    const railWidth = this.navigationExpanded ? 220 : 80;
+    const mobile = this.isMobile;
+    const railWidth = mobile ? 0 : (this.navigationExpanded ? 220 : 80);
     const panelRef = this.panelService.open(MemberDetailDialogComponent, {
       leftOffset: `${railWidth}px`,
       data: { memberId: member.id, leftOffset: `${railWidth}px` }

@@ -121,7 +121,7 @@ export class SlideInPanelService {
       positionStrategy,
       scrollStrategy: this.overlay.scrollStrategies.block(),
       width: useFullWidth ? `calc(100% - ${config.leftOffset})` : (config.width || '480px'),
-      maxWidth: useFullWidth ? '100%' : '95vw',
+      maxWidth: '100vw',
       panelClass: panelClasses
     });
 
