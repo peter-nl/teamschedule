@@ -107,7 +107,7 @@ interface NavItem {
       <nav class="nav-bar" *ngIf="activeNavBar === 'account'">
         <div class="nav-bar-spacer"></div>
         <div class="nav-bar-items">
-          <button class="nav-bar-item" (click)="toggleTheme()">
+          <button *ngIf="!isMobile" class="nav-bar-item" (click)="toggleTheme()">
             <mat-icon>{{ isDark ? 'light_mode' : 'dark_mode' }}</mat-icon>
             <span>{{ (isDark ? 'shell.account.lightTheme' : 'shell.account.darkTheme') | translate }}</span>
           </button>
@@ -665,6 +665,11 @@ export class ShellComponent {
         this.activePanel = null;
       }
     });
+
+    // On mobile, force system theme since browser dark mode overrides app theme
+    if (this.isMobile && this.userPreferencesService.preferences.theme !== 'system') {
+      this.userPreferencesService.setTheme('system');
+    }
 
     this.userPreferencesService.isDarkTheme$.subscribe(isDark => {
       this.isDark = isDark;
