@@ -14,7 +14,12 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
 import { AuthService } from '../services/auth.service';
-import { SlideInPanelRef, SLIDE_IN_PANEL_DATA } from '../services/slide-in-panel.service';
+import { SlideInPanelRef, SLIDE_IN_PANEL_DATA, SlideInPanelService } from '../services/slide-in-panel.service';
+import { DaySchedule } from '../models/member.model';
+import { ScheduleService } from '../../features/schedule/services/schedule.service';
+import { MemberHolidayService, MemberHolidayPeriod } from '../../core/services/member-holiday.service';
+import { HolidayDialogComponent, HolidayDialogData, HolidayDialogResult } from './holiday-dialog.component';
+import { UserPreferencesService } from '../services/user-preferences.service';
 
 export interface MemberEditDialogData {
   member: {
@@ -75,7 +80,8 @@ const RESET_PASSWORD_MUTATION = gql`
     MatSnackBarModule,
     MatTooltipModule,
     MatDividerModule,
-    TranslateModule
+    TranslateModule,
+    HolidayDialogComponent
   ],
   template: `
     <div class="slide-in-panel">
@@ -136,6 +142,73 @@ const RESET_PASSWORD_MUTATION = gql`
               </mat-option>
             </mat-select>
           </mat-form-field>
+
+          <!-- Work Schedule Section -->
+          <mat-divider style="margin: 16px 0;"></mat-divider>
+
+          <h4 style="margin: 0 0 8px 0; color: var(--mat-sys-primary); display: flex; align-items: center; gap: 8px;">
+            <mat-icon>schedule</mat-icon>
+            {{ 'memberSchedule.title' | translate }}
+          </h4>
+
+          <div class="schedule-info">
+            {{ 'memberSchedule.alternationStart' | translate }}: {{ referenceDate }}
+          </div>
+
+          <div *ngFor="let weekLabel of ['weekA', 'weekB']; let wi = index" class="schedule-week">
+            <div class="week-label">{{ 'memberSchedule.' + weekLabel | translate }}</div>
+            <div class="schedule-grid">
+              <div *ngFor="let key of dayLabelKeys" class="sg-day-header">{{ key | translate }}</div>
+              <div *ngFor="let d of getWeek(wi); let di = index"
+                   class="sg-cell"
+                   [class.day-off]="d.morning === 0 && d.afternoon === 0"
+                   [class.half-day]="(d.morning === 0) !== (d.afternoon === 0)"
+                   (click)="cycleDay(wi, di)"
+                   tabindex="0" role="button"
+                   (keydown.enter)="cycleDay(wi, di)"
+                   (keydown.space)="cycleDay(wi, di); $event.preventDefault()">
+                {{ dayToString(d) }}
+              </div>
+            </div>
+          </div>
+
+          <!-- Holidays Section -->
+          <mat-divider style="margin: 16px 0;"></mat-divider>
+
+          <div class="section-header">
+            <h4 style="margin: 0; color: var(--mat-sys-primary); display: flex; align-items: center; gap: 8px;">
+              <mat-icon>event_busy</mat-icon>
+              {{ 'profile.holidays.title' | translate }}
+            </h4>
+            <button mat-icon-button type="button" (click)="openAddHoliday()"
+                    [matTooltip]="'profile.holidays.addHoliday' | translate">
+              <mat-icon>add</mat-icon>
+            </button>
+          </div>
+
+          <div *ngIf="holidaysLoading" style="display:flex; justify-content:center; padding:12px;">
+            <mat-spinner diameter="24"></mat-spinner>
+          </div>
+
+          <div *ngIf="!holidaysLoading">
+            <div *ngIf="holidays.length === 0" class="holidays-empty">
+              {{ 'profile.holidays.empty' | translate }}
+            </div>
+            <div *ngFor="let h of holidays" class="holiday-item" (click)="openEditHoliday(h)">
+              <div class="holiday-type-dot" *ngIf="h.holidayType"
+                   [style.background]="isDark ? h.holidayType.colorDark : h.holidayType.colorLight"></div>
+              <div class="holiday-info">
+                <span class="holiday-date">{{ formatHolidayPeriod(h) }}</span>
+                <span *ngIf="h.description" class="holiday-desc">{{ h.description }}</span>
+              </div>
+              <button mat-icon-button type="button" color="warn"
+                      (click)="removeHoliday(h, $event)"
+                      [disabled]="removingHolidayId === h.id">
+                <mat-spinner *ngIf="removingHolidayId === h.id" diameter="16"></mat-spinner>
+                <mat-icon *ngIf="removingHolidayId !== h.id">delete</mat-icon>
+              </button>
+            </div>
+          </div>
 
           <!-- Reset Password Section (managers only, for other members) -->
           <ng-container *ngIf="canResetPassword">
@@ -198,6 +271,12 @@ const RESET_PASSWORD_MUTATION = gql`
     </div>
   `,
   styles: [`
+    :host {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
     .form-content {
       display: flex;
       flex-direction: column;
@@ -214,6 +293,129 @@ const RESET_PASSWORD_MUTATION = gql`
     button mat-spinner {
       display: inline-block;
       margin-right: 4px;
+    }
+
+    .schedule-info {
+      margin: 10px 0 6px;
+      font-size: 12px;
+      color: var(--mat-sys-on-surface-variant);
+    }
+
+    .schedule-week {
+      margin: 8px 0;
+    }
+
+    .week-label {
+      font-weight: 500;
+      font-size: 13px;
+      margin-bottom: 4px;
+      color: var(--mat-sys-on-surface);
+    }
+
+    .schedule-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      border: 1px solid var(--mat-sys-outline-variant);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .sg-day-header {
+      text-align: center;
+      padding: 4px 2px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--mat-sys-on-surface-variant);
+      background: var(--mat-sys-surface-container);
+      border-right: 1px solid var(--mat-sys-outline-variant);
+      border-bottom: 1px solid var(--mat-sys-outline-variant);
+    }
+
+    .sg-day-header:last-of-type {
+      border-right: none;
+    }
+
+    .sg-cell {
+      text-align: center;
+      padding: 6px 2px;
+      font-size: 13px;
+      border-right: 1px solid var(--mat-sys-outline-variant);
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.1s;
+    }
+
+    .sg-cell:last-child {
+      border-right: none;
+    }
+
+    .sg-cell:hover, .sg-cell:focus {
+      background: var(--mat-sys-surface-container-high);
+      outline: none;
+    }
+
+    .sg-cell.day-off {
+      color: var(--mat-sys-on-surface-variant);
+    }
+
+    .sg-cell.half-day {
+      color: var(--mat-sys-primary);
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+
+    .holidays-empty {
+      font-size: 13px;
+      color: var(--mat-sys-on-surface-variant);
+      font-style: italic;
+      padding: 4px 0 8px;
+    }
+
+    .holiday-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 4px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+
+    .holiday-item:hover {
+      background: var(--mat-sys-surface-container);
+    }
+
+    .holiday-type-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .holiday-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .holiday-date {
+      font-size: 13px;
+      color: var(--mat-sys-on-surface);
+    }
+
+    .holiday-desc {
+      font-size: 11px;
+      color: var(--mat-sys-on-surface-variant);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
   `]
 })
@@ -236,12 +438,34 @@ export class MemberEditDialogComponent {
   resettingPassword = false;
   saving = false;
 
+  // Schedule fields
+  referenceDate = '';
+  scheduleWeek1: DaySchedule[] = [];
+  scheduleWeek2: DaySchedule[] = [];
+  dayLabelKeys = ['days.abbr.mo', 'days.abbr.tu', 'days.abbr.we', 'days.abbr.th', 'days.abbr.fr'];
+  readonly dayValues: DaySchedule[] = [
+    { morning: 4, afternoon: 4 },
+    { morning: 4, afternoon: 0 },
+    { morning: 0, afternoon: 4 },
+    { morning: 0, afternoon: 0 }
+  ];
+
+  // Holiday fields
+  holidays: MemberHolidayPeriod[] = [];
+  holidaysLoading = false;
+  removingHolidayId: string | null = null;
+  isDark = false;
+
   constructor(
     public panelRef: SlideInPanelRef<MemberEditDialogComponent, boolean>,
     @Inject(SLIDE_IN_PANEL_DATA) public data: MemberEditDialogData,
     private authService: AuthService,
     private snackBar: MatSnackBar,
-    private translate: TranslateService
+    private translate: TranslateService,
+    private scheduleService: ScheduleService,
+    private holidayService: MemberHolidayService,
+    private panelService: SlideInPanelService,
+    private userPrefsService: UserPreferencesService
   ) {
     this.editForm = {
       firstName: data.member.firstName,
@@ -251,6 +475,20 @@ export class MemberEditDialogComponent {
       role: data.member.role,
       teamIds: data.member.teams.map(t => t.id)
     };
+
+    this.userPrefsService.isDarkTheme$.subscribe(dark => { this.isDark = dark; });
+
+    // Load existing schedule or initialise with defaults
+    const existing = this.scheduleService.getMemberSchedule(data.member.id);
+    if (existing) {
+      this.referenceDate = existing.referenceDate;
+      this.scheduleWeek1 = existing.week1.map(d => ({ ...d }));
+      this.scheduleWeek2 = existing.week2.map(d => ({ ...d }));
+    } else {
+      this.initEmptySchedule();
+    }
+
+    this.loadHolidays();
   }
 
   get canEditRole(): boolean {
@@ -325,6 +563,16 @@ export class MemberEditDialogComponent {
         }
       }
 
+      // Always save the member schedule
+      await new Promise<void>((resolve, reject) => {
+        this.scheduleService.saveMemberSchedule(
+          this.data.member.id,
+          this.referenceDate,
+          this.scheduleWeek1,
+          this.scheduleWeek2
+        ).subscribe({ next: () => resolve(), error: (e) => reject(e) });
+      });
+
       // If user edited their own profile, update the stored auth user
       if (this.data.isSelf) {
         this.authService.updateProfile(
@@ -343,6 +591,80 @@ export class MemberEditDialogComponent {
     } finally {
       this.saving = false;
     }
+  }
+
+  private initEmptySchedule(): void {
+    const defaultDay: DaySchedule = { morning: 4, afternoon: 4 };
+    this.scheduleWeek1 = Array.from({ length: 5 }, () => ({ ...defaultDay }));
+    this.scheduleWeek2 = Array.from({ length: 5 }, () => ({ ...defaultDay }));
+    this.referenceDate = this.getFirstMondayOfYear();
+  }
+
+  private getFirstMondayOfYear(): string {
+    const year = new Date().getFullYear();
+    const jan1 = new Date(year, 0, 1);
+    const day = jan1.getDay();
+    const daysToMonday = day === 0 ? 1 : (day === 1 ? 0 : 8 - day);
+    const firstMonday = new Date(year, 0, 1 + daysToMonday);
+    return firstMonday.toISOString().split('T')[0];
+  }
+
+  getWeek(index: number): DaySchedule[] {
+    return index === 0 ? this.scheduleWeek1 : this.scheduleWeek2;
+  }
+
+  dayToString(d: DaySchedule): string {
+    if (d.morning === 0 && d.afternoon === 0) return '0';
+    if (d.morning === 4 && d.afternoon === 4) return '8';
+    return `${d.morning}/${d.afternoon}`;
+  }
+
+  cycleDay(weekIndex: number, dayIndex: number): void {
+    const week = this.getWeek(weekIndex);
+    const current = week[dayIndex];
+    const idx = this.dayValues.findIndex(v => v.morning === current.morning && v.afternoon === current.afternoon);
+    week[dayIndex] = { ...this.dayValues[(idx + 1) % this.dayValues.length] };
+  }
+
+  loadHolidays(): void {
+    this.holidaysLoading = true;
+    this.holidayService.loadMemberHolidays(this.data.member.id).subscribe({
+      next: h => { this.holidays = h; this.holidaysLoading = false; },
+      error: () => { this.holidaysLoading = false; }
+    });
+  }
+
+  openAddHoliday(): void {
+    this.panelService.open<HolidayDialogComponent, HolidayDialogData, HolidayDialogResult>(
+      HolidayDialogComponent,
+      { data: { mode: 'add', memberId: this.data.member.id } }
+    ).afterClosed().subscribe(r => { if (r) this.loadHolidays(); });
+  }
+
+  openEditHoliday(period: MemberHolidayPeriod): void {
+    this.panelService.open<HolidayDialogComponent, HolidayDialogData, HolidayDialogResult>(
+      HolidayDialogComponent,
+      { data: { mode: 'edit', memberId: this.data.member.id, period } }
+    ).afterClosed().subscribe(r => { if (r) this.loadHolidays(); });
+  }
+
+  removeHoliday(period: MemberHolidayPeriod, event: Event): void {
+    event.stopPropagation();
+    this.removingHolidayId = period.id;
+    this.holidayService.removeHoliday(period.id).subscribe({
+      next: () => { this.removingHolidayId = null; this.loadHolidays(); },
+      error: () => { this.removingHolidayId = null; }
+    });
+  }
+
+  formatHolidayPeriod(period: MemberHolidayPeriod): string {
+    const locale = this.translate.currentLang === 'nl' ? 'nl-NL' : 'en-US';
+    const start = new Date(period.startDate + 'T00:00:00');
+    if (period.startDate === period.endDate) {
+      return start.toLocaleDateString(locale, { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+    const end = new Date(period.endDate + 'T00:00:00');
+    return `${start.toLocaleDateString(locale, { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString(locale, { month: 'short', day: 'numeric' })}`;
   }
 
   async onResetPassword(): Promise<void> {

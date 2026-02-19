@@ -14,6 +14,9 @@ import { apolloClient } from '../../app.config';
 import { AuthService } from '../services/auth.service';
 import { UserPreferencesService } from '../services/user-preferences.service';
 import { SlideInPanelRef, SlideInPanelService, SLIDE_IN_PANEL_DATA } from '../services/slide-in-panel.service';
+import { MemberSchedule } from '../models/member.model';
+import { ScheduleService } from '../../features/schedule/services/schedule.service';
+import { MemberHolidayService, MemberHolidayPeriod } from '../../core/services/member-holiday.service';
 import { ConfirmDialogComponent } from './confirm-dialog.component';
 import { MemberEditDialogComponent, MemberEditDialogData } from './member-edit-dialog.component';
 
@@ -131,6 +134,39 @@ const DELETE_MEMBER_MUTATION = gql`
             <span class="detail-label">{{ 'memberDetail.teams' | translate }}</span>
             <span class="detail-value muted">{{ 'memberDetail.noTeams' | translate }}</span>
           </div>
+
+          <div class="detail-row" *ngIf="memberSchedule">
+            <span class="detail-label">{{ 'memberSchedule.title' | translate }}</span>
+            <div *ngFor="let weekLabel of ['weekA', 'weekB']; let wi = index" class="schedule-week-display">
+              <div class="week-label-display">{{ 'memberSchedule.' + weekLabel | translate }}</div>
+              <div class="schedule-grid-display">
+                <div class="sgd-day-header" *ngFor="let key of dayLabelKeys">{{ key | translate }}</div>
+                <div class="sgd-cell" *ngFor="let d of (wi === 0 ? memberSchedule.week1 : memberSchedule.week2)"
+                     [class.off]="d.morning === 0 && d.afternoon === 0"
+                     [class.half-day]="(d.morning === 0) !== (d.afternoon === 0)">{{ dayToString(d) }}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="detail-row">
+            <span class="detail-label">{{ 'profile.holidays.title' | translate }}</span>
+            <div *ngIf="holidaysLoading" style="display:flex; align-items:center; gap:8px; padding:4px 0;">
+              <mat-spinner diameter="16"></mat-spinner>
+            </div>
+            <div *ngIf="!holidaysLoading && holidays.length === 0" class="holidays-empty">
+              {{ 'profile.holidays.empty' | translate }}
+            </div>
+            <div *ngIf="!holidaysLoading && holidays.length > 0" class="holidays-list-ro">
+              <div *ngFor="let h of holidays" class="holiday-item-ro">
+                <div class="holiday-type-dot" *ngIf="h.holidayType"
+                     [style.background]="isDark ? h.holidayType.colorDark : h.holidayType.colorLight"></div>
+                <div class="holiday-info-ro">
+                  <span class="holiday-date-ro">{{ formatHolidayPeriod(h) }}</span>
+                  <span *ngIf="h.description" class="holiday-desc-ro">{{ h.description }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -226,6 +262,105 @@ const DELETE_MEMBER_MUTATION = gql`
       display: inline-block;
       margin-right: 4px;
     }
+
+    .schedule-week-display {
+      margin: 8px 0;
+    }
+
+    .week-label-display {
+      font-size: 12px;
+      font-weight: 500;
+      margin-bottom: 4px;
+      color: var(--mat-sys-on-surface-variant);
+    }
+
+    .schedule-grid-display {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      border: 1px solid var(--mat-sys-outline-variant);
+      border-radius: 8px;
+      overflow: hidden;
+      font-size: 13px;
+    }
+
+    .sgd-day-header {
+      text-align: center;
+      padding: 4px 2px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--mat-sys-on-surface-variant);
+      background: var(--mat-sys-surface-container);
+      border-right: 1px solid var(--mat-sys-outline-variant);
+      border-bottom: 1px solid var(--mat-sys-outline-variant);
+    }
+
+    .sgd-day-header:last-of-type {
+      border-right: none;
+    }
+
+    .sgd-cell {
+      text-align: center;
+      padding: 4px 2px;
+      border-right: 1px solid var(--mat-sys-outline-variant);
+    }
+
+    .sgd-cell:last-child {
+      border-right: none;
+    }
+
+    .sgd-cell.off {
+      color: var(--mat-sys-on-surface-variant);
+      font-style: italic;
+    }
+
+    .sgd-cell.half-day {
+      color: var(--mat-sys-primary);
+    }
+
+    .holidays-empty {
+      font-size: 13px;
+      color: var(--mat-sys-on-surface-variant);
+      font-style: italic;
+      padding: 4px 0;
+    }
+
+    .holidays-list-ro {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .holiday-item-ro {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0;
+    }
+
+    .holiday-type-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .holiday-info-ro {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .holiday-date-ro {
+      font-size: 13px;
+      color: var(--mat-sys-on-surface);
+    }
+
+    .holiday-desc-ro {
+      font-size: 11px;
+      color: var(--mat-sys-on-surface-variant);
+    }
+
   `]
 })
 export class MemberDetailDialogComponent implements OnInit {
@@ -234,6 +369,11 @@ export class MemberDetailDialogComponent implements OnInit {
   loadingData = true;
   deleting = false;
   hasChanges = false;
+  memberSchedule: MemberSchedule | null = null;
+  dayLabelKeys = ['days.abbr.mo', 'days.abbr.tu', 'days.abbr.we', 'days.abbr.th', 'days.abbr.fr'];
+  holidays: MemberHolidayPeriod[] = [];
+  holidaysLoading = false;
+  isDark = false;
   private managementModeEnabled = false;
 
   constructor(
@@ -243,12 +383,15 @@ export class MemberDetailDialogComponent implements OnInit {
     private userPreferencesService: UserPreferencesService,
     private snackBar: MatSnackBar,
     private panelService: SlideInPanelService,
-    private translate: TranslateService
+    private translate: TranslateService,
+    private scheduleService: ScheduleService,
+    private holidayService: MemberHolidayService
   ) {
     this.managementModeEnabled = this.userPreferencesService.preferences.managementMode;
     this.userPreferencesService.preferences$.subscribe(prefs => {
       this.managementModeEnabled = prefs.managementMode;
     });
+    this.userPreferencesService.isDarkTheme$.subscribe(dark => { this.isDark = dark; });
   }
 
   ngOnInit(): void {
@@ -290,12 +433,38 @@ export class MemberDetailDialogComponent implements OnInit {
       this.allTeams = teamsResult.data.teams;
       const members: MemberFull[] = membersResult.data.members;
       this.member = members.find(m => m.id === this.data.memberId) || null;
+      this.memberSchedule = this.scheduleService.getMemberSchedule(this.data.memberId) || null;
+      this.loadHolidays();
     } catch (error) {
       console.error('Failed to load member data:', error);
       this.snackBar.open(this.translate.instant('memberDetail.messages.loadFailed'), this.translate.instant('common.close'), { duration: 3000 });
     } finally {
       this.loadingData = false;
     }
+  }
+
+  dayToString(d: { morning: number; afternoon: number }): string {
+    if (d.morning === 0 && d.afternoon === 0) return '0';
+    if (d.morning === 4 && d.afternoon === 4) return '8';
+    return `${d.morning}/${d.afternoon}`;
+  }
+
+  private loadHolidays(): void {
+    this.holidaysLoading = true;
+    this.holidayService.loadMemberHolidays(this.data.memberId).subscribe({
+      next: h => { this.holidays = h; this.holidaysLoading = false; },
+      error: () => { this.holidaysLoading = false; }
+    });
+  }
+
+  formatHolidayPeriod(period: MemberHolidayPeriod): string {
+    const locale = this.translate.currentLang === 'nl' ? 'nl-NL' : 'en-US';
+    const start = new Date(period.startDate + 'T00:00:00');
+    if (period.startDate === period.endDate) {
+      return start.toLocaleDateString(locale, { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+    const end = new Date(period.endDate + 'T00:00:00');
+    return `${start.toLocaleDateString(locale, { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString(locale, { month: 'short', day: 'numeric' })}`;
   }
 
   openEdit(): void {

@@ -1,6 +1,6 @@
 {
   "name": "teamschedule-backend",
-  "version": "4.0.0",
+  "version": "5.0.0",
   "description": "Teamschedule Apollo GraphQL Backend",
   "main": "dist/index.js",
   "scripts": {

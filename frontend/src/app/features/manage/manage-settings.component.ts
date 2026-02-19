@@ -240,6 +240,24 @@ interface HolidayYearGroup {
                   </div>
                 </div>
               </div>
+
+              <div class="color-setting">
+                <span class="color-setting-label">{{ 'settings.colors.scheduledDaysOff' | translate }}</span>
+                <div class="color-setting-pickers">
+                  <div class="color-pair">
+                    <label>{{ 'common.light' | translate }}</label>
+                    <input type="color" [value]="scheduledDayOffColorLight"
+                      (input)="onColorChange('scheduledDayOffLight', $event)">
+                    <div class="color-preview-small" [style.background-color]="scheduledDayOffColorLight"></div>
+                  </div>
+                  <div class="color-pair">
+                    <label>{{ 'common.dark' | translate }}</label>
+                    <input type="color" [value]="scheduledDayOffColorDark"
+                      (input)="onColorChange('scheduledDayOffDark', $event)">
+                    <div class="color-preview-small" [style.background-color]="scheduledDayOffColorDark"></div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -725,6 +743,8 @@ export class ManageSettingsComponent implements OnInit {
   nonWorkingDayColorDark: string;
   holidayColorLight: string;
   holidayColorDark: string;
+  scheduledDayOffColorLight: string;
+  scheduledDayOffColorDark: string;
 
   holidays: HolidayInfo[] = [];
   holidaysByYear: HolidayYearGroup[] = [];
@@ -779,6 +799,8 @@ export class ManageSettingsComponent implements OnInit {
     this.nonWorkingDayColorDark = s.nonWorkingDayColorDark;
     this.holidayColorLight = s.holidayColorLight;
     this.holidayColorDark = s.holidayColorDark;
+    this.scheduledDayOffColorLight = s.scheduledDayOffColorLight;
+    this.scheduledDayOffColorDark = s.scheduledDayOffColorDark;
     this.weekStartDay = s.weekStartDay;
     this.reorderDays();
 
@@ -829,6 +851,14 @@ export class ManageSettingsComponent implements OnInit {
       case 'holidayDark':
         this.holidayColorDark = value;
         this.appSettingsService.setHolidayColor(this.holidayColorLight, this.holidayColorDark);
+        break;
+      case 'scheduledDayOffLight':
+        this.scheduledDayOffColorLight = value;
+        this.appSettingsService.setScheduledDayOffColor(this.scheduledDayOffColorLight, this.scheduledDayOffColorDark);
+        break;
+      case 'scheduledDayOffDark':
+        this.scheduledDayOffColorDark = value;
+        this.appSettingsService.setScheduledDayOffColor(this.scheduledDayOffColorLight, this.scheduledDayOffColorDark);
         break;
     }
   }
