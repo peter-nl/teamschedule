@@ -1673,38 +1673,58 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
         // Priority 2: public holidays — nothing personal overrides, leave to getCellColor
         if (col.isHoliday) continue;
 
-        // Priority 3: personal schedule (roostervrij) — takes precedence over member holidays
         const daySchedule = this.scheduleService.getScheduleForDate(member.id, col.date);
-        if (daySchedule) {
-          if (daySchedule.morning === 0 && daySchedule.afternoon === 0) {
-            this.cellRenderMap.set(`${member.id}:${col.dateKey}`, {
-              bgColor: schedColor,
-              bgImage: null,
-              tooltip: this.translate.instant('schedule.dayOff'),
-              hasHoliday: false
-            });
-            continue;
-          } else if (daySchedule.morning === 0) {
-            this.cellRenderMap.set(`${member.id}:${col.dateKey}`, {
-              bgColor: null,
-              bgImage: `linear-gradient(to bottom right, ${schedColor} 50%, transparent 50%)`,
-              tooltip: this.translate.instant('schedule.morningOff'),
-              hasHoliday: false
-            });
-            continue;
-          } else if (daySchedule.afternoon === 0) {
-            this.cellRenderMap.set(`${member.id}:${col.dateKey}`, {
-              bgColor: null,
-              bgImage: `linear-gradient(to bottom right, transparent 50%, ${schedColor} 50%)`,
-              tooltip: this.translate.instant('schedule.afternoonOff'),
-              hasHoliday: false
-            });
-            continue;
-          }
+        const schedMorningOff = daySchedule?.morning === 0;
+        const schedAfternoonOff = daySchedule?.afternoon === 0;
+        const holiday = this.memberHolidayService.getHoliday(member.id, col.dateKey);
+
+        // Priority 3: full schedule off — wins entirely, holiday irrelevant
+        if (schedMorningOff && schedAfternoonOff) {
+          this.cellRenderMap.set(`${member.id}:${col.dateKey}`, {
+            bgColor: schedColor, bgImage: null,
+            tooltip: this.translate.instant('schedule.dayOff'),
+            hasHoliday: false
+          });
+          continue;
         }
 
-        // Priority 4: personal member holiday (only on regular working days with no schedule off)
-        const holiday = this.memberHolidayService.getHoliday(member.id, col.dateKey);
+        // Half-day schedule off: combine with holiday on the working half if present
+        if (schedMorningOff || schedAfternoonOff) {
+          const hColor = holiday ? this.getHolidayColor(holiday) : null;
+          const hName = holiday ? (holiday.holidayType?.name || 'Vakantie') : '';
+          const hDesc = holiday?.description ? `: ${holiday.description}` : '';
+
+          if (schedMorningOff) {
+            // Morning roostervrij — holiday can colour the working afternoon
+            const holidayInAfternoon = hColor && (holiday!.dayPart === 'full' || holiday!.dayPart === 'afternoon');
+            this.cellRenderMap.set(`${member.id}:${col.dateKey}`, {
+              bgColor: null,
+              bgImage: holidayInAfternoon
+                ? `linear-gradient(to bottom right, ${schedColor} 50%, transparent 50%), linear-gradient(to bottom right, transparent 50%, ${hColor} 50%)`
+                : `linear-gradient(to bottom right, ${schedColor} 50%, transparent 50%)`,
+              tooltip: holidayInAfternoon
+                ? `${this.translate.instant('schedule.morningOff')} / ${hName}${hDesc}`
+                : this.translate.instant('schedule.morningOff'),
+              hasHoliday: !!holidayInAfternoon
+            });
+          } else {
+            // Afternoon roostervrij — holiday can colour the working morning
+            const holidayInMorning = hColor && (holiday!.dayPart === 'full' || holiday!.dayPart === 'morning');
+            this.cellRenderMap.set(`${member.id}:${col.dateKey}`, {
+              bgColor: null,
+              bgImage: holidayInMorning
+                ? `linear-gradient(to bottom right, ${hColor} 50%, transparent 50%), linear-gradient(to bottom right, transparent 50%, ${schedColor} 50%)`
+                : `linear-gradient(to bottom right, transparent 50%, ${schedColor} 50%)`,
+              tooltip: holidayInMorning
+                ? `${hName}${hDesc} / ${this.translate.instant('schedule.afternoonOff')}`
+                : this.translate.instant('schedule.afternoonOff'),
+              hasHoliday: !!holidayInMorning
+            });
+          }
+          continue;
+        }
+
+        // Priority 4: personal member holiday on a full working day
         if (holiday) {
           const color = this.getHolidayColor(holiday);
           let bgColor: string | null = null;
@@ -1725,8 +1745,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
           const desc = holiday.description ? `: ${holiday.description}` : '';
 
           this.cellRenderMap.set(`${member.id}:${col.dateKey}`, {
-            bgColor,
-            bgImage,
+            bgColor, bgImage,
             tooltip: `${typeName}${partLabel}${desc}`,
             hasHoliday: true
           });
