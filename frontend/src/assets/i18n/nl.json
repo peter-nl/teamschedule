@@ -160,9 +160,9 @@
       "morning": "(ochtend)",
       "afternoon": "(middag)"
     },
-    "dayOff": "Vrije dag",
-    "morningOff": "Ochtend vrij",
-    "afternoonOff": "Middag vrij"
+    "dayOff": "Roostervrij",
+    "morningOff": "Roostervrij (ochtend)",
+    "afternoonOff": "Roostervrij (middag)"
   },
   "memberSchedule": {
     "title": "Werkrooster",

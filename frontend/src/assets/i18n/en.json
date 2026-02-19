@@ -160,9 +160,9 @@
       "morning": "(morning)",
       "afternoon": "(afternoon)"
     },
-    "dayOff": "Day off",
-    "morningOff": "Morning off",
-    "afternoonOff": "Afternoon off"
+    "dayOff": "Schedule off",
+    "morningOff": "Schedule off (morning)",
+    "afternoonOff": "Schedule off (afternoon)"
   },
   "memberSchedule": {
     "title": "Work Schedule",

@@ -1043,6 +1043,8 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     // Add document-level listeners for mouse/touch end to handle drag ending outside container
     document.addEventListener('mouseup', this.boundMouseUp);
     document.addEventListener('touchend', this.boundTouchEnd);
+    // Seed the visible month/year header before any scroll event fires
+    setTimeout(() => this.updateVisibleDateInfo());
   }
 
   ngOnDestroy(): void {
@@ -1188,6 +1190,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
       this.visibleYear = col.year.toString();
       this.visibleMonth = col.monthFullName;
       this.visibleWeek = 'W' + col.weekNumber;
+      this.cdr.markForCheck();
     }
   }
 
