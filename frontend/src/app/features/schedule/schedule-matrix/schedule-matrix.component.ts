@@ -1649,8 +1649,8 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
 
   getCellColor(col: DateColumn): string | null {
     if (col.isToday) return null;
+    if (col.isNonWorkingDay) return this.nonWorkingDayColor; // highest priority
     if (col.isHoliday) return this.holidayColor;
-    if (col.isNonWorkingDay) return this.nonWorkingDayColor;
     return null;
   }
 
@@ -1667,6 +1667,43 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     const schedColor = this.scheduledDayOffColor;
     for (const member of this.filteredMembers) {
       for (const col of this.dateColumns) {
+        // Priority 1: non-working days (weekend) — nothing overrides, leave to getCellColor
+        if (col.isNonWorkingDay) continue;
+
+        // Priority 2: public holidays — nothing personal overrides, leave to getCellColor
+        if (col.isHoliday) continue;
+
+        // Priority 3: personal schedule (roostervrij) — takes precedence over member holidays
+        const daySchedule = this.scheduleService.getScheduleForDate(member.id, col.date);
+        if (daySchedule) {
+          if (daySchedule.morning === 0 && daySchedule.afternoon === 0) {
+            this.cellRenderMap.set(`${member.id}:${col.dateKey}`, {
+              bgColor: schedColor,
+              bgImage: null,
+              tooltip: this.translate.instant('schedule.dayOff'),
+              hasHoliday: false
+            });
+            continue;
+          } else if (daySchedule.morning === 0) {
+            this.cellRenderMap.set(`${member.id}:${col.dateKey}`, {
+              bgColor: null,
+              bgImage: `linear-gradient(to bottom right, ${schedColor} 50%, transparent 50%)`,
+              tooltip: this.translate.instant('schedule.morningOff'),
+              hasHoliday: false
+            });
+            continue;
+          } else if (daySchedule.afternoon === 0) {
+            this.cellRenderMap.set(`${member.id}:${col.dateKey}`, {
+              bgColor: null,
+              bgImage: `linear-gradient(to bottom right, transparent 50%, ${schedColor} 50%)`,
+              tooltip: this.translate.instant('schedule.afternoonOff'),
+              hasHoliday: false
+            });
+            continue;
+          }
+        }
+
+        // Priority 4: personal member holiday (only on regular working days with no schedule off)
         const holiday = this.memberHolidayService.getHoliday(member.id, col.dateKey);
         if (holiday) {
           const color = this.getHolidayColor(holiday);
@@ -1693,36 +1730,6 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
             tooltip: `${typeName}${partLabel}${desc}`,
             hasHoliday: true
           });
-        } else if (!col.isNonWorkingDay) {
-          // Check member schedule for non-working / half-day patterns
-          const daySchedule = this.scheduleService.getScheduleForDate(member.id, col.date);
-          if (daySchedule) {
-            if (daySchedule.morning === 0 && daySchedule.afternoon === 0) {
-              // Full day off per schedule
-              this.cellRenderMap.set(`${member.id}:${col.dateKey}`, {
-                bgColor: schedColor,
-                bgImage: null,
-                tooltip: this.translate.instant('schedule.dayOff'),
-                hasHoliday: false
-              });
-            } else if (daySchedule.morning === 0) {
-              // Morning off
-              this.cellRenderMap.set(`${member.id}:${col.dateKey}`, {
-                bgColor: null,
-                bgImage: `linear-gradient(to bottom right, ${schedColor} 50%, transparent 50%)`,
-                tooltip: this.translate.instant('schedule.morningOff'),
-                hasHoliday: false
-              });
-            } else if (daySchedule.afternoon === 0) {
-              // Afternoon off
-              this.cellRenderMap.set(`${member.id}:${col.dateKey}`, {
-                bgColor: null,
-                bgImage: `linear-gradient(to bottom right, transparent 50%, ${schedColor} 50%)`,
-                tooltip: this.translate.instant('schedule.afternoonOff'),
-                hasHoliday: false
-              });
-            }
-          }
         }
       }
     }
