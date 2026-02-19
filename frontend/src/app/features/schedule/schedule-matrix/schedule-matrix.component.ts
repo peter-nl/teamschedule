@@ -636,13 +636,6 @@ interface CellRenderData {
       background: var(--mat-sys-surface-variant);
     }
 
-    .year-cell:first-child,
-    .month-cell:first-child {
-      position: sticky;
-      left: 0;
-      z-index: 11;
-    }
-
     .day-cell {
       flex-shrink: 0;
       padding: 4px;
