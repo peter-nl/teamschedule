@@ -841,6 +841,8 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
   private nonWorkingDayColorDark = '#3a3a3a';
   private holidayColorLight = '#ffcdd2';
   private holidayColorDark = '#772727';
+  private scheduledDayOffColorLight = '#bdbdbd';
+  private scheduledDayOffColorDark = '#757575';
 
   // Theme state for holiday type color selection
   private isDark = false;
@@ -851,6 +853,10 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
 
   private get holidayColor(): string {
     return this.isDark ? this.holidayColorDark : this.holidayColorLight;
+  }
+
+  private get scheduledDayOffColor(): string {
+    return this.isDark ? this.scheduledDayOffColorDark : this.scheduledDayOffColorLight;
   }
 
   // Manager editing mode
@@ -914,6 +920,8 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
       this.nonWorkingDayColorDark = settings.nonWorkingDayColorDark;
       this.holidayColorLight = settings.holidayColorLight;
       this.holidayColorDark = settings.holidayColorDark;
+      this.scheduledDayOffColorLight = settings.scheduledDayOffColorLight;
+      this.scheduledDayOffColorDark = settings.scheduledDayOffColorDark;
       this.updateNonWorkingDays();
       this.rebuildCellRenderMap();
       this.cdr.markForCheck();
@@ -1282,7 +1290,8 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   private getDayName(date: Date): string {
-    return date.toLocaleDateString(this.getDateLocale(), { weekday: 'short' });
+    const keys = ['su', 'mo', 'tu', 'we', 'th', 'fr', 'sa'];
+    return this.translate.instant('days.abbr.' + keys[date.getDay()]);
   }
 
   private getMonthName(date: Date): string {
@@ -1311,7 +1320,8 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
 
     forkJoin({
       members: this.scheduleService.getMembersWithTeams(),
-      teams: this.scheduleService.getTeams()
+      teams: this.scheduleService.getTeams(),
+      schedules: this.scheduleService.loadMemberSchedules()
     }).subscribe({
       next: (result) => {
         this.members = result.members;
@@ -1648,9 +1658,10 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     this.memberHolidayService.loadAllHolidays(startDate, endDate).subscribe();
   }
 
-  /** Pre-compute render data for all member×date cells that have member holidays */
+  /** Pre-compute render data for all member×date cells that have member holidays or schedule-based non-working */
   private rebuildCellRenderMap(): void {
     this.cellRenderMap.clear();
+    const schedColor = this.scheduledDayOffColor;
     for (const member of this.filteredMembers) {
       for (const col of this.dateColumns) {
         const holiday = this.memberHolidayService.getHoliday(member.id, col.dateKey);
@@ -1679,6 +1690,36 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
             tooltip: `${typeName}${partLabel}${desc}`,
             hasHoliday: true
           });
+        } else if (!col.isNonWorkingDay) {
+          // Check member schedule for non-working / half-day patterns
+          const daySchedule = this.scheduleService.getScheduleForDate(member.id, col.date);
+          if (daySchedule) {
+            if (daySchedule.morning === 0 && daySchedule.afternoon === 0) {
+              // Full day off per schedule
+              this.cellRenderMap.set(`${member.id}:${col.dateKey}`, {
+                bgColor: schedColor,
+                bgImage: null,
+                tooltip: this.translate.instant('schedule.dayOff'),
+                hasHoliday: false
+              });
+            } else if (daySchedule.morning === 0) {
+              // Morning off
+              this.cellRenderMap.set(`${member.id}:${col.dateKey}`, {
+                bgColor: null,
+                bgImage: `linear-gradient(to bottom right, ${schedColor} 50%, transparent 50%)`,
+                tooltip: this.translate.instant('schedule.morningOff'),
+                hasHoliday: false
+              });
+            } else if (daySchedule.afternoon === 0) {
+              // Afternoon off
+              this.cellRenderMap.set(`${member.id}:${col.dateKey}`, {
+                bgColor: null,
+                bgImage: `linear-gradient(to bottom right, transparent 50%, ${schedColor} 50%)`,
+                tooltip: this.translate.instant('schedule.afternoonOff'),
+                hasHoliday: false
+              });
+            }
+          }
         }
       }
     }

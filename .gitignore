@@ -17,6 +17,7 @@ yarn-error.log*
 *.swo
 *~
 .claude/
+.hintrc
 
 # OS
 .DS_Store

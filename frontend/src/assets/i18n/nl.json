@@ -28,7 +28,16 @@
     "wednesday": "Woensdag",
     "thursday": "Donderdag",
     "friday": "Vrijdag",
-    "saturday": "Zaterdag"
+    "saturday": "Zaterdag",
+    "abbr": {
+      "su": "zo",
+      "mo": "ma",
+      "tu": "di",
+      "we": "wo",
+      "th": "do",
+      "fr": "vr",
+      "sa": "za"
+    }
   },
   "shell": {
     "appTitle": "TeamRooster",
@@ -150,7 +159,23 @@
     "dayParts": {
       "morning": "(ochtend)",
       "afternoon": "(middag)"
-    }
+    },
+    "dayOff": "Vrije dag",
+    "morningOff": "Ochtend vrij",
+    "afternoonOff": "Middag vrij"
+  },
+  "memberSchedule": {
+    "title": "Werkrooster",
+    "weekA": "Week A",
+    "weekB": "Week B",
+    "morning": "Ochtend",
+    "afternoon": "Middag",
+    "useCustomSchedule": "Eigen werkrooster gebruiken",
+    "alternationStart": "Wisseling start",
+    "fullDay": "Hele dag",
+    "dayOff": "Vrije dag",
+    "amOnly": "Alleen ochtend",
+    "pmOnly": "Alleen middag"
   },
   "scheduleFilter": {
     "title": "Filteren op teams",
@@ -192,7 +217,8 @@
       "title": "Roosterkleuren",
       "description": "Pas het uiterlijk van speciale dagen in het rooster aan.",
       "nonWorkingDays": "Niet-werkdagen",
-      "publicHolidays": "Feestdagen"
+      "publicHolidays": "Feestdagen",
+      "scheduledDaysOff": "Roostervrij"
     },
     "holidayTypes": {
       "title": "Vrije dag-typen",

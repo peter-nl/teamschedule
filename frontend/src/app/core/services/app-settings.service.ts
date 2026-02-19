@@ -9,6 +9,8 @@ export interface AppSettings {
   nonWorkingDayColorDark: string;
   holidayColorLight: string;
   holidayColorDark: string;
+  scheduledDayOffColorLight: string;
+  scheduledDayOffColorDark: string;
   weekStartDay: 0 | 1; // 0 = Sunday, 1 = Monday
 }
 
@@ -23,6 +25,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   nonWorkingDayColorDark: '#3a3a3a',
   holidayColorLight: '#ffcdd2',
   holidayColorDark: '#772727',
+  scheduledDayOffColorLight: '#bdbdbd',
+  scheduledDayOffColorDark: '#757575',
   weekStartDay: 1 // Monday
 };
 
@@ -140,6 +144,12 @@ export class AppSettingsService {
     this.saveSettings();
   }
 
+  setScheduledDayOffColor(colorLight: string, colorDark: string): void {
+    const current = this.settingsSubject.value;
+    this.settingsSubject.next({ ...current, scheduledDayOffColorLight: colorLight, scheduledDayOffColorDark: colorDark });
+    this.saveSettings();
+  }
+
   setWeekStartDay(day: 0 | 1): void {
     const current = this.settingsSubject.value;
     this.settingsSubject.next({ ...current, weekStartDay: day });
@@ -159,7 +169,9 @@ export class AppSettingsService {
       nonWorkingDayColorLight: DEFAULT_SETTINGS.nonWorkingDayColorLight,
       nonWorkingDayColorDark: DEFAULT_SETTINGS.nonWorkingDayColorDark,
       holidayColorLight: DEFAULT_SETTINGS.holidayColorLight,
-      holidayColorDark: DEFAULT_SETTINGS.holidayColorDark
+      holidayColorDark: DEFAULT_SETTINGS.holidayColorDark,
+      scheduledDayOffColorLight: DEFAULT_SETTINGS.scheduledDayOffColorLight,
+      scheduledDayOffColorDark: DEFAULT_SETTINGS.scheduledDayOffColorDark
     });
     this.saveSettings();
   }

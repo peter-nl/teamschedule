@@ -186,6 +186,8 @@ const typeDefs = `#graphql
     emailConfig: EmailConfig
     scheduleDateRange: ScheduleDateRange!
     exportMemberHolidays: [MemberHolidayExport!]!
+    memberSchedules: [MemberSchedule!]!
+    memberSchedule(memberId: String!): MemberSchedule
   }
 
   type ScheduleDateRange {
@@ -243,6 +245,8 @@ const typeDefs = `#graphql
     resetPasswordWithToken(token: String!, newPassword: String!): AuthPayload!
     saveScheduleDateRange(startDate: String!, endDate: String!): DeletedHolidaysResult!
     importMemberHolidays(holidays: [MemberHolidayImportInput!]!): ImportResult!
+    saveMemberSchedule(memberId: String!, referenceDate: String!, week1: [DayScheduleInput!]!, week2: [DayScheduleInput!]!): MemberSchedule!
+    deleteMemberSchedule(memberId: String!): Boolean!
   }
 
   input MemberHolidayImportInput {
@@ -253,6 +257,23 @@ const typeDefs = `#graphql
     endDayPart: String!
     description: String
     holidayTypeName: String
+  }
+
+  type DaySchedule {
+    morning: Float!
+    afternoon: Float!
+  }
+
+  type MemberSchedule {
+    memberId: String!
+    referenceDate: String!
+    week1: [DaySchedule!]!
+    week2: [DaySchedule!]!
+  }
+
+  input DayScheduleInput {
+    morning: Float!
+    afternoon: Float!
   }
 `;
 
@@ -413,6 +434,28 @@ const resolvers = {
         user: settings.smtp_user || '',
         from: settings.smtp_from || '',
         configured: !!(settings.smtp_host && settings.smtp_user && settings.smtp_pass),
+      };
+    },
+    memberSchedules: async (_: any, __: any, ctx: AuthContext) => {
+      requireAuth(ctx);
+      const result = await pool.query('SELECT * FROM member_schedule');
+      return result.rows.map(row => ({
+        memberId: row.member_id,
+        referenceDate: row.reference_date.toISOString().split('T')[0],
+        week1: row.week1,
+        week2: row.week2,
+      }));
+    },
+    memberSchedule: async (_: any, { memberId }: { memberId: string }, ctx: AuthContext) => {
+      requireAuth(ctx);
+      const result = await pool.query('SELECT * FROM member_schedule WHERE member_id = $1', [memberId]);
+      if (result.rows.length === 0) return null;
+      const row = result.rows[0];
+      return {
+        memberId: row.member_id,
+        referenceDate: row.reference_date.toISOString().split('T')[0],
+        week1: row.week1,
+        week2: row.week2,
       };
     },
   },
@@ -858,6 +901,34 @@ const resolvers = {
           : 'Date range saved.',
         deletedCount,
       };
+    },
+    saveMemberSchedule: async (_: any, { memberId, referenceDate, week1, week2 }: { memberId: string; referenceDate: string; week1: Array<{ morning: number; afternoon: number }>; week2: Array<{ morning: number; afternoon: number }> }, ctx: AuthContext) => {
+      const user = requireAuth(ctx);
+      if (user.id !== memberId && user.role !== 'manager') {
+        throw new Error('You can only edit your own schedule');
+      }
+      const result = await pool.query(
+        `INSERT INTO member_schedule (member_id, reference_date, week1, week2, updated_at)
+         VALUES ($1, $2, $3, $4, NOW())
+         ON CONFLICT (member_id) DO UPDATE SET reference_date = $2, week1 = $3, week2 = $4, updated_at = NOW()
+         RETURNING *`,
+        [memberId, referenceDate, JSON.stringify(week1), JSON.stringify(week2)]
+      );
+      const row = result.rows[0];
+      return {
+        memberId: row.member_id,
+        referenceDate: row.reference_date.toISOString().split('T')[0],
+        week1: row.week1,
+        week2: row.week2,
+      };
+    },
+    deleteMemberSchedule: async (_: any, { memberId }: { memberId: string }, ctx: AuthContext) => {
+      const user = requireAuth(ctx);
+      if (user.id !== memberId && user.role !== 'manager') {
+        throw new Error('You can only delete your own schedule');
+      }
+      const result = await pool.query('DELETE FROM member_schedule WHERE member_id = $1', [memberId]);
+      return (result.rowCount ?? 0) > 0;
     },
     importMemberHolidays: async (_: any, { holidays }: { holidays: Array<{ memberId: string; startDate: string; endDate: string; startDayPart: string; endDayPart: string; description?: string; holidayTypeName?: string }> }, ctx: AuthContext) => {
       requireManager(ctx);

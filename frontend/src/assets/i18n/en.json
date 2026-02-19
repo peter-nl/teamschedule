@@ -28,7 +28,16 @@
     "wednesday": "Wednesday",
     "thursday": "Thursday",
     "friday": "Friday",
-    "saturday": "Saturday"
+    "saturday": "Saturday",
+    "abbr": {
+      "su": "su",
+      "mo": "mo",
+      "tu": "tu",
+      "we": "we",
+      "th": "th",
+      "fr": "fr",
+      "sa": "sa"
+    }
   },
   "shell": {
     "appTitle": "TeamSchedule",
@@ -150,7 +159,23 @@
     "dayParts": {
       "morning": "(morning)",
       "afternoon": "(afternoon)"
-    }
+    },
+    "dayOff": "Day off",
+    "morningOff": "Morning off",
+    "afternoonOff": "Afternoon off"
+  },
+  "memberSchedule": {
+    "title": "Work Schedule",
+    "weekA": "Week A",
+    "weekB": "Week B",
+    "morning": "Morning",
+    "afternoon": "Afternoon",
+    "useCustomSchedule": "Use custom work schedule",
+    "alternationStart": "Alternation start",
+    "fullDay": "Full day",
+    "dayOff": "Day off",
+    "amOnly": "AM only",
+    "pmOnly": "PM only"
   },
   "scheduleFilter": {
     "title": "Filter by Teams",
@@ -192,7 +217,8 @@
       "title": "Schedule Colors",
       "description": "Customize the appearance of special days in the schedule.",
       "nonWorkingDays": "Non-working days",
-      "publicHolidays": "Public holidays"
+      "publicHolidays": "Public holidays",
+      "scheduledDaysOff": "Scheduled days off"
     },
     "holidayTypes": {
       "title": "Holiday Types",
