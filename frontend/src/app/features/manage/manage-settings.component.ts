@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { ColorSwatchComponent } from '../../shared/color-swatch.component';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -69,7 +70,8 @@ interface HolidayYearGroup {
     MatDatepickerModule,
     MatSnackBarModule,
     MatTooltipModule,
-    TranslateModule
+    TranslateModule,
+    ColorSwatchComponent
   ],
   providers: [provideNativeDateAdapter()],
   template: `
@@ -204,60 +206,86 @@ interface HolidayYearGroup {
               </button>
             </div>
 
-            <div class="color-settings">
-              <div class="color-setting">
-                <span class="color-setting-label">{{ 'settings.colors.nonWorkingDays' | translate }}</span>
-                <div class="color-setting-pickers">
-                  <div class="color-pair">
-                    <label>{{ 'common.light' | translate }}</label>
-                    <input type="color" [value]="nonWorkingDayColorLight"
-                      (input)="onColorChange('nonWorkingDayLight', $event)">
-                    <div class="color-preview-small" [style.background-color]="nonWorkingDayColorLight"></div>
+            <div class="color-theme-sections">
+
+              <!-- ☀ Light theme -->
+              <div class="color-theme-section">
+                <div class="theme-section-header">
+                  <mat-icon>light_mode</mat-icon>
+                  <span>{{ 'common.light' | translate }}</span>
+                </div>
+                <div class="theme-swatches">
+                  <div class="theme-swatch">
+                    <span class="swatch-label">{{ 'settings.colors.nonWorkingDays' | translate }}</span>
+                    <app-color-swatch [color]="nonWorkingDayColorLight"
+                      (colorChange)="onColorChange('nonWorkingDayLight', $event)"></app-color-swatch>
                   </div>
-                  <div class="color-pair">
-                    <label>{{ 'common.dark' | translate }}</label>
-                    <input type="color" [value]="nonWorkingDayColorDark"
-                      (input)="onColorChange('nonWorkingDayDark', $event)">
-                    <div class="color-preview-small" [style.background-color]="nonWorkingDayColorDark"></div>
+                  <div class="theme-swatch">
+                    <span class="swatch-label">{{ 'settings.colors.publicHolidays' | translate }}</span>
+                    <app-color-swatch [color]="holidayColorLight"
+                      (colorChange)="onColorChange('holidayLight', $event)"></app-color-swatch>
                   </div>
+                  <div class="theme-swatch">
+                    <span class="swatch-label">{{ 'settings.colors.scheduledDaysOff' | translate }}</span>
+                    <app-color-swatch [color]="scheduledDayOffColorLight"
+                      (colorChange)="onColorChange('scheduledDayOffLight', $event)"></app-color-swatch>
+                  </div>
+                  <div class="theme-swatch">
+                    <span class="swatch-label">{{ 'settings.colors.noContract' | translate }}</span>
+                    <app-color-swatch [color]="noContractColorLight"
+                      (colorChange)="onColorChange('noContractLight', $event)"></app-color-swatch>
+                  </div>
+                </div>
+                <div class="theme-preview light-preview">
+                  <div class="preview-cell">Mo</div>
+                  <div class="preview-cell" [style.background-color]="holidayColorLight">Tu</div>
+                  <div class="preview-cell">We</div>
+                  <div class="preview-cell" [style.background-color]="scheduledDayOffColorLight">Th</div>
+                  <div class="preview-cell" [style.background-color]="noContractColorLight">Fr</div>
+                  <div class="preview-cell" [style.background-color]="nonWorkingDayColorLight">Sa</div>
+                  <div class="preview-cell" [style.background-color]="nonWorkingDayColorLight">Su</div>
                 </div>
               </div>
 
-              <div class="color-setting">
-                <span class="color-setting-label">{{ 'settings.colors.publicHolidays' | translate }}</span>
-                <div class="color-setting-pickers">
-                  <div class="color-pair">
-                    <label>{{ 'common.light' | translate }}</label>
-                    <input type="color" [value]="holidayColorLight"
-                      (input)="onColorChange('holidayLight', $event)">
-                    <div class="color-preview-small" [style.background-color]="holidayColorLight"></div>
+              <!-- ◑ Dark theme -->
+              <div class="color-theme-section dark-theme">
+                <div class="theme-section-header">
+                  <mat-icon>dark_mode</mat-icon>
+                  <span>{{ 'common.dark' | translate }}</span>
+                </div>
+                <div class="theme-swatches">
+                  <div class="theme-swatch">
+                    <span class="swatch-label">{{ 'settings.colors.nonWorkingDays' | translate }}</span>
+                    <app-color-swatch [color]="nonWorkingDayColorDark" [dark]="true"
+                      (colorChange)="onColorChange('nonWorkingDayDark', $event)"></app-color-swatch>
                   </div>
-                  <div class="color-pair">
-                    <label>{{ 'common.dark' | translate }}</label>
-                    <input type="color" [value]="holidayColorDark"
-                      (input)="onColorChange('holidayDark', $event)">
-                    <div class="color-preview-small" [style.background-color]="holidayColorDark"></div>
+                  <div class="theme-swatch">
+                    <span class="swatch-label">{{ 'settings.colors.publicHolidays' | translate }}</span>
+                    <app-color-swatch [color]="holidayColorDark" [dark]="true"
+                      (colorChange)="onColorChange('holidayDark', $event)"></app-color-swatch>
                   </div>
+                  <div class="theme-swatch">
+                    <span class="swatch-label">{{ 'settings.colors.scheduledDaysOff' | translate }}</span>
+                    <app-color-swatch [color]="scheduledDayOffColorDark" [dark]="true"
+                      (colorChange)="onColorChange('scheduledDayOffDark', $event)"></app-color-swatch>
+                  </div>
+                  <div class="theme-swatch">
+                    <span class="swatch-label">{{ 'settings.colors.noContract' | translate }}</span>
+                    <app-color-swatch [color]="noContractColorDark" [dark]="true"
+                      (colorChange)="onColorChange('noContractDark', $event)"></app-color-swatch>
+                  </div>
+                </div>
+                <div class="theme-preview dark-preview">
+                  <div class="preview-cell">Mo</div>
+                  <div class="preview-cell" [style.background-color]="holidayColorDark">Tu</div>
+                  <div class="preview-cell">We</div>
+                  <div class="preview-cell" [style.background-color]="scheduledDayOffColorDark">Th</div>
+                  <div class="preview-cell" [style.background-color]="noContractColorDark">Fr</div>
+                  <div class="preview-cell" [style.background-color]="nonWorkingDayColorDark">Sa</div>
+                  <div class="preview-cell" [style.background-color]="nonWorkingDayColorDark">Su</div>
                 </div>
               </div>
 
-              <div class="color-setting">
-                <span class="color-setting-label">{{ 'settings.colors.scheduledDaysOff' | translate }}</span>
-                <div class="color-setting-pickers">
-                  <div class="color-pair">
-                    <label>{{ 'common.light' | translate }}</label>
-                    <input type="color" [value]="scheduledDayOffColorLight"
-                      (input)="onColorChange('scheduledDayOffLight', $event)">
-                    <div class="color-preview-small" [style.background-color]="scheduledDayOffColorLight"></div>
-                  </div>
-                  <div class="color-pair">
-                    <label>{{ 'common.dark' | translate }}</label>
-                    <input type="color" [value]="scheduledDayOffColorDark"
-                      (input)="onColorChange('scheduledDayOffDark', $event)">
-                    <div class="color-preview-small" [style.background-color]="scheduledDayOffColorDark"></div>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -271,50 +299,95 @@ interface HolidayYearGroup {
               </div>
             </div>
 
-            <div class="holiday-types-list">
-              <div *ngFor="let type of holidayTypes" class="holiday-type-row">
-                <input class="holiday-type-name-input" [value]="type.name"
-                       (blur)="onTypeNameChange(type, $event)"
-                       (keydown.enter)="$any($event.target).blur()">
-                <div class="holiday-type-colors">
-                  <div class="color-pair">
-                    <label>{{ 'common.light' | translate }}</label>
-                    <input type="color" [value]="type.colorLight"
-                      (input)="onTypeColorLightChange(type, $event)">
-                    <div class="color-preview-small" [style.background-color]="type.colorLight"></div>
+            <div class="color-theme-sections">
+
+              <!-- ☀ Light theme -->
+              <div class="color-theme-section">
+                <div class="theme-section-header">
+                  <mat-icon>light_mode</mat-icon>
+                  <span>{{ 'common.light' | translate }}</span>
+                </div>
+                <div class="theme-swatches">
+                  <div *ngFor="let type of holidayTypes" class="theme-swatch">
+                    <input class="swatch-name-input" [value]="type.name"
+                           (blur)="onTypeNameChange(type, $event)"
+                           (keydown.enter)="$any($event.target).blur()">
+                    <app-color-swatch [color]="type.colorLight"
+                      (colorChange)="onTypeColorLightChange(type, $event)"></app-color-swatch>
+                    <button class="swatch-delete-btn" (click)="deleteHolidayType(type)">
+                      <mat-icon>close</mat-icon>
+                    </button>
                   </div>
-                  <div class="color-pair">
-                    <label>{{ 'common.dark' | translate }}</label>
-                    <input type="color" [value]="type.colorDark"
-                      (input)="onTypeColorDarkChange(type, $event)">
-                    <div class="color-preview-small" [style.background-color]="type.colorDark"></div>
+                  <div class="theme-swatch add-type-slot" *ngIf="holidayTypes.length < 4">
+                    <div class="add-slot-box">
+                      <mat-icon>add</mat-icon>
+                    </div>
                   </div>
                 </div>
-                <button mat-icon-button (click)="deleteHolidayType(type)" class="delete-type-button">
-                  <mat-icon>delete</mat-icon>
-                </button>
+                <div class="theme-preview light-preview">
+                  <div class="preview-cell">Mo</div>
+                  <div class="preview-cell" [style.background-color]="holidayTypes[0]?.colorLight">Tu</div>
+                  <div class="preview-cell">We</div>
+                  <div class="preview-cell" [style.background-color]="holidayTypes[1]?.colorLight">Th</div>
+                  <div class="preview-cell" [style.background-color]="holidayTypes[2]?.colorLight">Fr</div>
+                  <div class="preview-cell" [style.background-color]="holidayTypes[3]?.colorLight">Sa</div>
+                  <div class="preview-cell">Su</div>
+                </div>
               </div>
+
+              <!-- ◑ Dark theme -->
+              <div class="color-theme-section dark-theme">
+                <div class="theme-section-header">
+                  <mat-icon>dark_mode</mat-icon>
+                  <span>{{ 'common.dark' | translate }}</span>
+                </div>
+                <div class="theme-swatches">
+                  <div *ngFor="let type of holidayTypes" class="theme-swatch">
+                    <span class="swatch-label">{{ type.name }}</span>
+                    <app-color-swatch [color]="type.colorDark" [dark]="true"
+                      (colorChange)="onTypeColorDarkChange(type, $event)"></app-color-swatch>
+                  </div>
+                  <div class="theme-swatch add-type-slot" *ngIf="holidayTypes.length < 4">
+                    <div class="add-slot-box dark-add-slot">
+                      <mat-icon>add</mat-icon>
+                    </div>
+                  </div>
+                </div>
+                <div class="theme-preview dark-preview">
+                  <div class="preview-cell">Mo</div>
+                  <div class="preview-cell" [style.background-color]="holidayTypes[0]?.colorDark">Tu</div>
+                  <div class="preview-cell">We</div>
+                  <div class="preview-cell" [style.background-color]="holidayTypes[1]?.colorDark">Th</div>
+                  <div class="preview-cell" [style.background-color]="holidayTypes[2]?.colorDark">Fr</div>
+                  <div class="preview-cell" [style.background-color]="holidayTypes[3]?.colorDark">Sa</div>
+                  <div class="preview-cell">Su</div>
+                </div>
+              </div>
+
             </div>
 
-            <div class="add-holiday-type-form">
+            <div class="add-holiday-type-form" *ngIf="holidayTypes.length < 4">
               <mat-form-field appearance="outline" class="type-name-field">
                 <mat-label>{{ 'settings.holidayTypes.newTypeName' | translate }}</mat-label>
                 <input matInput [(ngModel)]="newTypeName" [placeholder]="'settings.holidayTypes.newTypePlaceholder' | translate">
               </mat-form-field>
               <div class="color-pair">
                 <label>{{ 'common.light' | translate }}</label>
-                <input type="color" [(ngModel)]="newTypeColorLight">
-                <div class="color-preview-small" [style.background-color]="newTypeColorLight"></div>
+                <app-color-swatch [color]="newTypeColorLight"
+                  (colorChange)="newTypeColorLight = $event"></app-color-swatch>
               </div>
               <div class="color-pair">
                 <label>{{ 'common.dark' | translate }}</label>
-                <input type="color" [(ngModel)]="newTypeColorDark">
-                <div class="color-preview-small" [style.background-color]="newTypeColorDark"></div>
+                <app-color-swatch [color]="newTypeColorDark" [dark]="true"
+                  (colorChange)="newTypeColorDark = $event"></app-color-swatch>
               </div>
               <button mat-icon-button color="primary" (click)="addHolidayType()" [disabled]="!newTypeName.trim()" [matTooltip]="'common.add' | translate">
                 <mat-icon>add</mat-icon>
               </button>
             </div>
+            <p class="types-limit-note" *ngIf="holidayTypes.length >= 4">
+              {{ 'settings.holidayTypes.maxTypes' | translate }}
+            </p>
           </div>
 
           <mat-divider></mat-divider>
@@ -541,77 +614,182 @@ interface HolidayYearGroup {
       padding: 16px;
     }
 
-    .color-settings {
+    .color-theme-sections {
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 12px;
     }
 
-    .color-setting {
+    .color-theme-section {
+      padding: 16px;
+      background: #eeeff1;
+      border-radius: 12px;
+    }
+
+    .color-theme-section.dark-theme {
+      background: #26282e;
+    }
+
+    .theme-section-header {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      padding: 8px 12px;
-      background: var(--mat-sys-surface-container-low);
-      border-radius: 8px;
+      gap: 6px;
+      margin-bottom: 14px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #5f6368;
     }
 
-    .color-setting-label {
-      font-size: 14px;
-      font-weight: 500;
-      color: var(--mat-sys-on-surface);
-      min-width: 120px;
-      flex: 1;
+    .dark-theme .theme-section-header {
+      color: #9a9da6;
     }
 
-    .color-setting-pickers {
+    .dark-theme .theme-section-header mat-icon {
+      color: #9a9da6;
+    }
+
+    .theme-swatches {
       display: flex;
-      gap: 16px;
-      align-items: center;
-    }
-
-    .holiday-types-list {
-      display: flex;
-      flex-direction: column;
       gap: 8px;
-      margin-bottom: 16px;
     }
 
-    .holiday-type-row {
+    .theme-swatch {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .swatch-label {
+      font-size: 11px;
+      color: #5f6368;
+      text-align: center;
+      line-height: 1.3;
+    }
+
+    .dark-theme .swatch-label {
+      color: #9a9da6;
+    }
+
+    .theme-preview {
+      display: flex;
+      gap: 2px;
+      margin-top: 14px;
+      border-radius: 6px;
+      overflow: hidden;
+      padding: 4px;
+    }
+
+    .light-preview {
+      background: #f0f0f0;
+    }
+
+    .dark-preview {
+      background: #1a1c21;
+    }
+
+    .preview-cell {
+      flex: 1;
+      height: 28px;
+      border-radius: 3px;
       display: flex;
       align-items: center;
-      gap: 16px;
-      padding: 8px 12px;
-      background: var(--mat-sys-surface-container-low);
-      border-radius: 8px;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 500;
     }
 
-    .holiday-type-name-input {
-      font-size: 14px;
-      font-weight: 500;
-      color: var(--mat-sys-on-surface);
-      min-width: 120px;
-      flex: 1;
+    .light-preview .preview-cell {
+      color: rgba(0, 0, 0, 0.45);
+    }
+
+    .dark-preview .preview-cell {
+      color: rgba(255, 255, 255, 0.45);
+    }
+
+    .swatch-name-input {
+      font-size: 11px;
+      color: #5f6368;
+      text-align: center;
+      width: 100%;
       border: none;
       background: transparent;
       outline: none;
-      padding: 4px 0;
       font-family: inherit;
       border-bottom: 1px solid transparent;
+      padding: 2px 0;
+      line-height: 1.3;
     }
 
-    .holiday-type-name-input:hover {
-      border-bottom-color: var(--mat-sys-outline-variant);
+    .swatch-name-input:hover {
+      border-bottom-color: rgba(0, 0, 0, 0.3);
     }
 
-    .holiday-type-name-input:focus {
-      border-bottom-color: var(--mat-sys-primary);
+    .swatch-name-input:focus {
+      border-bottom-color: #1a73e8;
+      color: #202124;
     }
 
-    .holiday-type-colors {
+    .swatch-delete-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      width: 28px;
+      height: 28px;
       display: flex;
-      gap: 16px;
       align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      padding: 0;
+      transition: background 0.15s;
+    }
+
+    .swatch-delete-btn:hover {
+      background: rgba(217, 48, 37, 0.1);
+    }
+
+    .swatch-delete-btn mat-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+      line-height: 18px;
+      color: rgba(0, 0, 0, 0.35);
+    }
+
+    .swatch-delete-btn:hover mat-icon {
+      color: #d93025;
+    }
+
+    .add-type-slot {
+      opacity: 0.4;
+      pointer-events: none;
+    }
+
+    .add-slot-box {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px dashed rgba(0, 0, 0, 0.25);
+      border-radius: 6px;
+      color: rgba(0, 0, 0, 0.4);
+    }
+
+    .dark-add-slot {
+      border-color: rgba(255, 255, 255, 0.2);
+      color: rgba(255, 255, 255, 0.4);
+    }
+
+    .types-limit-note {
+      font-size: 12px;
+      color: var(--mat-sys-on-surface-variant);
+      text-align: center;
+      margin: 8px 0 0;
+      padding: 0;
     }
 
     .color-pair {
@@ -626,31 +804,6 @@ interface HolidayYearGroup {
       min-width: 32px;
     }
 
-    .color-pair input[type="color"] {
-      width: 32px;
-      height: 32px;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      padding: 0;
-      background: transparent;
-    }
-
-    .color-pair input[type="color"]::-webkit-color-swatch-wrapper {
-      padding: 0;
-    }
-
-    .color-pair input[type="color"]::-webkit-color-swatch {
-      border: 2px solid var(--mat-sys-outline);
-      border-radius: 4px;
-    }
-
-    .color-preview-small {
-      width: 24px;
-      height: 24px;
-      border-radius: 4px;
-      border: 1px solid var(--mat-sys-outline-variant);
-    }
 
     .delete-type-button {
       color: var(--mat-sys-error);
@@ -745,6 +898,8 @@ export class ManageSettingsComponent implements OnInit {
   holidayColorDark: string;
   scheduledDayOffColorLight: string;
   scheduledDayOffColorDark: string;
+  noContractColorLight: string;
+  noContractColorDark: string;
 
   holidays: HolidayInfo[] = [];
   holidaysByYear: HolidayYearGroup[] = [];
@@ -801,6 +956,8 @@ export class ManageSettingsComponent implements OnInit {
     this.holidayColorDark = s.holidayColorDark;
     this.scheduledDayOffColorLight = s.scheduledDayOffColorLight;
     this.scheduledDayOffColorDark = s.scheduledDayOffColorDark;
+    this.noContractColorLight = s.noContractColorLight;
+    this.noContractColorDark = s.noContractColorDark;
     this.weekStartDay = s.weekStartDay;
     this.reorderDays();
 
@@ -810,6 +967,10 @@ export class ManageSettingsComponent implements OnInit {
       this.nonWorkingDayColorDark = settings.nonWorkingDayColorDark;
       this.holidayColorLight = settings.holidayColorLight;
       this.holidayColorDark = settings.holidayColorDark;
+      this.scheduledDayOffColorLight = settings.scheduledDayOffColorLight;
+      this.scheduledDayOffColorDark = settings.scheduledDayOffColorDark;
+      this.noContractColorLight = settings.noContractColorLight;
+      this.noContractColorDark = settings.noContractColorDark;
       this.weekStartDay = settings.weekStartDay;
       this.reorderDays();
     });
@@ -833,8 +994,7 @@ export class ManageSettingsComponent implements OnInit {
     ];
   }
 
-  onColorChange(target: string, event: Event): void {
-    const value = (event.target as HTMLInputElement).value;
+  onColorChange(target: string, value: string): void {
     switch (target) {
       case 'nonWorkingDayLight':
         this.nonWorkingDayColorLight = value;
@@ -860,6 +1020,14 @@ export class ManageSettingsComponent implements OnInit {
         this.scheduledDayOffColorDark = value;
         this.appSettingsService.setScheduledDayOffColor(this.scheduledDayOffColorLight, this.scheduledDayOffColorDark);
         break;
+      case 'noContractLight':
+        this.noContractColorLight = value;
+        this.appSettingsService.setNoContractColor(this.noContractColorLight, this.noContractColorDark);
+        break;
+      case 'noContractDark':
+        this.noContractColorDark = value;
+        this.appSettingsService.setNoContractColor(this.noContractColorLight, this.noContractColorDark);
+        break;
     }
   }
 
@@ -874,9 +1042,9 @@ export class ManageSettingsComponent implements OnInit {
       this.loadHolidaysForRange(range.startDate, range.endDate);
     });
 
-    // Load holiday types
+    // Load holiday types (exclude system types - they are managed via Schedule Colors)
     this.holidayTypeService.types$.subscribe(types => {
-      this.holidayTypes = types;
+      this.holidayTypes = types.filter(t => !t.isSystem);
     });
     this.holidayTypeService.loadTypes().subscribe();
 
@@ -973,14 +1141,12 @@ export class ManageSettingsComponent implements OnInit {
     }
   }
 
-  onTypeColorLightChange(type: HolidayType, event: Event): void {
-    const input = event.target as HTMLInputElement;
-    this.holidayTypeService.updateType(type.id, undefined, input.value).subscribe();
+  onTypeColorLightChange(type: HolidayType, value: string): void {
+    this.holidayTypeService.updateType(type.id, undefined, value).subscribe();
   }
 
-  onTypeColorDarkChange(type: HolidayType, event: Event): void {
-    const input = event.target as HTMLInputElement;
-    this.holidayTypeService.updateType(type.id, undefined, undefined, input.value).subscribe();
+  onTypeColorDarkChange(type: HolidayType, value: string): void {
+    this.holidayTypeService.updateType(type.id, undefined, undefined, value).subscribe();
   }
 
   deleteHolidayType(type: HolidayType): void {

@@ -836,6 +836,8 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
   private holidayColorDark = '#772727';
   private scheduledDayOffColorLight = '#bdbdbd';
   private scheduledDayOffColorDark = '#757575';
+  private noContractColorLight = '#9e9e9e';
+  private noContractColorDark = '#616161';
 
   // Theme state for holiday type color selection
   private isDark = false;
@@ -850,6 +852,10 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
 
   private get scheduledDayOffColor(): string {
     return this.isDark ? this.scheduledDayOffColorDark : this.scheduledDayOffColorLight;
+  }
+
+  private get noContractColor(): string {
+    return this.isDark ? this.noContractColorDark : this.noContractColorLight;
   }
 
   // Manager editing mode
@@ -915,6 +921,8 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
       this.holidayColorDark = settings.holidayColorDark;
       this.scheduledDayOffColorLight = settings.scheduledDayOffColorLight;
       this.scheduledDayOffColorDark = settings.scheduledDayOffColorDark;
+      this.noContractColorLight = settings.noContractColorLight;
+      this.noContractColorDark = settings.noContractColorDark;
       this.updateNonWorkingDays();
       this.rebuildCellRenderMap();
       this.cdr.markForCheck();
@@ -1323,6 +1331,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
         this.members = result.members;
         this.teams = result.teams;
         this.filterMembers();
+        this.rebuildCellRenderMap();
         this.loading = false;
         this.cdr.markForCheck();
         this.scrollToToday();
@@ -1684,7 +1693,9 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
         // Half-day schedule off: combine with holiday on the working half if present
         if (schedMorningOff || schedAfternoonOff) {
           const hColor = holiday ? this.getHolidayColor(holiday) : null;
-          const hName = holiday ? (holiday.holidayType?.name || 'Vakantie') : '';
+          const hName = holiday
+            ? (holiday.holidayType?.isSystem ? this.translate.instant('schedule.noContract') : (holiday.holidayType?.name || 'Vakantie'))
+            : '';
           const hDesc = holiday?.description ? `: ${holiday.description}` : '';
 
           if (schedMorningOff) {
@@ -1731,7 +1742,9 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
             bgImage = `linear-gradient(to bottom right, transparent 50%, ${color} 50%)`;
           }
 
-          const typeName = holiday.holidayType?.name || 'Vakantie';
+          const typeName = holiday.holidayType?.isSystem
+            ? this.translate.instant('schedule.noContract')
+            : (holiday.holidayType?.name || 'Vakantie');
           const partLabel = holiday.dayPart === 'morning' ? ' ' + this.translate.instant('schedule.dayParts.morning')
                           : holiday.dayPart === 'afternoon' ? ' ' + this.translate.instant('schedule.dayParts.afternoon')
                           : '';
@@ -1758,6 +1771,9 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   private getHolidayColor(memberHoliday: ExpandedDayEntry): string {
+    if (memberHoliday.holidayType?.isSystem) {
+      return this.noContractColor;
+    }
     if (memberHoliday.holidayType) {
       return this.isDark ? memberHoliday.holidayType.colorDark : memberHoliday.holidayType.colorLight;
     }

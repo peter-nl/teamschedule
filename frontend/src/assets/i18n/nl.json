@@ -162,7 +162,8 @@
     },
     "dayOff": "Roostervrij",
     "morningOff": "Roostervrij (ochtend)",
-    "afternoonOff": "Roostervrij (middag)"
+    "afternoonOff": "Roostervrij (middag)",
+    "noContract": "Geen contract"
   },
   "memberSchedule": {
     "title": "Werkrooster",
@@ -218,13 +219,15 @@
       "description": "Pas het uiterlijk van speciale dagen in het rooster aan.",
       "nonWorkingDays": "Niet-werkdagen",
       "publicHolidays": "Feestdagen",
-      "scheduledDaysOff": "Roostervrij"
+      "scheduledDaysOff": "Roostervrij",
+      "noContract": "Geen contract"
     },
     "holidayTypes": {
       "title": "Vrije dag-typen",
       "description": "Definieer vrije dag-typen met aparte kleuren voor licht en donker thema. Deze worden gebruikt wanneer leden persoonlijke vrije dagen registreren.",
       "newTypeName": "Nieuw type naam",
-      "newTypePlaceholder": "bijv. Ziekte"
+      "newTypePlaceholder": "bijv. Ziekte",
+      "maxTypes": "Maximum van 4 vrije dag-typen bereikt."
     },
     "email": {
       "title": "E-mailservice",

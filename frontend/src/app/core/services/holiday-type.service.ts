@@ -9,6 +9,7 @@ export interface HolidayType {
   colorLight: string;
   colorDark: string;
   sortOrder: number;
+  isSystem: boolean;
 }
 
 const HOLIDAY_TYPES_QUERY = gql`
@@ -19,6 +20,7 @@ const HOLIDAY_TYPES_QUERY = gql`
       colorLight
       colorDark
       sortOrder
+      isSystem
     }
   }
 `;

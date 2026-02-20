@@ -162,7 +162,8 @@
     },
     "dayOff": "Schedule off",
     "morningOff": "Schedule off (morning)",
-    "afternoonOff": "Schedule off (afternoon)"
+    "afternoonOff": "Schedule off (afternoon)",
+    "noContract": "No contract"
   },
   "memberSchedule": {
     "title": "Work Schedule",
@@ -218,13 +219,15 @@
       "description": "Customize the appearance of special days in the schedule.",
       "nonWorkingDays": "Non-working days",
       "publicHolidays": "Public holidays",
-      "scheduledDaysOff": "Scheduled days off"
+      "scheduledDaysOff": "Scheduled days off",
+      "noContract": "No contract"
     },
     "holidayTypes": {
       "title": "Holiday Types",
       "description": "Define holiday types with separate colors for light and dark themes. These are used when members log personal holidays.",
       "newTypeName": "New type name",
-      "newTypePlaceholder": "e.g. Ziekte"
+      "newTypePlaceholder": "e.g. Ziekte",
+      "maxTypes": "Maximum of 4 holiday types reached."
     },
     "email": {
       "title": "Email Service",
