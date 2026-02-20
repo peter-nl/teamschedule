@@ -130,6 +130,7 @@ const typeDefs = `#graphql
     colorLight: String!
     colorDark: String!
     sortOrder: Int!
+    isSystem: Boolean!
   }
 
   type MemberHoliday {
@@ -334,13 +335,14 @@ const resolvers = {
         colorLight: row.color_light,
         colorDark: row.color_dark,
         sortOrder: row.sort_order,
+        isSystem: row.is_system,
       }));
     },
     memberHolidays: async (_: any, { memberId }: { memberId: string }, ctx: AuthContext) => {
       requireAuth(ctx);
       const result = await pool.query(
         `SELECT mh.*, ht.id as ht_id, ht.name as ht_name, ht.color_light as ht_color_light,
-                ht.color_dark as ht_color_dark, ht.sort_order as ht_sort_order
+                ht.color_dark as ht_color_dark, ht.sort_order as ht_sort_order, ht.is_system as ht_is_system
          FROM member_holiday mh
          LEFT JOIN holiday_type ht ON mh.holiday_type_id = ht.id
          WHERE mh.member_id = $1 ORDER BY mh.start_date`,
@@ -356,7 +358,7 @@ const resolvers = {
         description: row.description,
         holidayType: row.ht_id ? {
           id: row.ht_id, name: row.ht_name, colorLight: row.ht_color_light,
-          colorDark: row.ht_color_dark, sortOrder: row.ht_sort_order,
+          colorDark: row.ht_color_dark, sortOrder: row.ht_sort_order, isSystem: row.ht_is_system,
         } : null,
       }));
     },
@@ -364,7 +366,7 @@ const resolvers = {
       requireAuth(ctx);
       const result = await pool.query(
         `SELECT mh.*, ht.id as ht_id, ht.name as ht_name, ht.color_light as ht_color_light,
-                ht.color_dark as ht_color_dark, ht.sort_order as ht_sort_order
+                ht.color_dark as ht_color_dark, ht.sort_order as ht_sort_order, ht.is_system as ht_is_system
          FROM member_holiday mh
          LEFT JOIN holiday_type ht ON mh.holiday_type_id = ht.id
          WHERE mh.start_date <= $2 AND mh.end_date >= $1
@@ -381,7 +383,7 @@ const resolvers = {
         description: row.description,
         holidayType: row.ht_id ? {
           id: row.ht_id, name: row.ht_name, colorLight: row.ht_color_light,
-          colorDark: row.ht_color_dark, sortOrder: row.ht_sort_order,
+          colorDark: row.ht_color_dark, sortOrder: row.ht_sort_order, isSystem: row.ht_is_system,
         } : null,
       }));
     },
@@ -679,7 +681,7 @@ const resolvers = {
       const insertedId = insertResult.rows[0].id;
       const result = await pool.query(
         `SELECT mh.*, ht.id as ht_id, ht.name as ht_name, ht.color_light as ht_color_light,
-                ht.color_dark as ht_color_dark, ht.sort_order as ht_sort_order
+                ht.color_dark as ht_color_dark, ht.sort_order as ht_sort_order, ht.is_system as ht_is_system
          FROM member_holiday mh
          LEFT JOIN holiday_type ht ON mh.holiday_type_id = ht.id
          WHERE mh.id = $1`,
@@ -696,7 +698,7 @@ const resolvers = {
         description: row.description,
         holidayType: row.ht_id ? {
           id: row.ht_id, name: row.ht_name, colorLight: row.ht_color_light,
-          colorDark: row.ht_color_dark, sortOrder: row.ht_sort_order,
+          colorDark: row.ht_color_dark, sortOrder: row.ht_sort_order, isSystem: row.ht_is_system,
         } : null,
       };
     },
@@ -718,7 +720,7 @@ const resolvers = {
       );
       const result = await pool.query(
         `SELECT mh.*, ht.id as ht_id, ht.name as ht_name, ht.color_light as ht_color_light,
-                ht.color_dark as ht_color_dark, ht.sort_order as ht_sort_order
+                ht.color_dark as ht_color_dark, ht.sort_order as ht_sort_order, ht.is_system as ht_is_system
          FROM member_holiday mh
          LEFT JOIN holiday_type ht ON mh.holiday_type_id = ht.id
          WHERE mh.id = $1`,
@@ -735,35 +737,39 @@ const resolvers = {
         description: row.description,
         holidayType: row.ht_id ? {
           id: row.ht_id, name: row.ht_name, colorLight: row.ht_color_light,
-          colorDark: row.ht_color_dark, sortOrder: row.ht_sort_order,
+          colorDark: row.ht_color_dark, sortOrder: row.ht_sort_order, isSystem: row.ht_is_system,
         } : null,
       };
     },
     createHolidayType: async (_: any, { name, colorLight, colorDark }: { name: string; colorLight: string; colorDark: string }, ctx: AuthContext) => {
       requireManager(ctx);
-      const maxOrder = await pool.query('SELECT COALESCE(MAX(sort_order), -1) + 1 as next_order FROM holiday_type');
+      const maxOrder = await pool.query('SELECT COALESCE(MAX(sort_order), -1) + 1 as next_order FROM holiday_type WHERE is_system = false');
       const sortOrder = maxOrder.rows[0].next_order;
       const result = await pool.query(
         'INSERT INTO holiday_type (name, color_light, color_dark, sort_order) VALUES ($1, $2, $3, $4) RETURNING *',
         [name, colorLight, colorDark, sortOrder]
       );
       const row = result.rows[0];
-      return { id: row.id, name: row.name, colorLight: row.color_light, colorDark: row.color_dark, sortOrder: row.sort_order };
+      return { id: row.id, name: row.name, colorLight: row.color_light, colorDark: row.color_dark, sortOrder: row.sort_order, isSystem: row.is_system };
     },
     updateHolidayType: async (_: any, { id, name, colorLight, colorDark, sortOrder }: { id: number; name?: string; colorLight?: string; colorDark?: string; sortOrder?: number }, ctx: AuthContext) => {
       requireManager(ctx);
       const current = await pool.query('SELECT * FROM holiday_type WHERE id = $1', [id]);
       if (current.rows.length === 0) throw new Error('Holiday type not found');
       const cur = current.rows[0];
+      if (cur.is_system) throw new Error('Cannot modify a system holiday type');
       const result = await pool.query(
         'UPDATE holiday_type SET name = $2, color_light = $3, color_dark = $4, sort_order = $5 WHERE id = $1 RETURNING *',
         [id, name ?? cur.name, colorLight ?? cur.color_light, colorDark ?? cur.color_dark, sortOrder ?? cur.sort_order]
       );
       const row = result.rows[0];
-      return { id: row.id, name: row.name, colorLight: row.color_light, colorDark: row.color_dark, sortOrder: row.sort_order };
+      return { id: row.id, name: row.name, colorLight: row.color_light, colorDark: row.color_dark, sortOrder: row.sort_order, isSystem: row.is_system };
     },
     deleteHolidayType: async (_: any, { id }: { id: number }, ctx: AuthContext) => {
       requireManager(ctx);
+      const check = await pool.query('SELECT is_system FROM holiday_type WHERE id = $1', [id]);
+      if (check.rows.length === 0) return false;
+      if (check.rows[0].is_system) throw new Error('Cannot delete a system holiday type');
       const result = await pool.query('DELETE FROM holiday_type WHERE id = $1', [id]);
       return (result.rowCount ?? 0) > 0;
     },

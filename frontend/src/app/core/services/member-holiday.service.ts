@@ -9,6 +9,7 @@ export interface MemberHolidayType {
   colorLight: string;
   colorDark: string;
   sortOrder: number;
+  isSystem?: boolean;
 }
 
 export type DayPart = 'full' | 'morning' | 'afternoon';
@@ -45,7 +46,7 @@ export interface ExpandedDayEntry {
 
 const PERIOD_FIELDS = `
   id memberId startDate endDate startDayPart endDayPart description
-  holidayType { id name colorLight colorDark sortOrder }
+  holidayType { id name colorLight colorDark sortOrder isSystem }
 `;
 
 const ALL_MEMBER_HOLIDAYS_QUERY = gql`
