@@ -1,6 +1,5 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ColorSwatchComponent } from '../../shared/color-swatch.component';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -71,7 +70,6 @@ interface HolidayYearGroup {
     MatSnackBarModule,
     MatTooltipModule,
     TranslateModule,
-    ColorSwatchComponent
   ],
   providers: [provideNativeDateAdapter()],
   template: `
@@ -217,23 +215,23 @@ interface HolidayYearGroup {
                 <div class="theme-swatches">
                   <div class="theme-swatch">
                     <span class="swatch-label">{{ 'settings.colors.nonWorkingDays' | translate }}</span>
-                    <app-color-swatch [color]="nonWorkingDayColorLight"
-                      (colorChange)="onColorChange('nonWorkingDayLight', $event)"></app-color-swatch>
+                    <input type="color" [value]="nonWorkingDayColorLight"
+                      (input)="onColorChange('nonWorkingDayLight', $event)">
                   </div>
                   <div class="theme-swatch">
                     <span class="swatch-label">{{ 'settings.colors.publicHolidays' | translate }}</span>
-                    <app-color-swatch [color]="holidayColorLight"
-                      (colorChange)="onColorChange('holidayLight', $event)"></app-color-swatch>
+                    <input type="color" [value]="holidayColorLight"
+                      (input)="onColorChange('holidayLight', $event)">
                   </div>
                   <div class="theme-swatch">
                     <span class="swatch-label">{{ 'settings.colors.scheduledDaysOff' | translate }}</span>
-                    <app-color-swatch [color]="scheduledDayOffColorLight"
-                      (colorChange)="onColorChange('scheduledDayOffLight', $event)"></app-color-swatch>
+                    <input type="color" [value]="scheduledDayOffColorLight"
+                      (input)="onColorChange('scheduledDayOffLight', $event)">
                   </div>
                   <div class="theme-swatch">
                     <span class="swatch-label">{{ 'settings.colors.noContract' | translate }}</span>
-                    <app-color-swatch [color]="noContractColorLight"
-                      (colorChange)="onColorChange('noContractLight', $event)"></app-color-swatch>
+                    <input type="color" [value]="noContractColorLight"
+                      (input)="onColorChange('noContractLight', $event)">
                   </div>
                 </div>
                 <div class="theme-preview light-preview">
@@ -256,23 +254,23 @@ interface HolidayYearGroup {
                 <div class="theme-swatches">
                   <div class="theme-swatch">
                     <span class="swatch-label">{{ 'settings.colors.nonWorkingDays' | translate }}</span>
-                    <app-color-swatch [color]="nonWorkingDayColorDark" [dark]="true"
-                      (colorChange)="onColorChange('nonWorkingDayDark', $event)"></app-color-swatch>
+                    <input type="color" [value]="nonWorkingDayColorDark"
+                      (input)="onColorChange('nonWorkingDayDark', $event)">
                   </div>
                   <div class="theme-swatch">
                     <span class="swatch-label">{{ 'settings.colors.publicHolidays' | translate }}</span>
-                    <app-color-swatch [color]="holidayColorDark" [dark]="true"
-                      (colorChange)="onColorChange('holidayDark', $event)"></app-color-swatch>
+                    <input type="color" [value]="holidayColorDark"
+                      (input)="onColorChange('holidayDark', $event)">
                   </div>
                   <div class="theme-swatch">
                     <span class="swatch-label">{{ 'settings.colors.scheduledDaysOff' | translate }}</span>
-                    <app-color-swatch [color]="scheduledDayOffColorDark" [dark]="true"
-                      (colorChange)="onColorChange('scheduledDayOffDark', $event)"></app-color-swatch>
+                    <input type="color" [value]="scheduledDayOffColorDark"
+                      (input)="onColorChange('scheduledDayOffDark', $event)">
                   </div>
                   <div class="theme-swatch">
                     <span class="swatch-label">{{ 'settings.colors.noContract' | translate }}</span>
-                    <app-color-swatch [color]="noContractColorDark" [dark]="true"
-                      (colorChange)="onColorChange('noContractDark', $event)"></app-color-swatch>
+                    <input type="color" [value]="noContractColorDark"
+                      (input)="onColorChange('noContractDark', $event)">
                   </div>
                 </div>
                 <div class="theme-preview dark-preview">
@@ -312,8 +310,8 @@ interface HolidayYearGroup {
                     <input class="swatch-name-input" [value]="type.name"
                            (blur)="onTypeNameChange(type, $event)"
                            (keydown.enter)="$any($event.target).blur()">
-                    <app-color-swatch [color]="type.colorLight"
-                      (colorChange)="onTypeColorLightChange(type, $event)"></app-color-swatch>
+                    <input type="color" [value]="type.colorLight"
+                      (input)="onTypeColorLightChange(type, $event)">
                     <button class="swatch-delete-btn" (click)="deleteHolidayType(type)">
                       <mat-icon>close</mat-icon>
                     </button>
@@ -344,8 +342,8 @@ interface HolidayYearGroup {
                 <div class="theme-swatches">
                   <div *ngFor="let type of holidayTypes" class="theme-swatch">
                     <span class="swatch-label">{{ type.name }}</span>
-                    <app-color-swatch [color]="type.colorDark" [dark]="true"
-                      (colorChange)="onTypeColorDarkChange(type, $event)"></app-color-swatch>
+                    <input type="color" [value]="type.colorDark"
+                      (input)="onTypeColorDarkChange(type, $event)">
                   </div>
                   <div class="theme-swatch add-type-slot" *ngIf="holidayTypes.length < 4">
                     <div class="add-slot-box dark-add-slot">
@@ -373,13 +371,13 @@ interface HolidayYearGroup {
               </mat-form-field>
               <div class="color-pair">
                 <label>{{ 'common.light' | translate }}</label>
-                <app-color-swatch [color]="newTypeColorLight"
-                  (colorChange)="newTypeColorLight = $event"></app-color-swatch>
+                <input type="color" [value]="newTypeColorLight"
+                  (input)="newTypeColorLight = $any($event.target).value">
               </div>
               <div class="color-pair">
                 <label>{{ 'common.dark' | translate }}</label>
-                <app-color-swatch [color]="newTypeColorDark" [dark]="true"
-                  (colorChange)="newTypeColorDark = $event"></app-color-swatch>
+                <input type="color" [value]="newTypeColorDark"
+                  (input)="newTypeColorDark = $any($event.target).value">
               </div>
               <button mat-icon-button color="primary" (click)="addHolidayType()" [disabled]="!newTypeName.trim()" [matTooltip]="'common.add' | translate">
                 <mat-icon>add</mat-icon>
@@ -663,6 +661,20 @@ interface HolidayYearGroup {
       gap: 8px;
     }
 
+    .theme-swatch input[type="color"] {
+      width: 40px;
+      height: 40px;
+      border: 2px solid rgba(0, 0, 0, 0.15);
+      border-radius: 6px;
+      cursor: pointer;
+      padding: 2px;
+      background: none;
+    }
+
+    .dark-theme .theme-swatch input[type="color"] {
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
     .swatch-label {
       font-size: 11px;
       color: #5f6368;
@@ -804,6 +816,15 @@ interface HolidayYearGroup {
       min-width: 32px;
     }
 
+    .color-pair input[type="color"] {
+      width: 40px;
+      height: 40px;
+      border: 2px solid rgba(0, 0, 0, 0.15);
+      border-radius: 6px;
+      cursor: pointer;
+      padding: 2px;
+      background: none;
+    }
 
     .delete-type-button {
       color: var(--mat-sys-error);
@@ -994,7 +1015,8 @@ export class ManageSettingsComponent implements OnInit {
     ];
   }
 
-  onColorChange(target: string, value: string): void {
+  onColorChange(target: string, event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
     switch (target) {
       case 'nonWorkingDayLight':
         this.nonWorkingDayColorLight = value;
@@ -1141,11 +1163,13 @@ export class ManageSettingsComponent implements OnInit {
     }
   }
 
-  onTypeColorLightChange(type: HolidayType, value: string): void {
+  onTypeColorLightChange(type: HolidayType, event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
     this.holidayTypeService.updateType(type.id, undefined, value).subscribe();
   }
 
-  onTypeColorDarkChange(type: HolidayType, value: string): void {
+  onTypeColorDarkChange(type: HolidayType, event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
     this.holidayTypeService.updateType(type.id, undefined, undefined, value).subscribe();
   }
 
