@@ -128,8 +128,9 @@ const RESET_PASSWORD_MUTATION = gql`
             <mat-label>{{ 'editMember.role' | translate }}</mat-label>
             <mat-select [(ngModel)]="editForm.role" name="role"
                         [disabled]="!canEditRole">
-              <mat-option value="user">{{ 'common.user' | translate }}</mat-option>
-              <mat-option value="manager">{{ 'common.manager' | translate }}</mat-option>
+              <mat-option value="member">{{ 'common.roleMember' | translate }}</mat-option>
+              <mat-option value="teamadmin">{{ 'common.roleTeamAdmin' | translate }}</mat-option>
+              <mat-option value="orgadmin">{{ 'common.roleOrgAdmin' | translate }}</mat-option>
             </mat-select>
           </mat-form-field>
 
@@ -534,7 +535,7 @@ export class MemberEditDialogComponent {
         await new Promise<void>((resolve, reject) => {
           this.authService.updateRole(
             this.data.member.id,
-            this.editForm.role as 'user' | 'manager'
+            this.editForm.role as 'member' | 'orgadmin' | 'teamadmin' | 'sysadmin'
           ).subscribe({ next: () => resolve(), error: (e) => reject(e) });
         });
       }

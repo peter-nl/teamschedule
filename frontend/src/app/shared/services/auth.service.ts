@@ -9,7 +9,8 @@ export interface AuthMember {
   lastName: string;
   particles: string | null;
   email: string | null;
-  role: 'user' | 'manager';
+  role: 'member' | 'orgadmin' | 'teamadmin' | 'sysadmin';
+  organisationId: number | null;
 }
 
 export interface AuthPayload {
@@ -32,6 +33,7 @@ const LOGIN_MUTATION = gql`
         particles
         email
         role
+        organisationId
       }
     }
   }
@@ -46,6 +48,7 @@ const UPDATE_PROFILE_MUTATION = gql`
       particles
       email
       role
+      organisationId
     }
   }
 `;
@@ -59,6 +62,7 @@ const UPDATE_ROLE_MUTATION = gql`
       particles
       email
       role
+      organisationId
     }
   }
 `;
@@ -210,11 +214,24 @@ export class AuthService {
     );
   }
 
-  get isManager(): boolean {
-    return this.currentUser?.role === 'manager';
+  get isSysadmin(): boolean {
+    return this.currentUser?.role === 'sysadmin';
   }
 
-  updateRole(memberId: string, role: 'user' | 'manager'): Observable<AuthMember | null> {
+  get isOrgAdmin(): boolean {
+    return this.currentUser?.role === 'sysadmin' || this.currentUser?.role === 'orgadmin';
+  }
+
+  get isTeamAdmin(): boolean {
+    return this.currentUser?.role === 'sysadmin' || this.currentUser?.role === 'orgadmin' || this.currentUser?.role === 'teamadmin';
+  }
+
+  /** @deprecated Use isOrgAdmin */
+  get isManager(): boolean {
+    return this.isOrgAdmin;
+  }
+
+  updateRole(memberId: string, role: 'member' | 'orgadmin' | 'teamadmin' | 'sysadmin'): Observable<AuthMember | null> {
     const user = this.currentUser;
     if (!user) {
       throw new Error('Not logged in');

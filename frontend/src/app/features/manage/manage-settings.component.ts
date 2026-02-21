@@ -15,31 +15,9 @@ import { provideNativeDateAdapter } from '@angular/material/core';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
-import { gql } from '@apollo/client';
-import { apolloClient } from '../../app.config';
 import { AppSettingsService } from '../../core/services/app-settings.service';
 import { HolidayService, HolidayInfo } from '../../core/services/holiday.service';
 import { HolidayTypeService, HolidayType } from '../../core/services/holiday-type.service';
-
-const LOAD_EMAIL_CONFIG = gql`
-  query EmailConfig {
-    emailConfig { host port secure user from configured }
-  }
-`;
-
-const SAVE_EMAIL_CONFIG = gql`
-  mutation SaveEmailConfig($host: String!, $port: Int!, $secure: Boolean!, $user: String!, $password: String!, $from: String!) {
-    saveEmailConfig(host: $host, port: $port, secure: $secure, user: $user, password: $password, from: $from) {
-      success message
-    }
-  }
-`;
-
-const TEST_EMAIL_CONFIG = gql`
-  mutation TestEmailConfig($testAddress: String!) {
-    testEmailConfig(testAddress: $testAddress) { success message }
-  }
-`;
 
 interface DayConfig {
   label: string;
@@ -388,75 +366,6 @@ interface HolidayYearGroup {
             </p>
           </div>
 
-          <mat-divider></mat-divider>
-
-          <div class="settings-section">
-            <div class="section-header">
-              <div>
-                <h3>{{ 'settings.email.title' | translate }}</h3>
-                <p class="section-description">{{ 'settings.email.description' | translate }}</p>
-              </div>
-            </div>
-
-            <div class="email-config-form">
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>{{ 'settings.email.smtpHost' | translate }}</mat-label>
-                <input matInput [(ngModel)]="emailConfig.host" name="smtpHost" [placeholder]="'settings.email.smtpHostPlaceholder' | translate">
-              </mat-form-field>
-
-              <div class="email-row">
-                <mat-form-field appearance="outline" class="port-field">
-                  <mat-label>{{ 'settings.email.port' | translate }}</mat-label>
-                  <input matInput type="number" [(ngModel)]="emailConfig.port" name="smtpPort">
-                </mat-form-field>
-                <mat-form-field appearance="outline" class="encryption-field">
-                  <mat-label>{{ 'settings.email.encryption' | translate }}</mat-label>
-                  <mat-select [(ngModel)]="emailConfig.encryption" name="smtpEncryption">
-                    <mat-option value="starttls">{{ 'settings.email.starttls' | translate }}</mat-option>
-                    <mat-option value="ssl">{{ 'settings.email.ssl' | translate }}</mat-option>
-                    <mat-option value="none">{{ 'settings.email.none' | translate }}</mat-option>
-                  </mat-select>
-                  <mat-hint>{{ encryptionHint }}</mat-hint>
-                </mat-form-field>
-              </div>
-
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>{{ 'settings.email.username' | translate }}</mat-label>
-                <input matInput [(ngModel)]="emailConfig.user" name="smtpUser">
-              </mat-form-field>
-
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>{{ 'settings.email.password' | translate }}</mat-label>
-                <input matInput type="password" [(ngModel)]="emailConfig.password" name="smtpPass"
-                       [placeholder]="'settings.email.passwordPlaceholder' | translate">
-              </mat-form-field>
-
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>{{ 'settings.email.fromAddress' | translate }}</mat-label>
-                <input matInput [(ngModel)]="emailConfig.from" name="smtpFrom" [placeholder]="'settings.email.fromPlaceholder' | translate">
-              </mat-form-field>
-
-              <div class="email-actions">
-                <button mat-icon-button color="primary" (click)="saveEmailConfig()"
-                        [disabled]="emailSaving || !emailConfig.host || !emailConfig.user || !emailConfig.password"
-                        [matTooltip]="'settings.email.saveConfig' | translate">
-                  <mat-spinner *ngIf="emailSaving" diameter="18"></mat-spinner>
-                  <mat-icon *ngIf="!emailSaving">save</mat-icon>
-                </button>
-                <button mat-icon-button (click)="testEmailConfig()" [disabled]="emailTesting || !emailConfigured"
-                        [matTooltip]="'settings.email.sendTest' | translate">
-                  <mat-spinner *ngIf="emailTesting" diameter="18"></mat-spinner>
-                  <mat-icon *ngIf="!emailTesting">send</mat-icon>
-                </button>
-              </div>
-
-              <div *ngIf="emailStatusMessage" class="email-status"
-                   [class.success]="emailStatusSuccess" [class.error]="!emailStatusSuccess">
-                <mat-icon>{{ emailStatusSuccess ? 'check_circle' : 'error' }}</mat-icon>
-                {{ emailStatusMessage }}
-              </div>
-            </div>
-          </div>
         </mat-card-content>
       </mat-card>
     </div>
@@ -841,61 +750,6 @@ interface HolidayYearGroup {
       flex: 1;
     }
 
-    .email-config-form {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .full-width {
-      width: 100%;
-    }
-
-    .email-row {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-
-    .port-field {
-      width: 120px;
-    }
-
-    .encryption-field {
-      flex: 1;
-    }
-
-    .email-actions {
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      margin-top: 8px;
-    }
-
-    .email-actions mat-spinner {
-      display: inline-block;
-      margin-right: 8px;
-    }
-
-    .email-status {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 12px;
-      border-radius: 8px;
-      margin-top: 12px;
-      font-size: 14px;
-    }
-
-    .email-status.success {
-      background: var(--mat-sys-primary-container);
-      color: var(--mat-sys-on-primary-container);
-    }
-
-    .email-status.error {
-      background: var(--mat-sys-error-container);
-      color: var(--mat-sys-on-error-container);
-    }
   `]
 })
 export class ManageSettingsComponent implements OnInit {
@@ -940,22 +794,6 @@ export class ManageSettingsComponent implements OnInit {
   newTypeName = '';
   newTypeColorLight = '#c8e6c9';
   newTypeColorDark = '#2e7d32';
-
-  // Email config
-  emailConfig = { host: '', port: 587, encryption: 'starttls' as 'starttls' | 'ssl' | 'none', user: '', password: '', from: '' };
-  emailConfigured = false;
-
-  get encryptionHint(): string {
-    switch (this.emailConfig.encryption) {
-      case 'starttls': return this.translate.instant('settings.email.starttlsHint');
-      case 'ssl': return this.translate.instant('settings.email.sslHint');
-      case 'none': return this.translate.instant('settings.email.noneHint');
-    }
-  }
-  emailSaving = false;
-  emailTesting = false;
-  emailStatusMessage: string | null = null;
-  emailStatusSuccess = false;
 
   get isDateRangeValid(): boolean {
     if (!this.scheduleStartDateObj || !this.scheduleEndDateObj) return false;
@@ -1077,8 +915,6 @@ export class ManageSettingsComponent implements OnInit {
       this.holidaysLoading = false;
     });
 
-    // Load email config
-    this.loadEmailConfig();
   }
 
   private loadHolidaysForRange(startDate: string, endDate: string): void {
@@ -1191,66 +1027,4 @@ export class ManageSettingsComponent implements OnInit {
     this.loadHolidaysForRange(this.scheduleStartDate, this.scheduleEndDate);
   }
 
-  private loadEmailConfig(): void {
-    apolloClient.query({ query: LOAD_EMAIL_CONFIG, fetchPolicy: 'network-only' }).then(result => {
-      const config = (result.data as any).emailConfig;
-      if (config) {
-        this.emailConfig.host = config.host;
-        this.emailConfig.port = config.port;
-        this.emailConfig.encryption = config.secure ? 'ssl' : (config.port === 25 ? 'none' : 'starttls');
-        this.emailConfig.user = config.user;
-        this.emailConfig.from = config.from;
-        this.emailConfigured = config.configured;
-      }
-    }).catch(() => {});
-  }
-
-  saveEmailConfig(): void {
-    this.emailSaving = true;
-    this.emailStatusMessage = null;
-    apolloClient.mutate({
-      mutation: SAVE_EMAIL_CONFIG,
-      variables: {
-        host: this.emailConfig.host,
-        port: this.emailConfig.port,
-        secure: this.emailConfig.encryption === 'ssl',
-        user: this.emailConfig.user,
-        password: this.emailConfig.password,
-        from: this.emailConfig.from,
-      }
-    }).then(result => {
-      this.emailSaving = false;
-      const res = (result.data as any).saveEmailConfig;
-      this.emailStatusSuccess = res.success;
-      this.emailStatusMessage = res.message;
-      if (res.success) {
-        this.emailConfigured = true;
-        this.emailConfig.password = '';
-      }
-    }).catch(err => {
-      this.emailSaving = false;
-      this.emailStatusSuccess = false;
-      this.emailStatusMessage = `Error: ${err.message}`;
-    });
-  }
-
-  testEmailConfig(): void {
-    const testAddress = window.prompt(this.translate.instant('settings.email.testPrompt'));
-    if (!testAddress) return;
-    this.emailTesting = true;
-    this.emailStatusMessage = null;
-    apolloClient.mutate({
-      mutation: TEST_EMAIL_CONFIG,
-      variables: { testAddress }
-    }).then(result => {
-      this.emailTesting = false;
-      const res = (result.data as any).testEmailConfig;
-      this.emailStatusSuccess = res.success;
-      this.emailStatusMessage = res.message;
-    }).catch(err => {
-      this.emailTesting = false;
-      this.emailStatusSuccess = false;
-      this.emailStatusMessage = `Error: ${err.message}`;
-    });
-  }
 }

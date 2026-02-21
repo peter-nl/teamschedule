@@ -182,9 +182,9 @@ const GET_TEAMS_QUERY = gql`
               </div>
             </th>
             <td mat-cell *matCellDef="let member">
-              <span class="role-badge" [class.manager]="member.role === 'manager'">
-                <mat-icon>{{ member.role === 'manager' ? 'admin_panel_settings' : 'person' }}</mat-icon>
-                {{ (member.role === 'manager' ? 'common.manager' : 'common.user') | translate }}
+              <span class="role-badge" [class]="'role-badge role-' + member.role">
+                <mat-icon>{{ member.role === 'sysadmin' ? 'security' : member.role === 'orgadmin' ? 'admin_panel_settings' : member.role === 'teamadmin' ? 'manage_accounts' : 'person' }}</mat-icon>
+                {{ ('common.role.' + member.role) | translate }}
               </span>
             </td>
           </ng-container>
@@ -315,8 +315,13 @@ const GET_TEAMS_QUERY = gql`
       color: var(--mat-sys-on-surface-variant);
     }
 
-    .role-badge.manager mat-icon {
+    .role-badge.role-orgadmin mat-icon,
+    .role-badge.role-sysadmin mat-icon {
       color: var(--mat-sys-primary);
+    }
+
+    .role-badge.role-teamadmin mat-icon {
+      color: var(--mat-sys-secondary);
     }
 
     .team-chip {

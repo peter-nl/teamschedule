@@ -19,7 +19,17 @@
     "manager": "Manager",
     "user": "User",
     "light": "Light",
-    "dark": "Dark"
+    "dark": "Dark",
+    "roleMember": "Member",
+    "roleTeamAdmin": "Team Admin",
+    "roleOrgAdmin": "Org Admin",
+    "roleSysadmin": "Sysadmin",
+    "role": {
+      "member": "Member",
+      "teamadmin": "Team Admin",
+      "orgadmin": "Org Admin",
+      "sysadmin": "Sysadmin"
+    }
   },
   "days": {
     "sunday": "Sunday",
@@ -58,6 +68,7 @@
     },
     "management": {
       "label": "Management",
+      "organisations": "Organisations",
       "teams": "Teams",
       "members": "Members",
       "importExport": "Import / Export",
@@ -422,5 +433,19 @@
     "noTeamsMatch": "No teams found matching \"{{ search }}\"",
     "noTeams": "No teams available. Create your first team!",
     "loadFailed": "Failed to load teams"
+  },
+  "organisations": {
+    "title": "Organisations",
+    "name": "Name",
+    "members": "members",
+    "teams": "teams",
+    "empty": "No organisations yet.",
+    "newName": "Organisation name",
+    "newNamePlaceholder": "e.g., Acme Corp",
+    "create": "Create",
+    "created": "Organisation created",
+    "updated": "Organisation updated",
+    "deleted": "Organisation deleted",
+    "confirmDelete": "Delete organisation \"{{ name }}\"? This cannot be undone."
   }
 }

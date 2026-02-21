@@ -19,7 +19,17 @@
     "manager": "Beheerder",
     "user": "Gebruiker",
     "light": "Licht",
-    "dark": "Donker"
+    "dark": "Donker",
+    "roleMember": "Lid",
+    "roleTeamAdmin": "Team Beheerder",
+    "roleOrgAdmin": "Org Beheerder",
+    "roleSysadmin": "Systeembeheerder",
+    "role": {
+      "member": "Lid",
+      "teamadmin": "Team Beheerder",
+      "orgadmin": "Org Beheerder",
+      "sysadmin": "Systeembeheerder"
+    }
   },
   "days": {
     "sunday": "Zondag",
@@ -58,6 +68,7 @@
     },
     "management": {
       "label": "Beheer",
+      "organisations": "Organisaties",
       "teams": "Teams",
       "members": "Leden",
       "importExport": "Import / Export",
@@ -422,5 +433,19 @@
     "noTeamsMatch": "Geen teams gevonden die overeenkomen met \"{{ search }}\"",
     "noTeams": "Geen teams beschikbaar. Maak uw eerste team aan!",
     "loadFailed": "Teams laden mislukt"
+  },
+  "organisations": {
+    "title": "Organisaties",
+    "name": "Naam",
+    "members": "leden",
+    "teams": "teams",
+    "empty": "Nog geen organisaties.",
+    "newName": "Organisatienaam",
+    "newNamePlaceholder": "bijv. Acme Corp",
+    "create": "Aanmaken",
+    "created": "Organisatie aangemaakt",
+    "updated": "Organisatie bijgewerkt",
+    "deleted": "Organisatie verwijderd",
+    "confirmDelete": "Organisatie \"{{ name }}\" verwijderen? Dit kan niet ongedaan worden gemaakt."
   }
 }

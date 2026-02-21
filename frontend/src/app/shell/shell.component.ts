@@ -17,13 +17,21 @@ import { ManageTeamsComponent } from '../features/manage/manage-teams.component'
 import { ManageMembersComponent } from '../features/manage/manage-members.component';
 import { ManageSettingsComponent } from '../features/manage/manage-settings.component';
 import { ManageImportExportComponent } from '../features/manage/manage-import-export.component';
+import { ManageOrganisationsComponent } from '../features/manage/manage-organisations.component';
 
 type NavBarType = 'account' | 'management';
 type PanelType = 'login' | 'profile' | 'password'
-              | 'manage-teams' | 'manage-members' | 'manage-import-export' | 'manage-settings';
+              | 'manage-teams' | 'manage-members' | 'manage-import-export' | 'manage-settings'
+              | 'manage-organisations';
 
 interface NavItem {
   path: string;
+  icon: string;
+  label: string;
+}
+
+interface ManagementItem {
+  panel: PanelType;
   icon: string;
   label: string;
 }
@@ -45,7 +53,8 @@ interface NavItem {
     ManageTeamsComponent,
     ManageMembersComponent,
     ManageImportExportComponent,
-    ManageSettingsComponent
+    ManageSettingsComponent,
+    ManageOrganisationsComponent
   ],
   template: `
     <div class="app-layout">
@@ -113,7 +122,7 @@ interface NavItem {
             <span>{{ (isDark ? 'shell.account.lightTheme' : 'shell.account.darkTheme') | translate }}</span>
           </button>
 
-          <button *ngIf="authService.isManager"
+          <button *ngIf="authService.isTeamAdmin && !authService.isSysadmin"
                   class="nav-bar-item"
                   (click)="onManagementModeToggle(!managementModeEnabled)">
             <mat-icon>{{ managementModeEnabled ? 'person' : 'admin_panel_settings' }}</mat-icon>
@@ -155,29 +164,12 @@ interface NavItem {
       <nav class="nav-bar" *ngIf="activeNavBar === 'management'">
         <div class="nav-bar-spacer"></div>
         <div class="nav-bar-items">
-          <button class="nav-bar-item"
-                  [class.active]="activePanel === 'manage-teams'"
-                  (click)="openPanel('manage-teams')">
-            <mat-icon>group_work</mat-icon>
-            <span>{{ 'shell.management.teams' | translate }}</span>
-          </button>
-          <button class="nav-bar-item"
-                  [class.active]="activePanel === 'manage-members'"
-                  (click)="openPanel('manage-members')">
-            <mat-icon>manage_accounts</mat-icon>
-            <span>{{ 'shell.management.members' | translate }}</span>
-          </button>
-          <button class="nav-bar-item"
-                  [class.active]="activePanel === 'manage-import-export'"
-                  (click)="openPanel('manage-import-export')">
-            <mat-icon>import_export</mat-icon>
-            <span>{{ 'shell.management.importExport' | translate }}</span>
-          </button>
-          <button class="nav-bar-item"
-                  [class.active]="activePanel === 'manage-settings'"
-                  (click)="openPanel('manage-settings')">
-            <mat-icon>settings</mat-icon>
-            <span>{{ 'shell.management.settings' | translate }}</span>
+          <button *ngFor="let item of managementItems"
+                  class="nav-bar-item"
+                  [class.active]="activePanel === item.panel"
+                  (click)="openPanel(item.panel)">
+            <mat-icon>{{ item.icon }}</mat-icon>
+            <span>{{ item.label | translate }}</span>
           </button>
         </div>
       </nav>
@@ -201,6 +193,7 @@ interface NavItem {
         <app-account-login *ngIf="activePanel === 'login'" (loginSuccess)="onLoginSuccess()"></app-account-login>
         <app-account-profile *ngIf="activePanel === 'profile'"></app-account-profile>
         <app-account-password *ngIf="activePanel === 'password'"></app-account-password>
+        <app-manage-organisations *ngIf="activePanel === 'manage-organisations'"></app-manage-organisations>
         <app-manage-teams *ngIf="activePanel === 'manage-teams'"></app-manage-teams>
         <app-manage-members *ngIf="activePanel === 'manage-members'"></app-manage-members>
         <app-manage-import-export *ngIf="activePanel === 'manage-import-export'"></app-manage-import-export>
@@ -648,10 +641,6 @@ interface NavItem {
 export class ShellComponent {
   private readonly TABLET_BREAKPOINT = 768;
 
-  navItems: NavItem[] = [
-    { path: '/schedule', icon: 'calendar_month', label: 'shell.nav.schedule' }
-  ];
-
   currentPath = '';
   isExpanded = true;
   isDark = false;
@@ -709,8 +698,31 @@ export class ShellComponent {
     }
   }
 
+  get navItems(): NavItem[] {
+    if (this.authService.isSysadmin) return [];
+    return [{ path: '/schedule', icon: 'calendar_month', label: 'shell.nav.schedule' }];
+  }
+
   get showManagement(): boolean {
-    return this.authService.isManager && this.managementModeEnabled;
+    if (this.authService.isSysadmin) return true;
+    return this.authService.isTeamAdmin && this.managementModeEnabled;
+  }
+
+  get managementItems(): ManagementItem[] {
+    if (this.authService.isSysadmin) {
+      return [
+        { panel: 'manage-organisations', icon: 'business', label: 'shell.management.organisations' }
+      ];
+    }
+    const items: ManagementItem[] = [
+      { panel: 'manage-teams', icon: 'group_work', label: 'shell.management.teams' },
+      { panel: 'manage-members', icon: 'manage_accounts', label: 'shell.management.members' },
+      { panel: 'manage-import-export', icon: 'import_export', label: 'shell.management.importExport' },
+    ];
+    if (this.authService.isOrgAdmin) {
+      items.push({ panel: 'manage-settings', icon: 'settings', label: 'shell.management.settings' });
+    }
+    return items;
   }
 
   get panelLeftOffset(): number {
