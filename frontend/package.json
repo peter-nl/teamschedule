@@ -3,7 +3,9 @@
   "version": "5.2.1",
   "scripts": {
     "ng": "ng",
+    "prestart": "node scripts/set-version.js",
     "start": "ng serve",
+    "prebuild": "node scripts/set-version.js",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
