@@ -15,9 +15,7 @@ services:
       - teamschedule-network
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: ghcr.io/peter-nl/teamschedule-backend:latest
     container_name: teamschedule-backend
     restart: always
     environment:
@@ -29,25 +27,17 @@ services:
       APP_URL: ${APP_URL}
     ports:
       - "127.0.0.1:1200:4000"
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
     depends_on:
       - postgres
     networks:
       - teamschedule-network
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: ghcr.io/peter-nl/teamschedule-frontend:latest
     container_name: teamschedule-frontend
     restart: always
     ports:
-      - "127.0.0.1:1220:4200"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - "127.0.0.1:1220:80"
     depends_on:
       - backend
     networks:
