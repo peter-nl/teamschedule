@@ -89,8 +89,8 @@ import { AuthService } from '../../shared/services/auth.service';
         <h3 class="section-title">{{ 'profile.role' | translate }}</h3>
         <div class="role-section">
           <div class="role-display">
-            <mat-icon>{{ authService.currentUser?.role === 'manager' ? 'admin_panel_settings' : 'person' }}</mat-icon>
-            <span class="role-label">{{ (authService.currentUser?.role === 'manager' ? 'common.manager' : 'common.user') | translate }}</span>
+            <mat-icon>{{ authService.isTeamAdmin ? 'admin_panel_settings' : 'person' }}</mat-icon>
+            <span class="role-label">{{ ('common.role.' + authService.currentUser?.role) | translate }}</span>
           </div>
         </div>
 
