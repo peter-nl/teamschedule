@@ -78,6 +78,10 @@
       "signedOut": "U bent uitgelogd"
     }
   },
+  "home": {
+    "guest": "Welkom bij de TeamRooster app. De app die uw teams en hun leden helpt bij het organiseren van hun vakanties. Log in om uw rooster te bekijken.",
+    "loggedIn": "Welkom bij de TeamRooster app. U bent al ingelogd. Kies een van de opties aan de linkerkant om aan uw rooster te werken."
+  },
   "login": {
     "title": "Inloggen",
     "subtitle": "Log in met uw Lid ID",

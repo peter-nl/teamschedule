@@ -78,6 +78,10 @@
       "signedOut": "You have been signed out"
     }
   },
+  "home": {
+    "guest": "Welcome to the TeamSchedule app. The app that helps your teams and their members organize their holidays. Login to enter your schedule.",
+    "loggedIn": "Welcome to the TeamSchedule app. You are already signed in. Choose one of the options on the left to start working on your schedule."
+  },
   "login": {
     "title": "Login",
     "subtitle": "Sign in with your member ID",

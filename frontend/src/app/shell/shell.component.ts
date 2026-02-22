@@ -64,7 +64,7 @@ interface ManagementItem {
           <button class="menu-button" (click)="toggleExpanded()" [matTooltip]="'shell.nav.menu' | translate" matTooltipPosition="right">
             <mat-icon>{{ isExpanded ? 'menu_open' : 'menu' }}</mat-icon>
           </button>
-          <span *ngIf="isExpanded" class="app-title">{{ 'shell.appTitle' | translate }}</span>
+          <a *ngIf="isExpanded" class="app-title" [routerLink]="['/']" (click)="onNavItemClick()">{{ 'shell.appTitle' | translate }}</a>
         </div>
 
         <div class="nav-items">
@@ -275,6 +275,12 @@ interface ManagementItem {
       font-weight: 600;
       color: var(--mat-sys-on-surface);
       white-space: nowrap;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .app-title:hover {
+      color: var(--mat-sys-primary);
     }
 
     .nav-items {
@@ -699,7 +705,7 @@ export class ShellComponent {
   }
 
   get navItems(): NavItem[] {
-    if (this.authService.isSysadmin) return [];
+    if (!this.authService.isLoggedIn || this.authService.isSysadmin) return [];
     return [{ path: '/schedule', icon: 'calendar_month', label: 'shell.nav.schedule' }];
   }
 
