@@ -64,11 +64,10 @@
       "teamAdminMode": "Team Admin mode",
       "orgAdminMode": "Org Admin mode",
       "managerMode": "Manager mode",
-      "signIn": "Sign in",
+      "logIn": "Log in",
+      "logOut": "Log out",
       "account": "Account",
-      "changePassword": "Change password",
-      "signOut": "Sign out",
-      "login": "Login"
+      "changePassword": "Change password"
     },
     "management": {
       "label": "Management",
@@ -81,23 +80,23 @@
       "settings": "Settings"
     },
     "messages": {
-      "signedOut": "You have been signed out"
+      "loggedOut": "You have been logged out"
     }
   },
   "home": {
     "guestIntro": "Welcome to the TeamSchedule app. The app that helps your teams and their members organize their holidays.",
-    "loginWord": "Login",
+    "loginWord": "Log in",
     "guestCta": " to get started.",
     "loggedIn": "Welcome to the TeamSchedule app. You are already signed in. Choose one of the options on the left to start working on your schedule."
   },
   "login": {
     "title": "Login",
-    "subtitle": "Sign in with your member ID",
+    "subtitle": "Log in with your member ID",
     "memberId": "Member ID",
     "memberIdPlaceholder": "Enter your member ID",
     "password": "Password",
     "passwordPlaceholder": "Enter your password",
-    "signIn": "Sign In",
+    "signIn": "Log In",
     "forgotPassword": "Forgot password?",
     "emailAddress": "Your email address",
     "sendResetLink": "Send Reset Link",

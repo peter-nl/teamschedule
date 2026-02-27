@@ -64,11 +64,10 @@
       "teamAdminMode": "Team beheerder modus",
       "orgAdminMode": "Org beheerder modus",
       "managerMode": "Beheerder modus",
-      "signIn": "Inloggen",
+      "logIn": "Inloggen",
+      "logOut": "Uitloggen",
       "account": "Account",
-      "changePassword": "Wachtwoord wijzigen",
-      "signOut": "Uitloggen",
-      "login": "Inloggen"
+      "changePassword": "Wachtwoord wijzigen"
     },
     "management": {
       "label": "Beheer",
@@ -81,7 +80,7 @@
       "settings": "Instellingen"
     },
     "messages": {
-      "signedOut": "U bent uitgelogd"
+      "loggedOut": "U bent uitgelogd"
     }
   },
   "home": {

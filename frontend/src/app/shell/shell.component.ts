@@ -94,13 +94,14 @@ interface ManagementItem {
             <mat-icon>admin_panel_settings</mat-icon>
             <span class="nav-label">{{ 'shell.management.label' | translate }}</span>
           </a>
-          <a class="nav-item"
-             [class.active]="activeNavBar === 'account' || activePanel === 'login'"
-             (click)="authService.isLoggedIn ? toggleNavBar('account') : openLoginPanel()"
-             [matTooltip]="isExpanded ? '' : ((authService.isLoggedIn ? 'shell.account.account' : 'shell.account.login') | translate)"
+          <a *ngIf="authService.isLoggedIn"
+             class="nav-item"
+             [class.active]="activeNavBar === 'account'"
+             (click)="toggleNavBar('account')"
+             [matTooltip]="isExpanded ? '' : ('shell.account.account' | translate)"
              matTooltipPosition="right">
-            <mat-icon>{{ authService.isLoggedIn ? 'account_circle' : 'login' }}</mat-icon>
-            <span class="nav-label">{{ (authService.isLoggedIn ? 'shell.account.account' : 'shell.account.login') | translate }}</span>
+            <mat-icon>account_circle</mat-icon>
+            <span class="nav-label">{{ 'shell.account.account' | translate }}</span>
           </a>
           <a class="nav-item lang-toggle"
              (click)="toggleLanguage()"
@@ -117,6 +118,24 @@ interface ManagementItem {
             <mat-icon>{{ isDark ? 'light_mode' : 'dark_mode' }}</mat-icon>
             <span class="nav-label">{{ (isDark ? 'shell.account.lightTheme' : 'shell.account.darkTheme') | translate }}</span>
           </a>
+          <!-- Log in / Log out always at the very bottom -->
+          <a *ngIf="!authService.isLoggedIn"
+             class="nav-item"
+             [class.active]="activePanel === 'login'"
+             (click)="openLoginPanel()"
+             [matTooltip]="isExpanded ? '' : ('shell.account.logIn' | translate)"
+             matTooltipPosition="right">
+            <mat-icon>login</mat-icon>
+            <span class="nav-label">{{ 'shell.account.logIn' | translate }}</span>
+          </a>
+          <a *ngIf="authService.isLoggedIn"
+             class="nav-item"
+             (click)="onSignOut()"
+             [matTooltip]="isExpanded ? '' : ('shell.account.logOut' | translate)"
+             matTooltipPosition="right">
+            <mat-icon>logout</mat-icon>
+            <span class="nav-label">{{ 'shell.account.logOut' | translate }}</span>
+          </a>
         </div>
         <div class="nav-version">v{{ version }}</div>
         <div class="nav-version-mobile">v{{ version }}</div>
@@ -126,33 +145,17 @@ interface ManagementItem {
       <nav class="nav-bar" *ngIf="activeNavBar === 'account'">
         <div class="nav-bar-spacer"></div>
         <div class="nav-bar-items">
-          <button *ngIf="authService.isLoggedIn && !authService.isSysadmin && authService.isAnyAdmin"
+          <button *ngIf="!authService.isSysadmin && authService.isAnyAdmin"
                   class="nav-bar-item"
                   (click)="setAdminMode(adminMode === 'manager' ? 'member' : 'manager')">
             <mat-icon>{{ adminMode === 'manager' ? 'person' : 'admin_panel_settings' }}</mat-icon>
             <span>{{ (adminMode === 'manager' ? 'shell.account.memberMode' : 'shell.account.managerMode') | translate }}</span>
           </button>
-
-          <button *ngIf="!authService.isLoggedIn"
-                  class="nav-bar-item"
-                  [class.active]="activePanel === 'login'"
-                  (click)="openPanel('login')">
-            <mat-icon>login</mat-icon>
-            <span>{{ 'shell.account.signIn' | translate }}</span>
-          </button>
-
-          <button *ngIf="authService.isLoggedIn"
-                  class="nav-bar-item"
+          <button class="nav-bar-item"
                   [class.active]="activePanel === 'profile'"
                   (click)="openPanel('profile')">
             <mat-icon>account_circle</mat-icon>
             <span>{{ 'shell.account.account' | translate }}</span>
-          </button>
-          <button *ngIf="authService.isLoggedIn"
-                  class="nav-bar-item"
-                  (click)="onSignOut()">
-            <mat-icon>logout</mat-icon>
-            <span>{{ 'shell.account.signOut' | translate }}</span>
           </button>
         </div>
       </nav>
@@ -881,7 +884,7 @@ export class ShellComponent {
 
   onSignOut(): void {
     this.authService.logout();
-    this.snackBar.open(this.translate.instant('shell.messages.signedOut'), this.translate.instant('common.close'), { duration: 3000 });
+    this.snackBar.open(this.translate.instant('shell.messages.loggedOut'), this.translate.instant('common.close'), { duration: 3000 });
     this.activeNavBar = null;
     this.activePanel = null;
   }
