@@ -1,4 +1,4 @@
-import { Component, HostListener } from '@angular/core';
+import { Component, HostListener, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, RouterOutlet, Router, NavigationEnd } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
@@ -7,13 +7,14 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { filter } from 'rxjs/operators';
 import { AuthService } from '../shared/services/auth.service';
 import { APP_VERSION } from '../version';
-import { UserPreferencesService } from '../shared/services/user-preferences.service';
+import { UserPreferencesService, AdminMode } from '../shared/services/user-preferences.service';
 import { SlideInPanelService } from '../shared/services/slide-in-panel.service';
+import { UiEventService } from '../shared/services/ui-event.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AccountLoginComponent } from '../features/account/account-login.component';
 import { AccountProfileComponent } from '../features/account/account-profile.component';
 import { AccountPasswordComponent } from '../features/account/account-password.component';
-import { ManageTeamsComponent } from '../features/manage/manage-teams.component';
+import { ManageOrgComponent } from '../features/manage/manage-org.component';
 import { ManageMembersComponent } from '../features/manage/manage-members.component';
 import { ManageSettingsComponent } from '../features/manage/manage-settings.component';
 import { ManageImportExportComponent } from '../features/manage/manage-import-export.component';
@@ -21,7 +22,7 @@ import { ManageOrganisationsComponent } from '../features/manage/manage-organisa
 
 type NavBarType = 'account' | 'management';
 type PanelType = 'login' | 'profile' | 'password'
-              | 'manage-teams' | 'manage-members' | 'manage-import-export' | 'manage-settings'
+              | 'manage-org' | 'manage-org-teams' | 'manage-my-teams' | 'manage-members' | 'manage-import-export' | 'manage-settings'
               | 'manage-organisations';
 
 interface NavItem {
@@ -50,7 +51,7 @@ interface ManagementItem {
     AccountLoginComponent,
     AccountProfileComponent,
     AccountPasswordComponent,
-    ManageTeamsComponent,
+    ManageOrgComponent,
     ManageMembersComponent,
     ManageImportExportComponent,
     ManageSettingsComponent,
@@ -84,13 +85,6 @@ interface ManagementItem {
 
         <!-- Bottom Menu Items -->
         <div class="nav-account">
-          <a class="nav-item lang-toggle"
-             (click)="toggleLanguage()"
-             [matTooltip]="isExpanded ? '' : currentLang.toUpperCase()"
-             matTooltipPosition="right">
-            <mat-icon>language</mat-icon>
-            <span class="nav-label">{{ currentLang.toUpperCase() }}</span>
-          </a>
           <a *ngIf="showManagement"
              class="nav-item"
              [class.active]="activeNavBar === 'management'"
@@ -108,6 +102,21 @@ interface ManagementItem {
             <mat-icon>{{ authService.isLoggedIn ? 'account_circle' : 'login' }}</mat-icon>
             <span class="nav-label">{{ (authService.isLoggedIn ? 'shell.account.account' : 'shell.account.login') | translate }}</span>
           </a>
+          <a class="nav-item lang-toggle"
+             (click)="toggleLanguage()"
+             [matTooltip]="isExpanded ? '' : currentLang.toUpperCase()"
+             matTooltipPosition="right">
+            <mat-icon>language</mat-icon>
+            <span class="nav-label">{{ currentLang.toUpperCase() }}</span>
+          </a>
+          <a *ngIf="!isMobile"
+             class="nav-item"
+             (click)="toggleTheme()"
+             [matTooltip]="isExpanded ? '' : ((isDark ? 'shell.account.lightTheme' : 'shell.account.darkTheme') | translate)"
+             matTooltipPosition="right">
+            <mat-icon>{{ isDark ? 'light_mode' : 'dark_mode' }}</mat-icon>
+            <span class="nav-label">{{ (isDark ? 'shell.account.lightTheme' : 'shell.account.darkTheme') | translate }}</span>
+          </a>
         </div>
         <div class="nav-version">v{{ version }}</div>
         <div class="nav-version-mobile">v{{ version }}</div>
@@ -117,16 +126,11 @@ interface ManagementItem {
       <nav class="nav-bar" *ngIf="activeNavBar === 'account'">
         <div class="nav-bar-spacer"></div>
         <div class="nav-bar-items">
-          <button *ngIf="!isMobile" class="nav-bar-item" (click)="toggleTheme()">
-            <mat-icon>{{ isDark ? 'light_mode' : 'dark_mode' }}</mat-icon>
-            <span>{{ (isDark ? 'shell.account.lightTheme' : 'shell.account.darkTheme') | translate }}</span>
-          </button>
-
-          <button *ngIf="authService.isTeamAdmin && !authService.isSysadmin"
+          <button *ngIf="authService.isLoggedIn && !authService.isSysadmin && authService.isAnyAdmin"
                   class="nav-bar-item"
-                  (click)="onManagementModeToggle(!managementModeEnabled)">
-            <mat-icon>{{ managementModeEnabled ? 'person' : 'admin_panel_settings' }}</mat-icon>
-            <span>{{ (managementModeEnabled ? 'shell.account.memberMode' : 'shell.account.managerMode') | translate }}</span>
+                  (click)="setAdminMode(adminMode === 'manager' ? 'member' : 'manager')">
+            <mat-icon>{{ adminMode === 'manager' ? 'person' : 'admin_panel_settings' }}</mat-icon>
+            <span>{{ (adminMode === 'manager' ? 'shell.account.memberMode' : 'shell.account.managerMode') | translate }}</span>
           </button>
 
           <button *ngIf="!authService.isLoggedIn"
@@ -143,13 +147,6 @@ interface ManagementItem {
                   (click)="openPanel('profile')">
             <mat-icon>account_circle</mat-icon>
             <span>{{ 'shell.account.account' | translate }}</span>
-          </button>
-          <button *ngIf="authService.isLoggedIn"
-                  class="nav-bar-item"
-                  [class.active]="activePanel === 'password'"
-                  (click)="openPanel('password')">
-            <mat-icon>lock</mat-icon>
-            <span>{{ 'shell.account.changePassword' | translate }}</span>
           </button>
           <button *ngIf="authService.isLoggedIn"
                   class="nav-bar-item"
@@ -179,25 +176,29 @@ interface ManagementItem {
 
       <!-- Main Content Area -->
       <main class="main-content">
-        <router-outlet></router-outlet>
+        <!-- Management views fill the main content area -->
+        <app-manage-organisations *ngIf="activePanel === 'manage-organisations'"></app-manage-organisations>
+        <app-manage-org *ngIf="activePanel === 'manage-org'" [view]="'org'"></app-manage-org>
+        <app-manage-org *ngIf="activePanel === 'manage-org-teams'" [view]="'teams'" [myTeamsOnly]="false"></app-manage-org>
+        <app-manage-org *ngIf="activePanel === 'manage-my-teams'" [view]="'teams'" [myTeamsOnly]="true"></app-manage-org>
+        <app-manage-members *ngIf="activePanel === 'manage-members'"></app-manage-members>
+        <app-manage-import-export *ngIf="activePanel === 'manage-import-export'"></app-manage-import-export>
+        <app-manage-settings *ngIf="activePanel === 'manage-settings'"></app-manage-settings>
+        <!-- Route content shown only when no management panel is active -->
+        <router-outlet *ngIf="!isManagementPanel"></router-outlet>
       </main>
     </div>
 
-    <!-- Slide-in Panel -->
-    <div class="slide-in-backdrop" *ngIf="activePanel" [style.left.px]="panelLeftOffset" (click)="closePanel()"></div>
-    <div class="slide-in-shell-panel" *ngIf="activePanel" [style.left.px]="panelLeftOffset">
+    <!-- Slide-in Panel (account panels only) -->
+    <div class="slide-in-backdrop" *ngIf="isAccountPanel" [style.left.px]="panelLeftOffset" (click)="closePanel()"></div>
+    <div class="slide-in-shell-panel" *ngIf="isAccountPanel" [style.left.px]="panelLeftOffset">
       <button class="panel-close" (click)="closePanel()">
         <mat-icon>close</mat-icon>
       </button>
       <div class="slide-in-content">
         <app-account-login *ngIf="activePanel === 'login'" (loginSuccess)="onLoginSuccess()"></app-account-login>
-        <app-account-profile *ngIf="activePanel === 'profile'"></app-account-profile>
+        <app-account-profile *ngIf="activePanel === 'profile'" (openChangePassword)="openPanel('password')"></app-account-profile>
         <app-account-password *ngIf="activePanel === 'password'"></app-account-password>
-        <app-manage-organisations *ngIf="activePanel === 'manage-organisations'"></app-manage-organisations>
-        <app-manage-teams *ngIf="activePanel === 'manage-teams'"></app-manage-teams>
-        <app-manage-members *ngIf="activePanel === 'manage-members'"></app-manage-members>
-        <app-manage-import-export *ngIf="activePanel === 'manage-import-export'"></app-manage-import-export>
-        <app-manage-settings *ngIf="activePanel === 'manage-settings'"></app-manage-settings>
       </div>
     </div>
   `,
@@ -650,7 +651,7 @@ export class ShellComponent {
   currentPath = '';
   isExpanded = true;
   isDark = false;
-  managementModeEnabled = true;
+  adminMode: AdminMode = 'member';
   activeNavBar: NavBarType | null = null;
   activePanel: PanelType | null = null;
   version = APP_VERSION;
@@ -662,16 +663,19 @@ export class ShellComponent {
     private userPreferencesService: UserPreferencesService,
     private snackBar: MatSnackBar,
     private panelService: SlideInPanelService,
-    private translate: TranslateService
+    private translate: TranslateService,
+    private uiEventService: UiEventService,
+    private cdr: ChangeDetectorRef
   ) {
+    this.uiEventService.openLogin$.subscribe(() => this.openLoginPanel());
     const isNarrow = window.innerWidth < this.TABLET_BREAKPOINT;
     this.isExpanded = isNarrow ? false : this.userPreferencesService.preferences.navigationExpanded;
-    this.managementModeEnabled = this.userPreferencesService.preferences.managementMode;
+    this.adminMode = this.userPreferencesService.preferences.adminMode;
     this.userPreferencesService.preferences$.subscribe(prefs => {
       this.isExpanded = window.innerWidth < this.TABLET_BREAKPOINT ? false : prefs.navigationExpanded;
-      this.managementModeEnabled = prefs.managementMode;
-      // Close management nav bar if management mode gets disabled
-      if (!prefs.managementMode && this.activeNavBar === 'management') {
+      this.adminMode = prefs.adminMode;
+      // Close management nav bar if switching to member mode
+      if (prefs.adminMode === 'member' && this.activeNavBar === 'management') {
         this.activeNavBar = null;
         this.activePanel = null;
       }
@@ -711,24 +715,47 @@ export class ShellComponent {
 
   get showManagement(): boolean {
     if (this.authService.isSysadmin) return true;
-    return this.authService.isTeamAdmin && this.managementModeEnabled;
+    return this.adminMode !== 'member';
   }
 
   get managementItems(): ManagementItem[] {
+    const items: ManagementItem[] = [];
     if (this.authService.isSysadmin) {
-      return [
-        { panel: 'manage-organisations', icon: 'business', label: 'shell.management.organisations' }
-      ];
+      items.push({ panel: 'manage-organisations', icon: 'business', label: 'shell.management.organisations' });
+      items.push({ panel: 'manage-org-teams', icon: 'group_work', label: 'shell.management.teams' });
+      items.push({ panel: 'manage-members', icon: 'manage_accounts', label: 'shell.management.members' });
+      return items;
     }
-    const items: ManagementItem[] = [
-      { panel: 'manage-teams', icon: 'group_work', label: 'shell.management.teams' },
-      { panel: 'manage-members', icon: 'manage_accounts', label: 'shell.management.members' },
-      { panel: 'manage-import-export', icon: 'import_export', label: 'shell.management.importExport' },
-    ];
-    if (this.authService.isOrgAdmin) {
-      items.push({ panel: 'manage-settings', icon: 'settings', label: 'shell.management.settings' });
+    if (this.adminMode === 'manager') {
+      if (this.authService.isOrgAdmin) {
+        items.push({ panel: 'manage-org', icon: 'corporate_fare', label: 'shell.management.organisation' });
+        items.push({ panel: 'manage-org-teams', icon: 'group_work', label: 'shell.management.teams' });
+      } else {
+        items.push({ panel: 'manage-my-teams', icon: 'group_work', label: 'shell.management.myTeams' });
+      }
+      items.push({ panel: 'manage-members', icon: 'manage_accounts', label: 'shell.management.members' });
+      if (this.authService.isOrgAdmin) {
+        items.push({ panel: 'manage-import-export', icon: 'import_export', label: 'shell.management.importExport' });
+        items.push({ panel: 'manage-settings', icon: 'settings', label: 'shell.management.settings' });
+      }
     }
     return items;
+  }
+
+  get isManagementPanel(): boolean {
+    return this.activePanel === 'manage-organisations'
+        || this.activePanel === 'manage-org'
+        || this.activePanel === 'manage-org-teams'
+        || this.activePanel === 'manage-my-teams'
+        || this.activePanel === 'manage-members'
+        || this.activePanel === 'manage-import-export'
+        || this.activePanel === 'manage-settings';
+  }
+
+  get isAccountPanel(): boolean {
+    return this.activePanel === 'login'
+        || this.activePanel === 'profile'
+        || this.activePanel === 'password';
   }
 
   get panelLeftOffset(): number {
@@ -802,6 +829,7 @@ export class ShellComponent {
       // Switch directly to the new panel
       this.activePanel = panel;
     }
+    this.cdr.detectChanges();
     // On mobile, close the nav-bar overlay when opening a panel
     if (this.isMobile && this.activePanel) {
       this.activeNavBar = null;
@@ -826,6 +854,9 @@ export class ShellComponent {
 
   onLoginSuccess(): void {
     this.activePanel = null;
+    if (!this.authService.isSysadmin) {
+      this.router.navigate(['/schedule']);
+    }
   }
 
   toggleTheme(): void {
@@ -837,8 +868,8 @@ export class ShellComponent {
     }
   }
 
-  onManagementModeToggle(enabled: boolean): void {
-    this.userPreferencesService.setManagementMode(enabled);
+  setAdminMode(mode: AdminMode): void {
+    this.userPreferencesService.setAdminMode(mode);
   }
 
   toggleLanguage(): void {

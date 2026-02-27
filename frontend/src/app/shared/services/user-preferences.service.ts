@@ -5,11 +5,13 @@ export type NameColumnField = 'firstName' | 'particles' | 'lastName';
 
 export type TeamFilterMode = 'and' | 'or';
 
+export type AdminMode = 'member' | 'manager';
+
 export interface UserPreferences {
   theme: 'system' | 'light' | 'dark';
   navigationExpanded: boolean;
   defaultView: 'schedule' | 'teams' | 'members';
-  managementMode: boolean;
+  adminMode: AdminMode;
   scheduleZoom: number;
   scheduleNameColumnOrder: NameColumnField[];
   teamFilterMode: TeamFilterMode;
@@ -20,7 +22,7 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   theme: 'system',
   navigationExpanded: true,
   defaultView: 'schedule',
-  managementMode: true,
+  adminMode: 'member',
   scheduleZoom: 40,
   scheduleNameColumnOrder: ['lastName', 'firstName', 'particles'] as NameColumnField[],
   teamFilterMode: 'and' as TeamFilterMode,
@@ -93,9 +95,9 @@ export class UserPreferencesService {
     this.savePreferences();
   }
 
-  setManagementMode(enabled: boolean): void {
+  setAdminMode(mode: AdminMode): void {
     const current = this.preferencesSubject.value;
-    this.preferencesSubject.next({ ...current, managementMode: enabled });
+    this.preferencesSubject.next({ ...current, adminMode: mode });
     this.savePreferences();
   }
 

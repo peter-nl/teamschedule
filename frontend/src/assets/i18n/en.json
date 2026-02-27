@@ -26,10 +26,12 @@
     "roleSysadmin": "Sysadmin",
     "role": {
       "member": "Member",
+      "user": "Member",
       "teamadmin": "Team Admin",
       "orgadmin": "Org Admin",
       "sysadmin": "Sysadmin"
-    }
+    },
+    "select": "Select"
   },
   "days": {
     "sunday": "Sunday",
@@ -59,6 +61,8 @@
       "lightTheme": "Light theme",
       "darkTheme": "Dark theme",
       "memberMode": "Member mode",
+      "teamAdminMode": "Team Admin mode",
+      "orgAdminMode": "Org Admin mode",
       "managerMode": "Manager mode",
       "signIn": "Sign in",
       "account": "Account",
@@ -69,6 +73,8 @@
     "management": {
       "label": "Management",
       "organisations": "Organisations",
+      "organisation": "Organisation",
+      "myTeams": "My Teams",
       "teams": "Teams",
       "members": "Members",
       "importExport": "Import / Export",
@@ -79,7 +85,9 @@
     }
   },
   "home": {
-    "guest": "Welcome to the TeamSchedule app. The app that helps your teams and their members organize their holidays. Login to enter your schedule.",
+    "guestIntro": "Welcome to the TeamSchedule app. The app that helps your teams and their members organize their holidays.",
+    "loginWord": "Login",
+    "guestCta": " to get started.",
     "loggedIn": "Welcome to the TeamSchedule app. You are already signed in. Choose one of the options on the left to start working on your schedule."
   },
   "login": {
@@ -270,10 +278,15 @@
   "teams": {
     "addTeam": "Add team",
     "searchTeams": "Search teams",
+    "id": "ID",
     "name": "Name",
     "members": "Members",
     "assignMembers": "Assign Members",
+    "addMember": "Add member",
+    "removeMember": "Remove member",
     "noTeamsFound": "No teams found",
+    "selectPrompt": "Select a team to view details",
+    "noMembersAssigned": "No members assigned",
     "messages": {
       "loadFailed": "Failed to load teams",
       "updated": "Team updated",
@@ -291,7 +304,9 @@
     "email": "Email",
     "role": "Role",
     "teamsColumn": "Teams",
+    "scheduleDisabled": "Excluded from schedule",
     "noMembersFound": "No members found",
+    "selectPrompt": "Select a member to view details",
     "messages": {
       "loadFailed": "Failed to load members"
     }
@@ -438,6 +453,23 @@
     "noTeams": "No teams available. Create your first team!",
     "loadFailed": "Failed to load teams"
   },
+  "account": {
+    "scheduleTitle": "Schedule Visibility",
+    "scheduleDisabled": "Exclude me from the schedule",
+    "scheduleDisabledHint": "When enabled, you will not appear in the schedule grid."
+  },
+  "org": {
+    "admins": "Organisation Admins",
+    "addAdmin": "Add org admin",
+    "removeAdmin": "Remove org admin",
+    "myTeamsOnly": "My teams only",
+    "teamAdmins": "Team Admins",
+    "addTeamAdmin": "Add team admin"
+  },
+  "sysadmin": {
+    "selectOrg": "Select an organisation...",
+    "selectOrgPrompt": "Please select an organisation to manage."
+  },
   "organisations": {
     "title": "Organisations",
     "name": "Name",
@@ -450,6 +482,13 @@
     "created": "Organisation created",
     "updated": "Organisation updated",
     "deleted": "Organisation deleted",
-    "confirmDelete": "Delete organisation \"{{ name }}\"? This cannot be undone."
+    "confirmDelete": "Delete organisation \"{{ name }}\"? This cannot be undone.",
+    "admins": "Admins",
+    "noAdmins": "none",
+    "addAdmin": "Add admin",
+    "removeAdmin": "Remove admin",
+    "selectMember": "Select member",
+    "adminAdded": "Admin added",
+    "adminRemoved": "Admin removed"
   }
 }

@@ -387,9 +387,9 @@ export class MemberDetailDialogComponent implements OnInit {
     private scheduleService: ScheduleService,
     private holidayService: MemberHolidayService
   ) {
-    this.managementModeEnabled = this.userPreferencesService.preferences.managementMode;
+    this.managementModeEnabled = this.userPreferencesService.preferences.adminMode !== 'member';
     this.userPreferencesService.preferences$.subscribe(prefs => {
-      this.managementModeEnabled = prefs.managementMode;
+      this.managementModeEnabled = prefs.adminMode !== 'member';
     });
     this.userPreferencesService.isDarkTheme$.subscribe(dark => { this.isDark = dark; });
   }
@@ -411,7 +411,7 @@ export class MemberDetailDialogComponent implements OnInit {
   }
 
   private get isManager(): boolean {
-    return this.authService.isManager && this.managementModeEnabled;
+    return this.authService.isAnyAdmin && this.managementModeEnabled;
   }
 
   get canEdit(): boolean {

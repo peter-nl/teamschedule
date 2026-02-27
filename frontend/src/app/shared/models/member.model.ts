@@ -4,6 +4,7 @@ export interface Member {
   lastName: string;
   particles?: string | null;
   email?: string | null;
+  scheduleDisabled?: boolean;
   teams?: TeamBasic[];
 }
 

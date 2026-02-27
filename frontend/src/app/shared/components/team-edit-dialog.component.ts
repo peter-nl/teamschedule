@@ -80,7 +80,7 @@ const REMOVE_MEMBER_FROM_TEAM_MUTATION = gql`
 
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>{{ 'editTeam.teamName' | translate }}</mat-label>
-            <input matInput [(ngModel)]="editForm.name" name="name">
+            <input matInput [(ngModel)]="editForm.name" name="name" maxlength="35">
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">

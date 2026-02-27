@@ -270,6 +270,8 @@ interface CellRenderData {
   styles: [`
     :host {
       display: flex;
+      flex: 1;
+      min-height: 0;
       flex-direction: column;
       height: 100%;
     }
@@ -859,7 +861,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   // Manager editing mode
-  private managementModeEnabled = false;
+  private managementModeEnabled = false; // true when adminMode !== 'member'
   private navigationExpanded = true;
 
   // Drag-to-scroll state
@@ -937,7 +939,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
 
     // Track management mode, zoom, column order, filter mode, and nav state from preferences
     this.userPreferencesService.preferences$.subscribe(prefs => {
-      this.managementModeEnabled = prefs.managementMode;
+      this.managementModeEnabled = prefs.adminMode !== 'member';
       this.navigationExpanded = prefs.navigationExpanded;
       this.teamFilterMode = prefs.teamFilterMode || 'and';
       this.rebuildEditableMemberIds();
@@ -1422,7 +1424,8 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   filterMembers(): void {
-    let result = this.members;
+    // Exclude members who have opted out of the schedule
+    let result = this.members.filter(m => !m.scheduleDisabled);
 
     // Team filter (AND or OR logic based on mode)
     if (this.selectedTeamIds.size > 0) {
@@ -1762,7 +1765,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
 
   private rebuildEditableMemberIds(): void {
     this.editableMemberIds.clear();
-    const isManager = this.authService.isManager && this.managementModeEnabled;
+    const isManager = this.authService.isAnyAdmin && this.managementModeEnabled;
     for (const member of this.filteredMembers) {
       if (isManager || member.id === this.currentUserId) {
         this.editableMemberIds.add(member.id);

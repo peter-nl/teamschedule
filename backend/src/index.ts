@@ -14,43 +14,67 @@ const JWT_SECRET = process.env.JWT_SECRET || 'fallback-dev-secret';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
 // Auth context type
-interface AuthContext {
-  user: { id: string; role: string; organisationId: number | null } | null;
+interface AuthUser {
+  id: string;
+  role: string;
+  organisationId: number | null;
+  isOrgAdmin: boolean;
+  teamAdminIds: number[];
 }
 
-function generateToken(member: { id: string; role: string; organisationId: number | null }): string {
+interface AuthContext {
+  user: AuthUser | null;
+}
+
+function generateToken(member: AuthUser): string {
   return jwt.sign(
-    { id: member.id, role: member.role, organisationId: member.organisationId },
+    {
+      id: member.id,
+      role: member.role,
+      organisationId: member.organisationId,
+      isOrgAdmin: member.isOrgAdmin,
+      teamAdminIds: member.teamAdminIds,
+    },
     JWT_SECRET,
     { expiresIn: JWT_EXPIRES_IN as any }
   );
 }
 
-function requireAuth(ctx: AuthContext): { id: string; role: string; organisationId: number | null } {
+function requireAuth(ctx: AuthContext): AuthUser {
   if (!ctx.user) throw new Error('Authentication required');
   return ctx.user;
 }
 
-function requireSysadmin(ctx: AuthContext): { id: string; role: string; organisationId: number | null } {
+function requireSysadmin(ctx: AuthContext): AuthUser {
   const user = requireAuth(ctx);
   if (user.role !== 'sysadmin') throw new Error('Sysadmin access required');
   return user;
 }
 
-function requireOrgAdmin(ctx: AuthContext): { id: string; role: string; organisationId: number | null } {
+function requireOrgAdmin(ctx: AuthContext): AuthUser {
   const user = requireAuth(ctx);
-  if (user.role !== 'sysadmin' && user.role !== 'orgadmin') throw new Error('Organisation admin access required');
+  if (user.role !== 'sysadmin' && !user.isOrgAdmin) throw new Error('Organisation admin access required');
   return user;
 }
 
-function requireTeamAdmin(ctx: AuthContext): { id: string; role: string; organisationId: number | null } {
+function requireTeamAdmin(ctx: AuthContext): AuthUser {
   const user = requireAuth(ctx);
-  if (!['sysadmin', 'orgadmin', 'teamadmin'].includes(user.role)) throw new Error('Team admin access required');
+  if (user.role !== 'sysadmin' && !user.isOrgAdmin && user.teamAdminIds.length === 0) {
+    throw new Error('Team admin access required');
+  }
   return user;
 }
 
-function isElevatedRole(role: string): boolean {
-  return ['sysadmin', 'orgadmin', 'teamadmin'].includes(role);
+function requireTeamAdminOf(ctx: AuthContext, teamId: number): AuthUser {
+  const user = requireAuth(ctx);
+  if (user.role !== 'sysadmin' && !user.isOrgAdmin && !user.teamAdminIds.includes(teamId)) {
+    throw new Error('Team admin access required for this team');
+  }
+  return user;
+}
+
+function isElevatedRole(user: AuthUser): boolean {
+  return user.role === 'sysadmin' || user.isOrgAdmin || user.teamAdminIds.length > 0;
 }
 
 // Encryption for SMTP password storage
@@ -139,6 +163,19 @@ async function setOrgSetting(organisationId: number, key: string, value: string)
   );
 }
 
+// Fetch isOrgAdmin and teamAdminIds for a member (used at login and token refresh)
+async function fetchMemberRoles(memberId: string): Promise<{ isOrgAdmin: boolean; teamAdminIds: number[] }> {
+  const result = await pool.query(
+    'SELECT role, team_id FROM member_role WHERE member_id = $1',
+    [memberId]
+  );
+  const isOrgAdmin = result.rows.some((r: any) => r.role === 'orgadmin');
+  const teamAdminIds = result.rows
+    .filter((r: any) => r.role === 'teamadmin' && r.team_id !== null)
+    .map((r: any) => Number(r.team_id));
+  return { isOrgAdmin, teamAdminIds };
+}
+
 // GraphQL type definitions
 const typeDefs = `#graphql
   type Organisation {
@@ -146,12 +183,14 @@ const typeDefs = `#graphql
     name: String!
     memberCount: Int!
     teamCount: Int!
+    orgAdmins: [Member!]!
   }
 
   type Team {
     id: ID!
     name: String!
     members: [Member!]!
+    teamAdmins: [Member!]!
   }
 
   type Member {
@@ -162,6 +201,10 @@ const typeDefs = `#graphql
     email: String
     role: String!
     organisationId: Int
+    scheduleDisabled: Boolean!
+    isOrgAdmin: Boolean!
+    teamAdminIds: [Int!]!
+    adminOfTeams: [Team!]!
     teams: [Team!]!
   }
 
@@ -278,10 +321,12 @@ const typeDefs = `#graphql
     organisations: [Organisation!]!
     emailConfig: EmailConfig
     # Org-scoped
-    teams: [Team!]!
+    teams(orgId: ID): [Team!]!
     team(id: ID!): Team
-    members: [Member!]!
+    members(orgId: ID): [Member!]!
     member(id: ID!): Member
+    organisation(orgId: ID): Organisation!
+    orgAdmins(orgId: ID): [Member!]!
     holidayTypes: [HolidayType!]!
     memberHolidays(memberId: String!): [MemberHoliday!]!
     allMemberHolidays(startDate: String!, endDate: String!): [MemberHoliday!]!
@@ -300,21 +345,28 @@ const typeDefs = `#graphql
     saveEmailConfig(host: String!, port: Int!, secure: Boolean!, user: String!, password: String!, from: String!): SimpleResult!
     testEmailConfig(testAddress: String!): SimpleResult!
     # OrgAdmin
-    createTeam(name: String!): Team!
+    createTeam(name: String!, orgId: ID): Team!
     updateTeam(id: ID!, name: String!): Team
     deleteTeam(id: ID!): Boolean!
-    createMember(id: String!, firstName: String!, lastName: String!, particles: String, email: String, password: String!): Member!
+    createMember(id: String!, firstName: String!, lastName: String!, particles: String, email: String, password: String!, orgId: ID): Member!
     deleteMember(id: ID!): Boolean!
     updateMemberRole(memberId: String!, role: String!): Member
+    assignOrgAdmin(memberId: String!, orgId: ID): Boolean!
+    removeOrgAdmin(memberId: String!, orgId: ID): Boolean!
+    assignTeamAdmin(memberId: String!, teamId: Int!, orgId: ID): Boolean!
+    removeTeamAdmin(memberId: String!, teamId: Int!): Boolean!
     createHolidayType(name: String!, colorLight: String!, colorDark: String!): HolidayType!
     updateHolidayType(id: ID!, name: String, colorLight: String, colorDark: String, sortOrder: Int): HolidayType!
     deleteHolidayType(id: ID!): Boolean!
     saveScheduleDateRange(startDate: String!, endDate: String!): DeletedHolidaysResult!
     importMemberHolidays(holidays: [MemberHolidayImportInput!]!): ImportResult!
-    # TeamAdmin
+    # TeamAdmin or OrgAdmin
     addMemberToTeam(teamId: ID!, memberId: ID!): Team!
     removeMemberFromTeam(teamId: ID!, memberId: ID!): Team!
     exportMemberHolidaysMutation: [MemberHolidayExport!]!
+    setMemberScheduleDisabled(memberId: String!, disabled: Boolean!): Member!
+    # Self
+    updateScheduleDisabled(disabled: Boolean!): Member!
     # Auth (public)
     login(memberId: String!, password: String!): AuthPayload!
     requestPasswordReset(email: String!): SimpleResult!
@@ -340,6 +392,7 @@ function mapMemberRow(row: any) {
     email: row.email,
     role: row.role,
     organisationId: row.organisation_id,
+    scheduleDisabled: row.schedule_disabled ?? false,
   };
 }
 
@@ -413,53 +466,73 @@ const resolvers = {
     },
 
     // Org-scoped queries
-    teams: async (_: any, __: any, ctx: AuthContext) => {
+    teams: async (_: any, { orgId }: { orgId?: string }, ctx: AuthContext) => {
       const user = requireAuth(ctx);
-      if (user.organisationId === null) return [];
-      const result = await pool.query(
-        'SELECT * FROM team WHERE organisation_id = $1 ORDER BY name',
-        [user.organisationId]
-      );
+      const effectiveOrgId = orgId && user.role === 'sysadmin' ? Number(orgId) : user.organisationId;
+      const result = effectiveOrgId === null
+        ? await pool.query('SELECT * FROM team ORDER BY name')
+        : await pool.query('SELECT * FROM team WHERE organisation_id = $1 ORDER BY name', [effectiveOrgId]);
       return result.rows;
     },
 
     team: async (_: any, { id }: { id: number }, ctx: AuthContext) => {
       const user = requireAuth(ctx);
-      if (user.organisationId === null) return null;
-      const result = await pool.query(
-        'SELECT * FROM team WHERE id = $1 AND organisation_id = $2',
-        [id, user.organisationId]
-      );
+      const result = user.organisationId === null
+        ? await pool.query('SELECT * FROM team WHERE id = $1', [id])
+        : await pool.query('SELECT * FROM team WHERE id = $1 AND organisation_id = $2', [id, user.organisationId]);
       return result.rows[0] || null;
     },
 
-    members: async (_: any, __: any, ctx: AuthContext) => {
+    members: async (_: any, { orgId }: { orgId?: string }, ctx: AuthContext) => {
       const user = requireAuth(ctx);
-      if (user.organisationId === null) return [];
-      const result = await pool.query(
-        'SELECT * FROM member WHERE organisation_id = $1 ORDER BY last_name, first_name',
-        [user.organisationId]
-      );
+      const effectiveOrgId = orgId && user.role === 'sysadmin' ? Number(orgId) : user.organisationId;
+      const result = effectiveOrgId === null
+        ? await pool.query("SELECT * FROM member WHERE role != 'sysadmin' ORDER BY last_name, first_name")
+        : await pool.query("SELECT * FROM member WHERE organisation_id = $1 AND role != 'sysadmin' ORDER BY last_name, first_name", [effectiveOrgId]);
       return result.rows.map(mapMemberRow);
     },
 
     member: async (_: any, { id }: { id: string }, ctx: AuthContext) => {
       const user = requireAuth(ctx);
-      if (user.organisationId === null) return null;
-      const result = await pool.query(
-        'SELECT * FROM member WHERE id = $1 AND organisation_id = $2',
-        [id, user.organisationId]
-      );
+      const result = user.organisationId === null
+        ? await pool.query('SELECT * FROM member WHERE id = $1', [id])
+        : await pool.query('SELECT * FROM member WHERE id = $1 AND organisation_id = $2', [id, user.organisationId]);
       return result.rows[0] ? mapMemberRow(result.rows[0]) : null;
+    },
+
+    organisation: async (_: any, { orgId }: { orgId?: string }, ctx: AuthContext) => {
+      const user = requireAuth(ctx);
+      if (user.role !== 'sysadmin' && user.teamAdminIds.length === 0 && !user.isOrgAdmin) throw new Error('Access denied');
+      const effectiveOrgId = orgId && user.role === 'sysadmin' ? Number(orgId) : user.organisationId;
+      if (effectiveOrgId === null) throw new Error('No organisation');
+      const result = await pool.query(
+        `SELECT id, name FROM organisation WHERE id = $1`,
+        [effectiveOrgId]
+      );
+      if (result.rows.length === 0) throw new Error('Organisation not found');
+      return result.rows[0];
+    },
+
+    orgAdmins: async (_: any, { orgId }: { orgId?: string }, ctx: AuthContext) => {
+      const user = requireAuth(ctx);
+      if (user.role !== 'sysadmin' && user.teamAdminIds.length === 0 && !user.isOrgAdmin) throw new Error('Access denied');
+      const effectiveOrgId = orgId && user.role === 'sysadmin' ? Number(orgId) : user.organisationId;
+      if (effectiveOrgId === null) return [];
+      const result = await pool.query(
+        `SELECT m.* FROM member m
+         JOIN member_role mr ON m.id = mr.member_id
+         WHERE mr.role = 'orgadmin' AND mr.organisation_id = $1
+         ORDER BY m.last_name, m.first_name`,
+        [effectiveOrgId]
+      );
+      return result.rows.map(mapMemberRow);
     },
 
     holidayTypes: async (_: any, __: any, ctx: AuthContext) => {
       const user = requireAuth(ctx);
-      if (user.organisationId === null) return [];
-      const result = await pool.query(
-        'SELECT * FROM holiday_type WHERE organisation_id = $1 ORDER BY sort_order, name',
-        [user.organisationId]
-      );
+      const result = user.organisationId === null
+        ? await pool.query('SELECT * FROM holiday_type ORDER BY sort_order, name')
+        : await pool.query('SELECT * FROM holiday_type WHERE organisation_id = $1 ORDER BY sort_order, name', [user.organisationId]);
       return result.rows.map(row => ({
         id: row.id,
         name: row.name,
@@ -647,41 +720,43 @@ const resolvers = {
     },
 
     // OrgAdmin mutations
-    createTeam: async (_: any, { name }: { name: string }, ctx: AuthContext) => {
+    createTeam: async (_: any, { name, orgId }: { name: string; orgId?: string }, ctx: AuthContext) => {
       const user = requireOrgAdmin(ctx);
-      if (user.organisationId === null) throw new Error('No organisation context');
+      const effectiveOrgId = orgId && user.role === 'sysadmin' ? Number(orgId) : user.organisationId;
+      if (effectiveOrgId === null) throw new Error('No organisation context');
       const result = await pool.query(
         'INSERT INTO team (name, organisation_id) VALUES ($1, $2) RETURNING *',
-        [name, user.organisationId]
+        [name, effectiveOrgId]
       );
       return result.rows[0];
     },
 
     updateTeam: async (_: any, { id, name }: { id: number; name: string }, ctx: AuthContext) => {
-      const user = requireOrgAdmin(ctx);
+      requireTeamAdminOf(ctx, Number(id));
       const result = await pool.query(
-        'UPDATE team SET name = $1 WHERE id = $2 AND organisation_id = $3 RETURNING *',
-        [name, id, user.organisationId]
+        'UPDATE team SET name = $1 WHERE id = $2 RETURNING *',
+        [name, id]
       );
       return result.rows[0] || null;
     },
 
     deleteTeam: async (_: any, { id }: { id: number }, ctx: AuthContext) => {
-      const user = requireOrgAdmin(ctx);
+      requireOrgAdmin(ctx);
       const result = await pool.query(
-        'DELETE FROM team WHERE id = $1 AND organisation_id = $2',
-        [id, user.organisationId]
+        'DELETE FROM team WHERE id = $1',
+        [id]
       );
       return (result.rowCount ?? 0) > 0;
     },
 
-    createMember: async (_: any, { id, firstName, lastName, particles, email, password }: { id: string; firstName: string; lastName: string; particles?: string; email?: string; password: string }, ctx: AuthContext) => {
+    createMember: async (_: any, { id, firstName, lastName, particles, email, password, orgId }: { id: string; firstName: string; lastName: string; particles?: string; email?: string; password: string; orgId?: string }, ctx: AuthContext) => {
       const user = requireOrgAdmin(ctx);
-      if (user.organisationId === null) throw new Error('No organisation context');
+      const effectiveOrgId = orgId && user.role === 'sysadmin' ? Number(orgId) : user.organisationId;
+      if (effectiveOrgId === null) throw new Error('No organisation context');
       const hashedPassword = await bcrypt.hash(password, 10);
       const result = await pool.query(
         'INSERT INTO member (id, first_name, last_name, particles, email, password_hash, organisation_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-        [id, firstName, lastName, particles || null, email || null, hashedPassword, user.organisationId]
+        [id, firstName, lastName, particles || null, email || null, hashedPassword, effectiveOrgId]
       );
       return mapMemberRow(result.rows[0]);
     },
@@ -689,23 +764,118 @@ const resolvers = {
     deleteMember: async (_: any, { id }: { id: number }, ctx: AuthContext) => {
       const user = requireOrgAdmin(ctx);
       const result = await pool.query(
-        'DELETE FROM member WHERE id = $1 AND organisation_id = $2',
+        'DELETE FROM member WHERE id = $1 AND ($2::int IS NULL OR organisation_id = $2)',
         [id, user.organisationId]
       );
       return (result.rowCount ?? 0) > 0;
     },
 
+    // Kept for backward compat — sysadmin can change base role ('user'/'sysadmin')
     updateMemberRole: async (_: any, { memberId, role }: { memberId: string; role: string }, ctx: AuthContext) => {
-      const user = requireOrgAdmin(ctx);
-      const validRoles = user.role === 'sysadmin'
-        ? ['member', 'teamadmin', 'orgadmin', 'sysadmin']
-        : ['member', 'teamadmin', 'orgadmin'];
+      const user = requireSysadmin(ctx);
+      const validRoles = ['user', 'sysadmin'];
       if (!validRoles.includes(role)) {
         throw new Error(`Invalid role. Must be one of: ${validRoles.join(', ')}`);
       }
       const result = await pool.query(
-        'UPDATE member SET role = $2 WHERE id = $1 AND (organisation_id = $3 OR $3::int IS NULL) RETURNING *',
-        [memberId, role, user.organisationId]
+        'UPDATE member SET role = $2 WHERE id = $1 RETURNING *',
+        [memberId, role]
+      );
+      return result.rows[0] ? mapMemberRow(result.rows[0]) : null;
+    },
+
+    assignOrgAdmin: async (_: any, { memberId, orgId }: { memberId: string; orgId?: string }, ctx: AuthContext) => {
+      const user = requireOrgAdmin(ctx);
+      const effectiveOrgId = orgId && user.role === 'sysadmin' ? Number(orgId) : user.organisationId;
+      if (effectiveOrgId === null) throw new Error('No organisation context');
+      const memberCheck = await pool.query(
+        'SELECT id FROM member WHERE id = $1 AND organisation_id = $2',
+        [memberId, effectiveOrgId]
+      );
+      if (memberCheck.rows.length === 0) throw new Error('Member not found in this organisation');
+      await pool.query(
+        'INSERT INTO member_role (member_id, role, organisation_id, team_id) VALUES ($1, $2, $3, NULL) ON CONFLICT DO NOTHING',
+        [memberId, 'orgadmin', effectiveOrgId]
+      );
+      return true;
+    },
+
+    removeOrgAdmin: async (_: any, { memberId, orgId }: { memberId: string; orgId?: string }, ctx: AuthContext) => {
+      const user = requireOrgAdmin(ctx);
+      const effectiveOrgId = orgId && user.role === 'sysadmin' ? Number(orgId) : user.organisationId;
+      if (effectiveOrgId === null) throw new Error('No organisation context');
+      await pool.query(
+        'DELETE FROM member_role WHERE member_id = $1 AND role = $2 AND organisation_id = $3',
+        [memberId, 'orgadmin', effectiveOrgId]
+      );
+      return true;
+    },
+
+    assignTeamAdmin: async (_: any, { memberId, teamId, orgId }: { memberId: string; teamId: number; orgId?: string }, ctx: AuthContext) => {
+      const user = requireOrgAdmin(ctx);
+      const effectiveOrgId = orgId && user.role === 'sysadmin' ? Number(orgId) : user.organisationId;
+      if (effectiveOrgId === null) throw new Error('No organisation context');
+      const teamCheck = await pool.query(
+        'SELECT id FROM team WHERE id = $1 AND organisation_id = $2',
+        [teamId, effectiveOrgId]
+      );
+      if (teamCheck.rows.length === 0) throw new Error('Team not found in this organisation');
+      const memberCheck = await pool.query(
+        'SELECT id FROM member WHERE id = $1 AND organisation_id = $2',
+        [memberId, effectiveOrgId]
+      );
+      if (memberCheck.rows.length === 0) throw new Error('Member not found in this organisation');
+      await pool.query(
+        'INSERT INTO member_role (member_id, role, organisation_id, team_id) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING',
+        [memberId, 'teamadmin', effectiveOrgId, teamId]
+      );
+      return true;
+    },
+
+    removeTeamAdmin: async (_: any, { memberId, teamId }: { memberId: string; teamId: number }, ctx: AuthContext) => {
+      requireOrgAdmin(ctx);
+      await pool.query(
+        'DELETE FROM member_role WHERE member_id = $1 AND role = $2 AND team_id = $3',
+        [memberId, 'teamadmin', teamId]
+      );
+      return true;
+    },
+
+    updateScheduleDisabled: async (_: any, { disabled }: { disabled: boolean }, ctx: AuthContext) => {
+      const user = requireAuth(ctx);
+      const result = await pool.query(
+        'UPDATE member SET schedule_disabled = $2 WHERE id = $1 RETURNING *',
+        [user.id, disabled]
+      );
+      return result.rows[0] ? mapMemberRow(result.rows[0]) : null;
+    },
+
+    setMemberScheduleDisabled: async (_: any, { memberId, disabled }: { memberId: string; disabled: boolean }, ctx: AuthContext) => {
+      const user = requireAuth(ctx);
+      if (user.role !== 'sysadmin') {
+        if (user.isOrgAdmin) {
+          // Verify member is in org
+          if (user.organisationId !== null) {
+            const check = await pool.query(
+              'SELECT id FROM member WHERE id = $1 AND organisation_id = $2',
+              [memberId, user.organisationId]
+            );
+            if (check.rows.length === 0) throw new Error('Member not found');
+          }
+        } else if (user.teamAdminIds.length > 0) {
+          // Must be teamadmin of a team that member belongs to
+          const check = await pool.query(
+            'SELECT 1 FROM team_member WHERE member_id = $1 AND team_id = ANY($2::int[])',
+            [memberId, user.teamAdminIds]
+          );
+          if (check.rows.length === 0) throw new Error('You can only manage members of your teams');
+        } else {
+          throw new Error('Admin access required');
+        }
+      }
+      const result = await pool.query(
+        'UPDATE member SET schedule_disabled = $2 WHERE id = $1 RETURNING *',
+        [memberId, disabled]
       );
       return result.rows[0] ? mapMemberRow(result.rows[0]) : null;
     },
@@ -764,7 +934,6 @@ const resolvers = {
       if (start >= end) throw new Error('Start date must be before end date');
       await setOrgSetting(user.organisationId, 'schedule_start_date', startDate);
       await setOrgSetting(user.organisationId, 'schedule_end_date', endDate);
-      // Delete member holidays outside the new range, scoped to this org
       const deleteResult = await pool.query(
         `DELETE FROM member_holiday mh
          USING member m
@@ -818,29 +987,29 @@ const resolvers = {
       };
     },
 
-    // TeamAdmin mutations
+    // TeamAdmin or OrgAdmin mutations
     addMemberToTeam: async (_: any, { teamId, memberId }: { teamId: number; memberId: number }, ctx: AuthContext) => {
-      const user = requireTeamAdmin(ctx);
+      requireTeamAdminOf(ctx, Number(teamId));
       await pool.query(
         'INSERT INTO team_member (team_id, member_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
         [teamId, memberId]
       );
       const result = await pool.query(
-        'SELECT * FROM team WHERE id = $1 AND organisation_id = $2',
-        [teamId, user.organisationId]
+        'SELECT * FROM team WHERE id = $1',
+        [teamId]
       );
       return result.rows[0];
     },
 
     removeMemberFromTeam: async (_: any, { teamId, memberId }: { teamId: number; memberId: number }, ctx: AuthContext) => {
-      const user = requireTeamAdmin(ctx);
+      requireTeamAdminOf(ctx, Number(teamId));
       await pool.query(
         'DELETE FROM team_member WHERE team_id = $1 AND member_id = $2',
         [teamId, memberId]
       );
       const result = await pool.query(
-        'SELECT * FROM team WHERE id = $1 AND organisation_id = $2',
-        [teamId, user.organisationId]
+        'SELECT * FROM team WHERE id = $1',
+        [teamId]
       );
       return result.rows[0];
     },
@@ -884,16 +1053,20 @@ const resolvers = {
         if (!passwordValid) {
           return { success: false, message: 'Invalid password', member: null, token: null };
         }
-        const member = {
+        const { isOrgAdmin, teamAdminIds } = await fetchMemberRoles(row.id);
+        const authUser: AuthUser = {
           id: row.id,
-          firstName: row.first_name,
-          lastName: row.last_name,
-          particles: row.particles,
-          email: row.email,
           role: row.role,
           organisationId: row.organisation_id,
+          isOrgAdmin,
+          teamAdminIds,
         };
-        return { success: true, message: 'Login successful', member, token: generateToken(member) };
+        const member = {
+          ...mapMemberRow(row),
+          isOrgAdmin,
+          teamAdminIds,
+        };
+        return { success: true, message: 'Login successful', member, token: generateToken(authUser) };
       } catch {
         return { success: false, message: 'Login failed', member: null, token: null };
       }
@@ -901,7 +1074,7 @@ const resolvers = {
 
     updateMemberProfile: async (_: any, { id, firstName, lastName, particles, email }: { id: string; firstName: string; lastName: string; particles?: string; email?: string }, ctx: AuthContext) => {
       const user = requireAuth(ctx);
-      if (user.id !== id && !isElevatedRole(user.role)) {
+      if (user.id !== id && !isElevatedRole(user)) {
         throw new Error('You can only update your own profile');
       }
       const result = await pool.query(
@@ -1018,13 +1191,21 @@ const resolvers = {
       await pool.query('UPDATE member SET password_hash = $1 WHERE id = $2', [hashedPassword, resetRow.member_id]);
       const memberResult = await pool.query('SELECT * FROM member WHERE id = $1', [resetRow.member_id]);
       const row = memberResult.rows[0];
-      const member = mapMemberRow(row);
-      return { success: true, message: 'Password reset successfully', member, token: generateToken(member) };
+      const { isOrgAdmin, teamAdminIds } = await fetchMemberRoles(row.id);
+      const authUser: AuthUser = {
+        id: row.id,
+        role: row.role,
+        organisationId: row.organisation_id,
+        isOrgAdmin,
+        teamAdminIds,
+      };
+      const member = { ...mapMemberRow(row), isOrgAdmin, teamAdminIds };
+      return { success: true, message: 'Password reset successfully', member, token: generateToken(authUser) };
     },
 
     saveMemberSchedule: async (_: any, { memberId, referenceDate, week1, week2 }: { memberId: string; referenceDate: string; week1: Array<{ morning: number; afternoon: number }>; week2: Array<{ morning: number; afternoon: number }> }, ctx: AuthContext) => {
       const user = requireAuth(ctx);
-      if (user.id !== memberId && !isElevatedRole(user.role)) {
+      if (user.id !== memberId && !isElevatedRole(user)) {
         throw new Error('You can only edit your own schedule');
       }
       const result = await pool.query(
@@ -1045,11 +1226,24 @@ const resolvers = {
 
     deleteMemberSchedule: async (_: any, { memberId }: { memberId: string }, ctx: AuthContext) => {
       const user = requireAuth(ctx);
-      if (user.id !== memberId && !isElevatedRole(user.role)) {
+      if (user.id !== memberId && !isElevatedRole(user)) {
         throw new Error('You can only delete your own schedule');
       }
       const result = await pool.query('DELETE FROM member_schedule WHERE member_id = $1', [memberId]);
       return (result.rowCount ?? 0) > 0;
+    },
+  },
+
+  Organisation: {
+    orgAdmins: async (parent: any) => {
+      const result = await pool.query(
+        `SELECT m.* FROM member m
+         JOIN member_role mr ON m.id = mr.member_id
+         WHERE mr.role = 'orgadmin' AND mr.organisation_id = $1
+         ORDER BY m.last_name, m.first_name`,
+        [parent.id]
+      );
+      return result.rows.map(mapMemberRow);
     },
   },
 
@@ -1064,6 +1258,16 @@ const resolvers = {
       );
       return result.rows.map(mapMemberRow);
     },
+    teamAdmins: async (parent: any) => {
+      const result = await pool.query(
+        `SELECT m.* FROM member m
+         JOIN member_role mr ON m.id = mr.member_id
+         WHERE mr.role = 'teamadmin' AND mr.team_id = $1
+         ORDER BY m.last_name, m.first_name`,
+        [parent.id]
+      );
+      return result.rows.map(mapMemberRow);
+    },
   },
 
   Member: {
@@ -1072,6 +1276,34 @@ const resolvers = {
         `SELECT t.* FROM team t
          INNER JOIN team_member tm ON t.id = tm.team_id
          WHERE tm.member_id = $1
+         ORDER BY t.name`,
+        [parent.id]
+      );
+      return result.rows;
+    },
+    isOrgAdmin: async (parent: any) => {
+      // If already resolved (e.g., from login), return it directly
+      if (typeof parent.isOrgAdmin === 'boolean') return parent.isOrgAdmin;
+      const result = await pool.query(
+        "SELECT 1 FROM member_role WHERE member_id = $1 AND role = 'orgadmin'",
+        [parent.id]
+      );
+      return result.rows.length > 0;
+    },
+    teamAdminIds: async (parent: any) => {
+      // If already resolved (e.g., from login), return it directly
+      if (Array.isArray(parent.teamAdminIds)) return parent.teamAdminIds;
+      const result = await pool.query(
+        "SELECT team_id FROM member_role WHERE member_id = $1 AND role = 'teamadmin' AND team_id IS NOT NULL",
+        [parent.id]
+      );
+      return result.rows.map((r: any) => Number(r.team_id));
+    },
+    adminOfTeams: async (parent: any) => {
+      const result = await pool.query(
+        `SELECT t.* FROM team t
+         JOIN member_role mr ON t.id = mr.team_id
+         WHERE mr.member_id = $1 AND mr.role = 'teamadmin'
          ORDER BY t.name`,
         [parent.id]
       );
@@ -1094,8 +1326,22 @@ const startServer = async () => {
       const auth = req.headers.authorization || '';
       if (auth.startsWith('Bearer ')) {
         try {
-          const decoded = jwt.verify(auth.slice(7), JWT_SECRET) as { id: string; role: string; organisationId?: number | null };
-          return { user: { id: decoded.id, role: decoded.role, organisationId: decoded.organisationId ?? null } };
+          const decoded = jwt.verify(auth.slice(7), JWT_SECRET) as {
+            id: string;
+            role: string;
+            organisationId?: number | null;
+            isOrgAdmin?: boolean;
+            teamAdminIds?: number[];
+          };
+          return {
+            user: {
+              id: decoded.id,
+              role: decoded.role,
+              organisationId: decoded.organisationId ?? null,
+              isOrgAdmin: decoded.isOrgAdmin ?? false,
+              teamAdminIds: decoded.teamAdminIds ?? [],
+            },
+          };
         } catch {
           return { user: null };
         }

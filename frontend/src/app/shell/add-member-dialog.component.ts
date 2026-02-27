@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, Inject, Optional } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -12,7 +12,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../app.config';
-import { SlideInPanelRef } from '../shared/services/slide-in-panel.service';
+import { SlideInPanelRef, SLIDE_IN_PANEL_DATA } from '../shared/services/slide-in-panel.service';
 
 interface Team {
   id: string;
@@ -20,8 +20,8 @@ interface Team {
 }
 
 const GET_TEAMS_QUERY = gql`
-  query GetTeams {
-    teams {
+  query GetTeamsForMemberDialog($orgId: ID) {
+    teams(orgId: $orgId) {
       id
       name
     }
@@ -29,8 +29,8 @@ const GET_TEAMS_QUERY = gql`
 `;
 
 const CREATE_MEMBER_MUTATION = gql`
-  mutation CreateMember($id: String!, $firstName: String!, $lastName: String!, $particles: String, $email: String, $password: String!) {
-    createMember(id: $id, firstName: $firstName, lastName: $lastName, particles: $particles, email: $email, password: $password) {
+  mutation CreateMember($id: String!, $firstName: String!, $lastName: String!, $particles: String, $email: String, $password: String!, $orgId: ID) {
+    createMember(id: $id, firstName: $firstName, lastName: $lastName, particles: $particles, email: $email, password: $password, orgId: $orgId) {
       id
       firstName
       lastName
@@ -94,6 +94,7 @@ const ADD_MEMBER_TO_TEAM_MUTATION = gql`
             <input matInput
                    [(ngModel)]="memberForm.firstName"
                    name="firstName"
+                   maxlength="35"
                    required>
           </mat-form-field>
 
@@ -102,6 +103,7 @@ const ADD_MEMBER_TO_TEAM_MUTATION = gql`
             <input matInput
                    [(ngModel)]="memberForm.particles"
                    name="particles"
+                   maxlength="35"
                    [placeholder]="'addMember.particlesPlaceholder' | translate">
             <mat-hint>{{ 'addMember.particlesHint' | translate }}</mat-hint>
           </mat-form-field>
@@ -111,6 +113,7 @@ const ADD_MEMBER_TO_TEAM_MUTATION = gql`
             <input matInput
                    [(ngModel)]="memberForm.lastName"
                    name="lastName"
+                   maxlength="35"
                    required>
           </mat-form-field>
 
@@ -216,7 +219,8 @@ export class AddMemberDialogComponent implements OnInit {
   constructor(
     public panelRef: SlideInPanelRef<AddMemberDialogComponent>,
     private snackBar: MatSnackBar,
-    private translate: TranslateService
+    private translate: TranslateService,
+    @Optional() @Inject(SLIDE_IN_PANEL_DATA) private data?: { orgId?: string }
   ) {}
 
   ngOnInit(): void {
@@ -227,6 +231,7 @@ export class AddMemberDialogComponent implements OnInit {
     try {
       const result: any = await apolloClient.query({
         query: GET_TEAMS_QUERY,
+        variables: { orgId: this.data?.orgId },
         fetchPolicy: 'network-only'
       });
       this.teams = result.data.teams;
@@ -261,7 +266,8 @@ export class AddMemberDialogComponent implements OnInit {
           lastName: this.memberForm.lastName,
           particles: this.memberForm.particles || null,
           email: this.memberForm.email || null,
-          password: this.memberForm.password
+          password: this.memberForm.password,
+          orgId: this.data?.orgId
         }
       });
 

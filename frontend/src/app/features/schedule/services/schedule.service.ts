@@ -14,6 +14,7 @@ const GET_MEMBERS_WITH_TEAMS = gql`
       lastName
       particles
       email
+      scheduleDisabled
       teams {
         id
         name

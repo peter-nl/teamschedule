@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { TranslateModule } from '@ngx-translate/core';
 import { AuthService } from '../../shared/services/auth.service';
+import { UiEventService } from '../../shared/services/ui-event.service';
 
 @Component({
   selector: 'app-home',
@@ -11,7 +12,10 @@ import { AuthService } from '../../shared/services/auth.service';
     <div class="home-container">
       <img src="favicon.svg" alt="TeamSchedule" class="home-logo">
       <h1 class="home-title">{{ 'shell.appTitle' | translate }}</h1>
-      <p class="home-text" *ngIf="!authService.isLoggedIn">{{ 'home.guest' | translate }}</p>
+      <p class="home-text" *ngIf="!authService.isLoggedIn">
+        {{ 'home.guestIntro' | translate }}<br>
+        <a class="home-login-link" (click)="onLoginClick()">{{ 'home.loginWord' | translate }}</a>{{ 'home.guestCta' | translate }}
+      </p>
       <p class="home-text" *ngIf="authService.isLoggedIn">{{ 'home.loggedIn' | translate }}</p>
     </div>
   `,
@@ -46,8 +50,25 @@ import { AuthService } from '../../shared/services/auth.service';
       line-height: 1.6;
       margin: 0;
     }
+
+    .home-login-link {
+      color: var(--mat-sys-primary);
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
+    .home-login-link:hover {
+      color: var(--mat-sys-primary-container);
+    }
   `]
 })
 export class HomeComponent {
-  constructor(public authService: AuthService) {}
+  constructor(
+    public authService: AuthService,
+    private uiEventService: UiEventService
+  ) {}
+
+  onLoginClick(): void {
+    this.uiEventService.openLogin$.next();
+  }
 }

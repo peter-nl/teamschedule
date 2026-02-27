@@ -2,14 +2,11 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
-import { MatTableModule } from '@angular/material/table';
-import { MatSortModule, Sort } from '@angular/material/sort';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatBadgeModule } from '@angular/material/badge';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
+import { MatInputModule } from '@angular/material/input';
+import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
@@ -18,7 +15,6 @@ import { apolloClient } from '../../app.config';
 import { SlideInPanelService } from '../../shared/services/slide-in-panel.service';
 import { UserPreferencesService } from '../../shared/services/user-preferences.service';
 import { TeamEditDialogComponent, TeamEditDialogData } from '../../shared/components/team-edit-dialog.component';
-import { ScheduleSearchPanelComponent, ScheduleSearchPanelData, ScheduleSearchPanelResult } from '../schedule/schedule-filter/schedule-search-panel.component';
 import { AddTeamDialogComponent } from '../../shell/add-team-dialog.component';
 
 interface Member {
@@ -63,22 +59,6 @@ const GET_MEMBERS_QUERY = gql`
   }
 `;
 
-const ADD_MEMBER_TO_TEAM_MUTATION = gql`
-  mutation AddMemberToTeam($teamId: ID!, $memberId: ID!) {
-    addMemberToTeam(teamId: $teamId, memberId: $memberId) {
-      id
-    }
-  }
-`;
-
-const REMOVE_MEMBER_FROM_TEAM_MUTATION = gql`
-  mutation RemoveMemberFromTeam($teamId: ID!, $memberId: ID!) {
-    removeMemberFromTeam(teamId: $teamId, memberId: $memberId) {
-      id
-    }
-  }
-`;
-
 @Component({
   selector: 'app-manage-teams',
   standalone: true,
@@ -86,116 +66,424 @@ const REMOVE_MEMBER_FROM_TEAM_MUTATION = gql`
     CommonModule,
     FormsModule,
     DragDropModule,
-    MatTableModule,
-    MatSortModule,
     MatButtonModule,
     MatIconModule,
     MatTooltipModule,
-    MatBadgeModule,
-    MatFormFieldModule,
-    MatSelectModule,
+    MatInputModule,
+    MatDividerModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
     TranslateModule
   ],
   template: `
-    <div class="manage-container">
-      <div class="header">
-        <button mat-icon-button
-                (click)="openAddTeam()"
-                [matTooltip]="'teams.addTeam' | translate">
-          <mat-icon>group_add</mat-icon>
-        </button>
-        <button mat-icon-button
-                (click)="openSearchPanel()"
-                [matTooltip]="'teams.searchTeams' | translate"
-                [class.filter-active]="searchText.length > 0"
-                [matBadge]="searchText ? '!' : ''"
-                [matBadgeHidden]="!searchText"
-                matBadgeSize="small"
-                matBadgeColor="accent">
-          <mat-icon>search</mat-icon>
-        </button>
+    <div class="teams-layout" *ngIf="!loading; else loadingTpl">
+
+      <!-- LEFT: team list -->
+      <div class="list-pane">
+        <div class="list-header">
+          <button mat-icon-button
+                  (click)="openAddTeam()"
+                  [matTooltip]="'teams.addTeam' | translate">
+            <mat-icon>group_add</mat-icon>
+          </button>
+          <input class="search-input"
+                 [(ngModel)]="searchText"
+                 (ngModelChange)="filterTeams()"
+                 [placeholder]="'teams.searchTeams' | translate" />
+        </div>
+
+        <!-- sort header -->
+        <div class="name-cols-header">
+          <button class="col-header sort-btn"
+                  (click)="toggleTeamSort()">
+            <span>{{ 'teams.name' | translate }}</span>
+            <mat-icon class="sort-icon">
+              {{ teamSortDirection === 'asc' ? 'arrow_upward' : 'arrow_downward' }}
+            </mat-icon>
+          </button>
+        </div>
+
+        <div class="list-scroll">
+          <div *ngFor="let team of filteredTeams"
+               class="list-item"
+               [class.selected]="selectedTeam?.id === team.id"
+               (click)="selectTeam(team)">
+            <span>{{ team.name }}</span>
+          </div>
+          <div *ngIf="filteredTeams.length === 0" class="list-empty">
+            <mat-icon>group_off</mat-icon>
+            <span>{{ 'teams.noTeamsFound' | translate }}</span>
+          </div>
+        </div>
       </div>
 
-      <div *ngIf="loading" class="loading">
-        <mat-progress-spinner mode="indeterminate" diameter="40"></mat-progress-spinner>
-      </div>
+      <!-- RIGHT: team detail -->
+      <div class="detail-pane">
+        <div *ngIf="!selectedTeam" class="detail-empty">
+          <mat-icon>groups</mat-icon>
+          <p>{{ 'teams.selectPrompt' | translate }}</p>
+        </div>
 
-      <div class="table-container" *ngIf="!loading">
-        <table mat-table [dataSource]="filteredTeams" matSort (matSortChange)="onSortChange($event)" class="teams-table">
+        <div *ngIf="selectedTeam" class="detail-content">
 
-          <ng-container matColumnDef="name">
-            <th mat-header-cell *matHeaderCellDef>
-              <div class="header-cell" cdkDropList cdkDropListOrientation="horizontal"
-                   (cdkDropListDropped)="dropColumn($event)" [cdkDropListData]="'name'">
-                <span mat-sort-header>{{ 'teams.name' | translate }}</span>
-                <mat-icon class="drag-handle" cdkDrag [cdkDragData]="'name'">drag_indicator</mat-icon>
+          <!-- detail header -->
+          <div class="detail-header">
+            <span class="detail-name">{{ selectedTeam.name }}</span>
+            <button mat-icon-button
+                    (click)="openEdit(selectedTeam)"
+                    [matTooltip]="'common.edit' | translate">
+              <mat-icon>edit</mat-icon>
+            </button>
+          </div>
+
+          <mat-divider></mat-divider>
+
+          <!-- team attributes -->
+          <div class="attr-section">
+            <div class="attr-row">
+              <span class="attr-label">{{ 'teams.id' | translate }}</span>
+              <span class="attr-value">{{ selectedTeam.id }}</span>
+            </div>
+            <div class="attr-row">
+              <span class="attr-label">{{ 'teams.name' | translate }}</span>
+              <span class="attr-value">{{ selectedTeam.name }}</span>
+            </div>
+          </div>
+
+          <mat-divider></mat-divider>
+
+          <!-- member list -->
+          <div class="members-section">
+            <span class="section-label">
+              {{ 'teams.members' | translate }} ({{ selectedTeam.members.length }})
+            </span>
+
+            <div class="member-scroll">
+              <table class="member-table" *ngIf="selectedTeam.members.length > 0">
+                <thead>
+                  <tr cdkDropList
+                      cdkDropListOrientation="horizontal"
+                      (cdkDropListDropped)="dropNameColumn($event)">
+                    <th *ngFor="let col of nameColumns"
+                        cdkDrag
+                        class="member-th"
+                        [class.sort-active]="memberSortColumn === col"
+                        (click)="setMemberSortColumn(col)">
+                      <span>{{ columnLabel(col) | translate }}</span>
+                      <mat-icon class="th-icon" *ngIf="memberSortColumn === col">
+                        {{ memberSortDirection === 'asc' ? 'arrow_upward' : 'arrow_downward' }}
+                      </mat-icon>
+                      <mat-icon class="th-icon drag-icon" *ngIf="memberSortColumn !== col">drag_indicator</mat-icon>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let member of sortedMembers()">
+                    <td *ngFor="let col of nameColumns" class="member-td">
+                      {{ getNamePart(member, col) }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <div *ngIf="selectedTeam.members.length === 0" class="member-empty">
+                <span>{{ 'teams.noMembersAssigned' | translate }}</span>
               </div>
-            </th>
-            <td mat-cell *matCellDef="let team" (dblclick)="openEdit(team)" class="name-cell">{{ team.name }}</td>
-          </ng-container>
+            </div>
+          </div>
 
-          <ng-container matColumnDef="memberCount">
-            <th mat-header-cell *matHeaderCellDef>
-              <div class="header-cell" cdkDropList cdkDropListOrientation="horizontal"
-                   (cdkDropListDropped)="dropColumn($event)" [cdkDropListData]="'memberCount'">
-                <span mat-sort-header>{{ 'teams.members' | translate }}</span>
-                <mat-icon class="drag-handle" cdkDrag [cdkDragData]="'memberCount'">drag_indicator</mat-icon>
-              </div>
-            </th>
-            <td mat-cell *matCellDef="let team">{{ team.members.length }}</td>
-          </ng-container>
-
-          <ng-container matColumnDef="memberAssignment">
-            <th mat-header-cell *matHeaderCellDef>
-              <div class="header-cell" cdkDropList cdkDropListOrientation="horizontal"
-                   (cdkDropListDropped)="dropColumn($event)" [cdkDropListData]="'memberAssignment'">
-                <span>{{ 'teams.assignMembers' | translate }}</span>
-                <mat-icon class="drag-handle" cdkDrag [cdkDragData]="'memberAssignment'">drag_indicator</mat-icon>
-              </div>
-            </th>
-            <td mat-cell *matCellDef="let team" (click)="$event.stopPropagation()">
-              <mat-form-field appearance="outline" class="members-select">
-                <mat-select [value]="getMemberIds(team)" multiple
-                            (selectionChange)="onMemberAssignmentChange(team, $event.value)">
-                  <mat-option *ngFor="let member of allMembers" [value]="member.id">
-                    {{ displayName(member) }}
-                  </mat-option>
-                </mat-select>
-              </mat-form-field>
-            </td>
-          </ng-container>
-
-          <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
-          <tr mat-row *matRowDef="let team; columns: displayedColumns;" class="team-row"></tr>
-        </table>
-
-        <div *ngIf="filteredTeams.length === 0" class="empty-list">
-          <mat-icon>group_off</mat-icon>
-          <p>{{ 'teams.noTeamsFound' | translate }}</p>
         </div>
       </div>
     </div>
+
+    <ng-template #loadingTpl>
+      <div class="loading">
+        <mat-progress-spinner mode="indeterminate" diameter="40"></mat-progress-spinner>
+      </div>
+    </ng-template>
   `,
   styles: [`
-    .manage-container {
+    :host {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      height: 100%;
+    }
+
+    .teams-layout {
+      display: flex;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    /* ── LEFT PANE ── */
+    .list-pane {
+      flex: 0 0 auto;
+      min-width: 150px;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--mat-sys-outline-variant);
+      background: var(--mat-sys-surface-container-low);
+      overflow: hidden;
+    }
+
+    .list-header {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 8px 4px 8px;
+    }
+
+    .search-input {
+      flex: 1;
+      border: none;
+      outline: none;
+      background: transparent;
+      color: var(--mat-sys-on-surface);
+      font-size: 14px;
+      padding: 4px 4px;
+    }
+
+    .search-input::placeholder {
+      color: var(--mat-sys-on-surface-variant);
+    }
+
+    .name-cols-header {
+      display: flex;
+      flex-direction: row;
+      border-bottom: 1px solid var(--mat-sys-outline-variant);
+      background: var(--mat-sys-surface-container);
+    }
+
+    .col-header {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      padding: 6px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--mat-sys-on-surface-variant);
+      background: none;
+      border: none;
+      cursor: pointer;
+      text-align: left;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .col-header.sort-btn {
+      cursor: pointer;
+    }
+
+    .col-header.sort-active {
+      color: var(--mat-sys-primary);
+    }
+
+    .col-header span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .col-particles {
+      flex: 0 0 56px !important;
+      width: 56px;
+    }
+
+    .sort-icon {
+      font-size: 14px;
+      width: 14px;
+      height: 14px;
+      margin-left: 2px;
+    }
+
+    .drag-icon {
+      font-size: 14px;
+      width: 14px;
+      height: 14px;
+      margin-left: auto;
+      opacity: 0.4;
+    }
+
+    .list-scroll {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .list-item {
+      display: flex;
+      align-items: center;
+      padding: 10px 16px;
+      cursor: pointer;
+      font-size: 14px;
+      white-space: nowrap;
+      border-bottom: 1px solid var(--mat-sys-outline-variant);
+      transition: background 100ms;
+    }
+
+    .list-item:hover {
+      background: var(--mat-sys-surface-container);
+    }
+
+    .list-item.selected {
+      background: var(--mat-sys-secondary-container);
+      color: var(--mat-sys-on-secondary-container);
+    }
+
+    .list-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px;
+      color: var(--mat-sys-on-surface-variant);
+      gap: 8px;
+      font-size: 14px;
+    }
+
+    /* ── RIGHT PANE ── */
+    .detail-pane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .detail-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      color: var(--mat-sys-on-surface-variant);
+      gap: 12px;
+    }
+
+    .detail-empty mat-icon {
+      font-size: 48px;
+      width: 48px;
+      height: 48px;
+    }
+
+    .detail-content {
       display: flex;
       flex-direction: column;
       height: 100%;
-      padding: 12px;
-      box-sizing: border-box;
+      overflow: hidden;
     }
 
-    .header {
+    .detail-header {
       display: flex;
-      justify-content: flex-end;
       align-items: center;
-      margin-bottom: 8px;
+      padding: 12px 16px 8px 16px;
+      gap: 8px;
     }
 
-    .filter-active {
-      color: var(--mat-sys-primary) !important;
+    .detail-name {
+      flex: 1;
+      font-size: 20px;
+      font-weight: 500;
+      color: var(--mat-sys-on-surface);
+    }
+
+    .attr-section {
+      padding: 8px 16px;
+    }
+
+    .attr-row {
+      display: flex;
+      align-items: baseline;
+      padding: 4px 0;
+      font-size: 14px;
+    }
+
+    .attr-label {
+      width: 80px;
+      min-width: 80px;
+      color: var(--mat-sys-on-surface-variant);
+      font-size: 12px;
+    }
+
+    .attr-value {
+      color: var(--mat-sys-on-surface);
+    }
+
+    .members-section {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+      padding: 8px 0 0 0;
+    }
+
+    .section-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--mat-sys-on-surface-variant);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 0 16px 6px 16px;
+    }
+
+    .member-scroll {
+      flex: 1;
+      overflow-y: auto;
+      margin: 0 16px 16px 16px;
+    }
+
+    .member-table {
+      border-collapse: collapse;
+      white-space: nowrap;
+    }
+
+    .member-th {
+      text-align: left;
+      padding: 6px 24px 6px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--mat-sys-on-surface-variant);
+      background: var(--mat-sys-surface-container);
+      border-bottom: 2px solid var(--mat-sys-outline-variant);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .member-th.sort-active {
+      color: var(--mat-sys-primary);
+    }
+
+    .member-th .th-icon {
+      font-size: 14px;
+      width: 14px;
+      height: 14px;
+      vertical-align: middle;
+      margin-left: 2px;
+    }
+
+    .member-th .drag-icon {
+      opacity: 0.4;
+    }
+
+    /* keep table-cell display during CDK drag so table layout stays intact */
+    .member-th.cdk-drag-placeholder {
+      display: table-cell;
+      opacity: 0.4;
+    }
+
+    .member-td {
+      padding: 8px 24px 8px 8px;
+      font-size: 14px;
+      border-bottom: 1px solid var(--mat-sys-outline-variant);
+      color: var(--mat-sys-on-surface);
+    }
+
+    tr:last-child .member-td {
+      border-bottom: none;
+    }
+
+    .member-empty {
+      padding: 16px;
+      color: var(--mat-sys-on-surface-variant);
+      font-size: 14px;
     }
 
     .loading {
@@ -204,96 +492,20 @@ const REMOVE_MEMBER_FROM_TEAM_MUTATION = gql`
       padding: 48px;
     }
 
-    .table-container {
-      flex: 1;
-      overflow: auto;
-      border-radius: 12px;
-      background: var(--mat-sys-surface-container);
-    }
-
-    .teams-table {
-      width: 100%;
-    }
-
-    .header-cell {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .drag-handle {
-      font-size: 16px;
-      width: 16px;
-      height: 16px;
-      cursor: grab;
-      color: var(--mat-sys-on-surface-variant);
-      opacity: 0.5;
-      transition: opacity 150ms;
-    }
-
-    .drag-handle:hover {
-      opacity: 1;
-    }
-
-    .drag-handle:active {
-      cursor: grabbing;
-    }
-
+    /* CDK drag */
     .cdk-drag-preview {
       display: flex;
       align-items: center;
-      padding: 8px 16px;
+      padding: 6px 12px;
       background: var(--mat-sys-surface-container-high);
-      border-radius: 8px;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-      font-weight: 500;
-      font-size: 14px;
+      border-radius: 6px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      font-size: 12px;
+      font-weight: 600;
     }
 
     .cdk-drag-placeholder {
       opacity: 0.3;
-    }
-
-    .team-row {
-      height: 56px;
-    }
-
-    .name-cell {
-      cursor: pointer;
-    }
-
-    .name-cell:hover {
-      color: var(--mat-sys-primary);
-    }
-
-    .members-select {
-      width: 100%;
-      min-width: 200px;
-      --mdc-outlined-text-field-container-shape: 8px;
-    }
-
-    :host ::ng-deep .members-select .mat-mdc-form-field-subscript-wrapper {
-      display: none;
-    }
-
-    :host ::ng-deep .members-select .mat-mdc-text-field-wrapper {
-      padding-top: 0;
-      padding-bottom: 0;
-    }
-
-    .empty-list {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 48px 24px;
-      color: var(--mat-sys-on-surface-variant);
-    }
-
-    .empty-list mat-icon {
-      font-size: 48px;
-      width: 48px;
-      height: 48px;
-      margin-bottom: 16px;
     }
   `]
 })
@@ -302,11 +514,13 @@ export class ManageTeamsComponent implements OnInit {
   filteredTeams: Team[] = [];
   allMembers: Member[] = [];
   loading = true;
-  displayedColumns = ['name', 'memberCount', 'memberAssignment'];
   searchText = '';
+  selectedTeam: Team | null = null;
+  teamSortDirection: 'asc' | 'desc' = 'asc';
 
-  private currentSort: Sort = { active: '', direction: '' };
-  private saving = false;
+  nameColumns = ['firstName', 'particles', 'lastName'];
+  memberSortColumn = 'lastName';
+  memberSortDirection: 'asc' | 'desc' = 'asc';
 
   constructor(
     private snackBar: MatSnackBar,
@@ -319,17 +533,6 @@ export class ManageTeamsComponent implements OnInit {
     this.loadData();
   }
 
-  displayName(member: Member): string {
-    const parts = [member.firstName];
-    if (member.particles) parts.push(member.particles);
-    parts.push(member.lastName);
-    return parts.join(' ');
-  }
-
-  getMemberIds(team: Team): string[] {
-    return team.members.map(m => m.id);
-  }
-
   async loadData(): Promise<void> {
     this.loading = true;
     try {
@@ -339,10 +542,18 @@ export class ManageTeamsComponent implements OnInit {
       ]);
       this.teams = teamsResult.data.teams;
       this.allMembers = membersResult.data.members;
+      // Refresh selectedTeam reference after reload
+      if (this.selectedTeam) {
+        this.selectedTeam = this.teams.find(t => t.id === this.selectedTeam!.id) || null;
+      }
       this.filterTeams();
     } catch (error) {
       console.error('Failed to load data:', error);
-      this.snackBar.open(this.translate.instant('teams.messages.loadFailed'), this.translate.instant('common.close'), { duration: 3000 });
+      this.snackBar.open(
+        this.translate.instant('teams.messages.loadFailed'),
+        this.translate.instant('common.close'),
+        { duration: 3000 }
+      );
     } finally {
       this.loading = false;
     }
@@ -350,72 +561,61 @@ export class ManageTeamsComponent implements OnInit {
 
   filterTeams(): void {
     let filtered = this.teams;
-
     if (this.searchText) {
       const term = this.searchText.toLowerCase();
       filtered = filtered.filter(t => t.name.toLowerCase().includes(term));
     }
-
-    if (this.currentSort.active && this.currentSort.direction) {
-      filtered = this.sortData(filtered);
-    }
-
+    const dir = this.teamSortDirection === 'asc' ? 1 : -1;
+    filtered = [...filtered].sort((a, b) => a.name.localeCompare(b.name) * dir);
     this.filteredTeams = filtered;
   }
 
-  onSortChange(sort: Sort): void {
-    this.currentSort = sort;
+  toggleTeamSort(): void {
+    this.teamSortDirection = this.teamSortDirection === 'asc' ? 'desc' : 'asc';
     this.filterTeams();
   }
 
-  private sortData(data: Team[]): Team[] {
-    const { active, direction } = this.currentSort;
-    const dir = direction === 'asc' ? 1 : -1;
-
-    return [...data].sort((a, b) => {
-      switch (active) {
-        case 'name':
-          return a.name.localeCompare(b.name) * dir;
-        case 'memberCount':
-          return (a.members.length - b.members.length) * dir;
-        default:
-          return 0;
-      }
-    });
+  selectTeam(team: Team): void {
+    this.selectedTeam = team;
   }
 
-  dropColumn(event: CdkDragDrop<string>): void {
-    const draggedCol = event.item.data as string;
-    const droppedOnCol = event.container.data as string;
+  sortedMembers(): Member[] {
+    if (!this.selectedTeam) return [];
+    const dir = this.memberSortDirection === 'asc' ? 1 : -1;
+    return [...this.selectedTeam.members].sort((a, b) =>
+      this.getNamePart(a, this.memberSortColumn).localeCompare(this.getNamePart(b, this.memberSortColumn)) * dir
+    );
+  }
 
-    const fromIndex = this.displayedColumns.indexOf(draggedCol);
-    const toIndex = this.displayedColumns.indexOf(droppedOnCol);
-
-    if (fromIndex >= 0 && toIndex >= 0 && fromIndex !== toIndex) {
-      moveItemInArray(this.displayedColumns, fromIndex, toIndex);
+  setMemberSortColumn(col: string): void {
+    if (this.memberSortColumn === col) {
+      this.memberSortDirection = this.memberSortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+      this.memberSortColumn = col;
+      this.memberSortDirection = 'asc';
     }
   }
 
-  openSearchPanel(): void {
-    const panelRef = this.panelService.open<ScheduleSearchPanelComponent, ScheduleSearchPanelData, ScheduleSearchPanelResult>(
-      ScheduleSearchPanelComponent,
-      {
-        width: '360px',
-        data: {
-          searchText: this.searchText,
-          onSearchChange: (text: string) => {
-            this.searchText = text;
-            this.filterTeams();
-          }
-        }
-      }
-    );
-    panelRef.afterClosed().subscribe(result => {
-      if (result) {
-        this.searchText = result.searchText;
-        this.filterTeams();
-      }
-    });
+  dropNameColumn(event: CdkDragDrop<string[]>): void {
+    moveItemInArray(this.nameColumns, event.previousIndex, event.currentIndex);
+  }
+
+  getNamePart(member: Member, col: string): string {
+    switch (col) {
+      case 'firstName': return member.firstName || '';
+      case 'particles': return member.particles || '';
+      case 'lastName': return member.lastName || '';
+      default: return '';
+    }
+  }
+
+  columnLabel(col: string): string {
+    switch (col) {
+      case 'firstName': return 'members.firstName';
+      case 'particles': return 'members.particles';
+      case 'lastName': return 'members.lastName';
+      default: return col;
+    }
   }
 
   openEdit(team: Team): void {
@@ -444,41 +644,6 @@ export class ManageTeamsComponent implements OnInit {
         this.loadData();
       }
     });
-  }
-
-  async onMemberAssignmentChange(team: Team, newMemberIds: string[]): Promise<void> {
-    if (this.saving) return;
-    this.saving = true;
-
-    const currentMemberIds = team.members.map(m => m.id);
-
-    try {
-      for (const memberId of currentMemberIds) {
-        if (!newMemberIds.includes(memberId)) {
-          await apolloClient.mutate({
-            mutation: REMOVE_MEMBER_FROM_TEAM_MUTATION,
-            variables: { teamId: team.id, memberId }
-          });
-        }
-      }
-
-      for (const memberId of newMemberIds) {
-        if (!currentMemberIds.includes(memberId)) {
-          await apolloClient.mutate({
-            mutation: ADD_MEMBER_TO_TEAM_MUTATION,
-            variables: { teamId: team.id, memberId }
-          });
-        }
-      }
-
-      this.snackBar.open(this.translate.instant('teams.messages.updated'), this.translate.instant('common.close'), { duration: 3000 });
-      await this.loadData();
-    } catch (error: any) {
-      console.error('Failed to update team:', error);
-      this.snackBar.open(error.message || this.translate.instant('teams.messages.updateFailed'), this.translate.instant('common.close'), { duration: 5000 });
-    } finally {
-      this.saving = false;
-    }
   }
 
   openAddTeam(): void {

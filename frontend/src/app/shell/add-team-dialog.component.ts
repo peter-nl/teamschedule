@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, Inject, Optional } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -12,7 +12,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../app.config';
-import { SlideInPanelRef } from '../shared/services/slide-in-panel.service';
+import { SlideInPanelRef, SLIDE_IN_PANEL_DATA } from '../shared/services/slide-in-panel.service';
 
 interface Member {
   id: string;
@@ -22,8 +22,8 @@ interface Member {
 }
 
 const GET_MEMBERS_QUERY = gql`
-  query GetMembers {
-    members {
+  query GetMembersForTeamDialog($orgId: ID) {
+    members(orgId: $orgId) {
       id
       firstName
       lastName
@@ -33,8 +33,8 @@ const GET_MEMBERS_QUERY = gql`
 `;
 
 const CREATE_TEAM_MUTATION = gql`
-  mutation CreateTeam($name: String!) {
-    createTeam(name: $name) {
+  mutation CreateTeam($name: String!, $orgId: ID) {
+    createTeam(name: $name, orgId: $orgId) {
       id
       name
     }
@@ -85,6 +85,7 @@ const ADD_MEMBER_TO_TEAM_MUTATION = gql`
                    [(ngModel)]="teamName"
                    name="name"
                    required
+                   maxlength="35"
                    [placeholder]="'addTeam.teamNamePlaceholder' | translate">
           </mat-form-field>
 
@@ -144,7 +145,8 @@ export class AddTeamDialogComponent implements OnInit {
   constructor(
     public panelRef: SlideInPanelRef<AddTeamDialogComponent>,
     private snackBar: MatSnackBar,
-    private translate: TranslateService
+    private translate: TranslateService,
+    @Optional() @Inject(SLIDE_IN_PANEL_DATA) private data?: { orgId?: string }
   ) {}
 
   ngOnInit(): void {
@@ -155,6 +157,7 @@ export class AddTeamDialogComponent implements OnInit {
     try {
       const result: any = await apolloClient.query({
         query: GET_MEMBERS_QUERY,
+        variables: { orgId: this.data?.orgId },
         fetchPolicy: 'network-only'
       });
       this.members = result.data.members;
@@ -179,7 +182,8 @@ export class AddTeamDialogComponent implements OnInit {
       const result: any = await apolloClient.mutate({
         mutation: CREATE_TEAM_MUTATION,
         variables: {
-          name: this.teamName.trim()
+          name: this.teamName.trim(),
+          orgId: this.data?.orgId
         }
       });
 

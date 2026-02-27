@@ -14,11 +14,28 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
 
+interface OrgAdmin {
+  id: string;
+  firstName: string;
+  particles: string | null;
+  lastName: string;
+}
+
 interface Organisation {
   id: string;
   name: string;
   memberCount: number;
   teamCount: number;
+  orgAdmins: OrgAdmin[];
+}
+
+interface AllMember {
+  id: string;
+  firstName: string;
+  particles: string | null;
+  lastName: string;
+  role: string;
+  organisationId: number | null;
 }
 
 const GET_ORGANISATIONS = gql`
@@ -28,6 +45,25 @@ const GET_ORGANISATIONS = gql`
       name
       memberCount
       teamCount
+      orgAdmins {
+        id
+        firstName
+        particles
+        lastName
+      }
+    }
+  }
+`;
+
+const GET_ALL_MEMBERS = gql`
+  query AllMembers {
+    members {
+      id
+      firstName
+      particles
+      lastName
+      role
+      organisationId
     }
   }
 `;
@@ -39,6 +75,7 @@ const CREATE_ORGANISATION = gql`
       name
       memberCount
       teamCount
+      orgAdmins { id firstName particles lastName }
     }
   }
 `;
@@ -50,6 +87,7 @@ const UPDATE_ORGANISATION = gql`
       name
       memberCount
       teamCount
+      orgAdmins { id firstName particles lastName }
     }
   }
 `;
@@ -59,6 +97,15 @@ const DELETE_ORGANISATION = gql`
     deleteOrganisation(id: $id) {
       success
       message
+    }
+  }
+`;
+
+const UPDATE_MEMBER_ROLE = gql`
+  mutation UpdateMemberRole($memberId: String!, $role: String!) {
+    updateMemberRole(memberId: $memberId, role: $role) {
+      id
+      role
     }
   }
 `;
@@ -97,6 +144,8 @@ const DELETE_ORGANISATION = gql`
           <!-- Org list -->
           <div *ngIf="!loading" class="orgs-list">
             <div *ngFor="let org of organisations" class="org-row">
+
+              <!-- Display mode -->
               <div *ngIf="editingId !== org.id" class="org-display">
                 <div class="org-info">
                   <span class="org-name">{{ org.name }}</span>
@@ -104,7 +153,49 @@ const DELETE_ORGANISATION = gql`
                     {{ org.memberCount }} {{ 'organisations.members' | translate }} &middot;
                     {{ org.teamCount }} {{ 'organisations.teams' | translate }}
                   </span>
+
+                  <!-- Org admins -->
+                  <div class="admins-row">
+                    <span class="admins-label">{{ 'organisations.admins' | translate }}:</span>
+                    <div class="admin-chips">
+                      <span *ngFor="let admin of (org.orgAdmins || [])" class="admin-chip">
+                        {{ admin.firstName }} {{ admin.particles ? admin.particles + ' ' : '' }}{{ admin.lastName }}
+                        <button class="chip-remove"
+                                [matTooltip]="'organisations.removeAdmin' | translate"
+                                (click)="removeAdmin(org, admin)">
+                          <mat-icon>close</mat-icon>
+                        </button>
+                      </span>
+                      <span *ngIf="(org.orgAdmins || []).length === 0 && addingAdminForOrgId !== org.id" class="no-admins">{{ 'organisations.noAdmins' | translate }}</span>
+
+                      <!-- Add admin inline picker -->
+                      <ng-container *ngIf="addingAdminForOrgId !== org.id">
+                        <button class="add-admin-btn"
+                                [matTooltip]="'organisations.addAdmin' | translate"
+                                (click)="startAddAdmin(org)">
+                          <mat-icon>person_add</mat-icon>
+                        </button>
+                      </ng-container>
+                      <ng-container *ngIf="addingAdminForOrgId === org.id">
+                        <select class="admin-select" [(ngModel)]="selectedMemberId">
+                          <option value="" disabled>{{ 'organisations.selectMember' | translate }}</option>
+                          <option *ngFor="let m of getNonAdminMembers(org)" [value]="m.id">
+                            {{ m.firstName }} {{ m.particles ? m.particles + ' ' : '' }}{{ m.lastName }}
+                          </option>
+                        </select>
+                        <button mat-icon-button color="primary"
+                                [disabled]="!selectedMemberId"
+                                (click)="confirmAddAdmin(org)">
+                          <mat-icon>check</mat-icon>
+                        </button>
+                        <button mat-icon-button (click)="cancelAddAdmin()">
+                          <mat-icon>close</mat-icon>
+                        </button>
+                      </ng-container>
+                    </div>
+                  </div>
                 </div>
+
                 <div class="org-actions">
                   <button mat-icon-button
                           [matTooltip]="'common.edit' | translate"
@@ -121,6 +212,7 @@ const DELETE_ORGANISATION = gql`
                 </div>
               </div>
 
+              <!-- Edit mode -->
               <div *ngIf="editingId === org.id" class="org-edit">
                 <mat-form-field appearance="outline" class="edit-field">
                   <mat-label>{{ 'organisations.name' | translate }}</mat-label>
@@ -162,7 +254,7 @@ const DELETE_ORGANISATION = gql`
   `,
   styles: [`
     .orgs-container {
-      width: 400px;
+      width: 480px;
       max-width: 100%;
     }
 
@@ -189,7 +281,7 @@ const DELETE_ORGANISATION = gql`
 
     .org-display {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: space-between;
       padding: 8px 4px;
       border-radius: 8px;
@@ -203,6 +295,7 @@ const DELETE_ORGANISATION = gql`
       display: flex;
       flex-direction: column;
       gap: 2px;
+      flex: 1;
     }
 
     .org-name {
@@ -216,9 +309,114 @@ const DELETE_ORGANISATION = gql`
       color: var(--mat-sys-on-surface-variant);
     }
 
+    .admins-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+
+    .admins-label {
+      font-size: 12px;
+      color: var(--mat-sys-on-surface-variant);
+      white-space: nowrap;
+    }
+
+    .admin-chips {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .admin-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      background: var(--mat-sys-secondary-container);
+      color: var(--mat-sys-on-secondary-container);
+      border-radius: 16px;
+      padding: 2px 4px 2px 10px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .chip-remove {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--mat-sys-on-secondary-container);
+      padding: 0;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+    }
+
+    .chip-remove:hover {
+      background: var(--mat-sys-outline-variant);
+    }
+
+    .chip-remove mat-icon {
+      font-size: 14px;
+      width: 14px;
+      height: 14px;
+    }
+
+    .no-admins {
+      font-size: 12px;
+      color: var(--mat-sys-on-surface-variant);
+      font-style: italic;
+    }
+
+    .add-admin-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: none;
+      border: 1px dashed var(--mat-sys-outline-variant);
+      cursor: pointer;
+      color: var(--mat-sys-primary);
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      padding: 0;
+    }
+
+    .add-admin-btn:hover {
+      background: var(--mat-sys-surface-container-highest);
+    }
+
+    .add-admin-btn mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+    }
+
+    .admin-select {
+      font-size: 13px;
+      height: 28px;
+      padding: 0 6px;
+      border: 1px solid var(--mat-sys-outline-variant);
+      border-radius: 6px;
+      background: var(--mat-sys-surface-container);
+      color: var(--mat-sys-on-surface);
+      cursor: pointer;
+      max-width: 160px;
+    }
+
+    .admin-select:focus {
+      outline: 2px solid var(--mat-sys-primary);
+      border-color: transparent;
+    }
+
     .org-actions {
       display: flex;
       gap: 4px;
+      flex-shrink: 0;
     }
 
     .org-edit {
@@ -257,11 +455,14 @@ const DELETE_ORGANISATION = gql`
 })
 export class ManageOrganisationsComponent implements OnInit {
   organisations: Organisation[] = [];
+  allMembers: AllMember[] = [];
   loading = false;
   saving = false;
   newName = '';
   editingId: string | null = null;
   editName = '';
+  addingAdminForOrgId: string | null = null;
+  selectedMemberId = '';
 
   constructor(
     private snackBar: MatSnackBar,
@@ -269,21 +470,84 @@ export class ManageOrganisationsComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    this.loadOrganisations();
+    this.loadData();
   }
 
-  private async loadOrganisations(): Promise<void> {
+  private async loadData(): Promise<void> {
     this.loading = true;
     try {
-      const result = await apolloClient.query({
-        query: GET_ORGANISATIONS,
-        fetchPolicy: 'network-only'
-      }) as any;
-      this.organisations = result.data.organisations;
+      const [orgsResult, membersResult] = await Promise.all([
+        apolloClient.query({ query: GET_ORGANISATIONS, fetchPolicy: 'network-only' }) as Promise<any>,
+        apolloClient.query({ query: GET_ALL_MEMBERS, fetchPolicy: 'network-only' }) as Promise<any>,
+      ]);
+      this.organisations = orgsResult.data.organisations;
+      this.allMembers = membersResult.data.members;
     } catch (e: any) {
-      this.snackBar.open(e.message || 'Error loading organisations', this.translate.instant('common.close'), { duration: 4000 });
+      this.snackBar.open(e.message || 'Error loading data', this.translate.instant('common.close'), { duration: 4000 });
     } finally {
       this.loading = false;
+    }
+  }
+
+  getNonAdminMembers(org: Organisation): AllMember[] {
+    const adminIds = new Set((org.orgAdmins || []).map(a => a.id));
+    return this.allMembers.filter(m =>
+      Number(m.organisationId) === Number(org.id) && !adminIds.has(m.id) && m.role !== 'sysadmin' && m.role !== 'orgadmin'
+    );
+  }
+
+  startAddAdmin(org: Organisation): void {
+    this.cancelEdit();
+    this.addingAdminForOrgId = org.id;
+    this.selectedMemberId = '';
+  }
+
+  cancelAddAdmin(): void {
+    this.addingAdminForOrgId = null;
+    this.selectedMemberId = '';
+  }
+
+  async confirmAddAdmin(org: Organisation): Promise<void> {
+    if (!this.selectedMemberId) return;
+    try {
+      await apolloClient.mutate({
+        mutation: UPDATE_MEMBER_ROLE,
+        variables: { memberId: this.selectedMemberId, role: 'orgadmin' }
+      });
+      // Update local orgAdmins list
+      const member = this.allMembers.find(m => m.id === this.selectedMemberId);
+      if (member) {
+        member.role = 'orgadmin';
+        this.organisations = this.organisations.map(o =>
+          o.id === org.id
+            ? { ...o, orgAdmins: [...o.orgAdmins, { id: member.id, firstName: member.firstName, particles: member.particles, lastName: member.lastName }] }
+            : o
+        );
+      }
+      this.cancelAddAdmin();
+      this.snackBar.open(this.translate.instant('organisations.adminAdded'), this.translate.instant('common.close'), { duration: 3000 });
+    } catch (e: any) {
+      this.snackBar.open(e.message || 'Error adding admin', this.translate.instant('common.close'), { duration: 4000 });
+    }
+  }
+
+  async removeAdmin(org: Organisation, admin: OrgAdmin): Promise<void> {
+    try {
+      await apolloClient.mutate({
+        mutation: UPDATE_MEMBER_ROLE,
+        variables: { memberId: admin.id, role: 'member' }
+      });
+      // Update local state
+      const member = this.allMembers.find(m => m.id === admin.id);
+      if (member) member.role = 'member';
+      this.organisations = this.organisations.map(o =>
+        o.id === org.id
+          ? { ...o, orgAdmins: o.orgAdmins.filter(a => a.id !== admin.id) }
+          : o
+      );
+      this.snackBar.open(this.translate.instant('organisations.adminRemoved'), this.translate.instant('common.close'), { duration: 3000 });
+    } catch (e: any) {
+      this.snackBar.open(e.message || 'Error removing admin', this.translate.instant('common.close'), { duration: 4000 });
     }
   }
 
@@ -307,6 +571,7 @@ export class ManageOrganisationsComponent implements OnInit {
   }
 
   startEdit(org: Organisation): void {
+    this.cancelAddAdmin();
     this.editingId = org.id;
     this.editName = org.name;
   }

@@ -26,10 +26,12 @@
     "roleSysadmin": "Systeembeheerder",
     "role": {
       "member": "Lid",
+      "user": "Lid",
       "teamadmin": "Team Beheerder",
       "orgadmin": "Org Beheerder",
       "sysadmin": "Systeembeheerder"
-    }
+    },
+    "select": "Selecteer"
   },
   "days": {
     "sunday": "Zondag",
@@ -59,6 +61,8 @@
       "lightTheme": "Licht thema",
       "darkTheme": "Donker thema",
       "memberMode": "Lid modus",
+      "teamAdminMode": "Team beheerder modus",
+      "orgAdminMode": "Org beheerder modus",
       "managerMode": "Beheerder modus",
       "signIn": "Inloggen",
       "account": "Account",
@@ -69,6 +73,8 @@
     "management": {
       "label": "Beheer",
       "organisations": "Organisaties",
+      "organisation": "Organisatie",
+      "myTeams": "Mijn Teams",
       "teams": "Teams",
       "members": "Leden",
       "importExport": "Import / Export",
@@ -79,7 +85,9 @@
     }
   },
   "home": {
-    "guest": "Welkom bij de TeamRooster app. De app die uw teams en hun leden helpt bij het organiseren van hun vakanties. Log in om uw rooster te bekijken.",
+    "guestIntro": "Welkom bij de TeamRooster app. De app die uw teams en hun leden helpt bij het organiseren van hun vakanties.",
+    "loginWord": "Log in",
+    "guestCta": " om te beginnen.",
     "loggedIn": "Welkom bij de TeamRooster app. U bent al ingelogd. Kies een van de opties aan de linkerkant om aan uw rooster te werken."
   },
   "login": {
@@ -270,10 +278,15 @@
   "teams": {
     "addTeam": "Team toevoegen",
     "searchTeams": "Teams zoeken",
+    "id": "ID",
     "name": "Naam",
     "members": "Leden",
     "assignMembers": "Leden toewijzen",
+    "addMember": "Lid toevoegen",
+    "removeMember": "Lid verwijderen",
     "noTeamsFound": "Geen teams gevonden",
+    "selectPrompt": "Selecteer een team om details te bekijken",
+    "noMembersAssigned": "Geen leden toegewezen",
     "messages": {
       "loadFailed": "Teams laden mislukt",
       "updated": "Team bijgewerkt",
@@ -291,7 +304,9 @@
     "email": "E-mail",
     "role": "Rol",
     "teamsColumn": "Teams",
+    "scheduleDisabled": "Uitgesloten van rooster",
     "noMembersFound": "Geen leden gevonden",
+    "selectPrompt": "Selecteer een lid om details te bekijken",
     "messages": {
       "loadFailed": "Leden laden mislukt"
     }
@@ -438,6 +453,23 @@
     "noTeams": "Geen teams beschikbaar. Maak uw eerste team aan!",
     "loadFailed": "Teams laden mislukt"
   },
+  "account": {
+    "scheduleTitle": "Roosterzichtbaarheid",
+    "scheduleDisabled": "Sluit mij uit van het rooster",
+    "scheduleDisabledHint": "Wanneer ingeschakeld, verschijnt u niet in het roosterraster."
+  },
+  "org": {
+    "admins": "Organisatiebeheerders",
+    "addAdmin": "Org-beheerder toevoegen",
+    "removeAdmin": "Org-beheerder verwijderen",
+    "myTeamsOnly": "Alleen mijn teams",
+    "teamAdmins": "Teambeheerders",
+    "addTeamAdmin": "Teambeheerder toevoegen"
+  },
+  "sysadmin": {
+    "selectOrg": "Selecteer een organisatie...",
+    "selectOrgPrompt": "Selecteer een organisatie om te beheren."
+  },
   "organisations": {
     "title": "Organisaties",
     "name": "Naam",
@@ -450,6 +482,13 @@
     "created": "Organisatie aangemaakt",
     "updated": "Organisatie bijgewerkt",
     "deleted": "Organisatie verwijderd",
-    "confirmDelete": "Organisatie \"{{ name }}\" verwijderen? Dit kan niet ongedaan worden gemaakt."
+    "confirmDelete": "Organisatie \"{{ name }}\" verwijderen? Dit kan niet ongedaan worden gemaakt.",
+    "admins": "Beheerders",
+    "noAdmins": "geen",
+    "addAdmin": "Beheerder toevoegen",
+    "removeAdmin": "Beheerder verwijderen",
+    "selectMember": "Selecteer lid",
+    "adminAdded": "Beheerder toegevoegd",
+    "adminRemoved": "Beheerder verwijderd"
   }
 }

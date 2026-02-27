@@ -104,18 +104,19 @@ const RESET_PASSWORD_MUTATION = gql`
 
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>{{ 'editMember.firstName' | translate }}</mat-label>
-            <input matInput [(ngModel)]="editForm.firstName" name="firstName">
+            <input matInput [(ngModel)]="editForm.firstName" name="firstName" maxlength="35">
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>{{ 'editMember.particles' | translate }}</mat-label>
             <input matInput [(ngModel)]="editForm.particles" name="particles"
+                   maxlength="35"
                    [placeholder]="'editMember.particlesPlaceholder' | translate">
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>{{ 'editMember.lastName' | translate }}</mat-label>
-            <input matInput [(ngModel)]="editForm.lastName" name="lastName">
+            <input matInput [(ngModel)]="editForm.lastName" name="lastName" maxlength="35">
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
@@ -126,11 +127,9 @@ const RESET_PASSWORD_MUTATION = gql`
 
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>{{ 'editMember.role' | translate }}</mat-label>
-            <mat-select [(ngModel)]="editForm.role" name="role"
-                        [disabled]="!canEditRole">
-              <mat-option value="member">{{ 'common.roleMember' | translate }}</mat-option>
-              <mat-option value="teamadmin">{{ 'common.roleTeamAdmin' | translate }}</mat-option>
-              <mat-option value="orgadmin">{{ 'common.roleOrgAdmin' | translate }}</mat-option>
+            <mat-select [(ngModel)]="editForm.role" name="role" disabled>
+              <mat-option value="user">{{ 'common.role.user' | translate }}</mat-option>
+              <mat-option value="sysadmin">{{ 'common.role.sysadmin' | translate }}</mat-option>
             </mat-select>
           </mat-form-field>
 
@@ -492,10 +491,6 @@ export class MemberEditDialogComponent {
     this.loadHolidays();
   }
 
-  get canEditRole(): boolean {
-    return this.data.isManager && !this.data.isSelf;
-  }
-
   get canEditTeams(): boolean {
     return this.data.isManager;
   }
@@ -529,16 +524,6 @@ export class MemberEditDialogComponent {
           email: this.editForm.email || null
         }
       });
-
-      // Update role if changed (only for other members)
-      if (this.canEditRole && this.editForm.role !== this.data.member.role) {
-        await new Promise<void>((resolve, reject) => {
-          this.authService.updateRole(
-            this.data.member.id,
-            this.editForm.role as 'member' | 'orgadmin' | 'teamadmin' | 'sysadmin'
-          ).subscribe({ next: () => resolve(), error: (e) => reject(e) });
-        });
-      }
 
       // Update team assignments (managers only)
       if (this.canEditTeams) {

@@ -9,8 +9,11 @@ export interface AuthMember {
   lastName: string;
   particles: string | null;
   email: string | null;
-  role: 'member' | 'orgadmin' | 'teamadmin' | 'sysadmin';
+  role: 'sysadmin' | 'user';
   organisationId: number | null;
+  isOrgAdmin: boolean;
+  teamAdminIds: number[];
+  scheduleDisabled: boolean;
 }
 
 export interface AuthPayload {
@@ -20,6 +23,19 @@ export interface AuthPayload {
   token: string | null;
 }
 
+const MEMBER_FIELDS = `
+  id
+  firstName
+  lastName
+  particles
+  email
+  role
+  organisationId
+  scheduleDisabled
+  isOrgAdmin
+  teamAdminIds
+`;
+
 const LOGIN_MUTATION = gql`
   mutation Login($memberId: String!, $password: String!) {
     login(memberId: $memberId, password: $password) {
@@ -27,13 +43,7 @@ const LOGIN_MUTATION = gql`
       message
       token
       member {
-        id
-        firstName
-        lastName
-        particles
-        email
-        role
-        organisationId
+        ${MEMBER_FIELDS}
       }
     }
   }
@@ -53,25 +63,20 @@ const UPDATE_PROFILE_MUTATION = gql`
   }
 `;
 
-const UPDATE_ROLE_MUTATION = gql`
-  mutation UpdateMemberRole($memberId: String!, $role: String!) {
-    updateMemberRole(memberId: $memberId, role: $role) {
-      id
-      firstName
-      lastName
-      particles
-      email
-      role
-      organisationId
-    }
-  }
-`;
-
 const CHANGE_PASSWORD_MUTATION = gql`
   mutation ChangePassword($memberId: String!, $currentPassword: String!, $newPassword: String!) {
     changePassword(memberId: $memberId, currentPassword: $currentPassword, newPassword: $newPassword) {
       success
       message
+    }
+  }
+`;
+
+const UPDATE_SCHEDULE_DISABLED_MUTATION = gql`
+  mutation UpdateScheduleDisabled($disabled: Boolean!) {
+    updateScheduleDisabled(disabled: $disabled) {
+      id
+      scheduleDisabled
     }
   }
 `;
@@ -96,11 +101,9 @@ export class AuthService {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed.token && parsed.user) {
-          // New format: { user, token }
           this.token = parsed.token;
           this.currentUserSubject.next(parsed.user);
         } else {
-          // Old format (raw user object without token) - force re-login
           localStorage.removeItem(STORAGE_KEY);
         }
       }
@@ -167,50 +170,67 @@ export class AuthService {
 
   updateProfile(firstName: string, lastName: string, particles: string | null, email: string | null): Observable<AuthMember | null> {
     const user = this.currentUser;
-    if (!user) {
-      throw new Error('Not logged in');
-    }
+    if (!user) throw new Error('Not logged in');
 
     return from(
       apolloClient.mutate({
         mutation: UPDATE_PROFILE_MUTATION,
-        variables: {
-          id: user.id,
-          firstName,
-          lastName,
-          particles,
-          email
-        }
+        variables: { id: user.id, firstName, lastName, particles, email }
       })
     ).pipe(
       map((result: any) => {
-        const updatedMember: AuthMember = result.data.updateMemberProfile;
-        if (updatedMember) {
-          this.currentUserSubject.next(updatedMember);
-          this.storeAuth(updatedMember, this.token);
+        const updated = result.data.updateMemberProfile;
+        if (updated) {
+          // Merge profile fields with preserved auth fields
+          const merged: AuthMember = {
+            ...user,
+            firstName: updated.firstName,
+            lastName: updated.lastName,
+            particles: updated.particles,
+            email: updated.email,
+          };
+          this.currentUserSubject.next(merged);
+          this.storeAuth(merged, this.token);
+          return merged;
         }
-        return updatedMember;
+        return null;
       })
     );
   }
 
   changePassword(currentPassword: string, newPassword: string): Observable<AuthPayload> {
     const user = this.currentUser;
-    if (!user) {
-      throw new Error('Not logged in');
-    }
+    if (!user) throw new Error('Not logged in');
 
     return from(
       apolloClient.mutate({
         mutation: CHANGE_PASSWORD_MUTATION,
-        variables: {
-          memberId: user.id,
-          currentPassword,
-          newPassword
-        }
+        variables: { memberId: user.id, currentPassword, newPassword }
       })
     ).pipe(
       map((result: any) => result.data.changePassword)
+    );
+  }
+
+  updateScheduleDisabled(disabled: boolean): Observable<boolean> {
+    const user = this.currentUser;
+    if (!user) throw new Error('Not logged in');
+
+    return from(
+      apolloClient.mutate({
+        mutation: UPDATE_SCHEDULE_DISABLED_MUTATION,
+        variables: { disabled }
+      })
+    ).pipe(
+      map((result: any) => {
+        const updated = result.data.updateScheduleDisabled;
+        if (updated) {
+          const merged: AuthMember = { ...user, scheduleDisabled: updated.scheduleDisabled };
+          this.currentUserSubject.next(merged);
+          this.storeAuth(merged, this.token);
+        }
+        return updated?.scheduleDisabled ?? disabled;
+      })
     );
   }
 
@@ -219,42 +239,18 @@ export class AuthService {
   }
 
   get isOrgAdmin(): boolean {
-    return this.currentUser?.role === 'sysadmin' || this.currentUser?.role === 'orgadmin';
+    return this.currentUser?.isOrgAdmin ?? false;
   }
 
   get isTeamAdmin(): boolean {
-    return this.currentUser?.role === 'sysadmin' || this.currentUser?.role === 'orgadmin' || this.currentUser?.role === 'teamadmin';
+    return (this.currentUser?.teamAdminIds?.length ?? 0) > 0;
   }
 
-  /** @deprecated Use isOrgAdmin */
-  get isManager(): boolean {
-    return this.isOrgAdmin;
+  get isAnyAdmin(): boolean {
+    return this.isOrgAdmin || this.isTeamAdmin;
   }
 
-  updateRole(memberId: string, role: 'member' | 'orgadmin' | 'teamadmin' | 'sysadmin'): Observable<AuthMember | null> {
-    const user = this.currentUser;
-    if (!user) {
-      throw new Error('Not logged in');
-    }
-
-    return from(
-      apolloClient.mutate({
-        mutation: UPDATE_ROLE_MUTATION,
-        variables: {
-          memberId,
-          role
-        }
-      })
-    ).pipe(
-      map((result: any) => {
-        const updatedMember: AuthMember = result.data.updateMemberRole;
-        // If updating own role, update current user
-        if (updatedMember && updatedMember.id === user.id) {
-          this.currentUserSubject.next(updatedMember);
-          this.storeAuth(updatedMember, this.token);
-        }
-        return updatedMember;
-      })
-    );
+  get teamAdminIds(): number[] {
+    return this.currentUser?.teamAdminIds ?? [];
   }
 }

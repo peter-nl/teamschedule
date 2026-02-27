@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, EventEmitter, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -10,6 +10,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AuthService } from '../../shared/services/auth.service';
 
@@ -28,6 +29,7 @@ import { AuthService } from '../../shared/services/auth.service';
     MatSnackBarModule,
     MatTooltipModule,
     MatDividerModule,
+    MatSlideToggleModule,
     TranslateModule
   ],
   template: `
@@ -89,10 +91,33 @@ import { AuthService } from '../../shared/services/auth.service';
         <h3 class="section-title">{{ 'profile.role' | translate }}</h3>
         <div class="role-section">
           <div class="role-display">
-            <mat-icon>{{ authService.isTeamAdmin ? 'admin_panel_settings' : 'person' }}</mat-icon>
-            <span class="role-label">{{ ('common.role.' + authService.currentUser?.role) | translate }}</span>
+            <mat-icon>{{ roleIcon }}</mat-icon>
+            <span class="role-label">{{ roleLabel | translate }}</span>
           </div>
         </div>
+
+        <mat-divider class="section-divider"></mat-divider>
+
+        <ng-container *ngIf="!authService.isSysadmin">
+          <h3 class="section-title">{{ 'account.scheduleTitle' | translate }}</h3>
+          <div class="schedule-row">
+            <div class="schedule-label-group">
+              <span class="schedule-label">{{ 'account.scheduleDisabled' | translate }}</span>
+              <span class="schedule-hint">{{ 'account.scheduleDisabledHint' | translate }}</span>
+            </div>
+            <mat-slide-toggle
+              [checked]="authService.currentUser?.scheduleDisabled ?? false"
+              [disabled]="scheduleDisabledLoading"
+              (change)="onScheduleDisabledChange($event.checked)">
+            </mat-slide-toggle>
+          </div>
+          <mat-divider class="section-divider"></mat-divider>
+        </ng-container>
+
+        <button mat-stroked-button class="change-password-btn" (click)="openChangePassword.emit()">
+          <mat-icon>lock</mat-icon>
+          {{ 'shell.account.changePassword' | translate }}
+        </button>
 
       </mat-card-content>
     </mat-card>
@@ -180,9 +205,42 @@ import { AuthService } from '../../shared/services/auth.service';
       text-transform: capitalize;
     }
 
+    .change-password-btn {
+      width: 100%;
+    }
+
+    .schedule-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 12px 16px;
+      background: var(--mat-sys-surface-container);
+      border-radius: 12px;
+    }
+
+    .schedule-label-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .schedule-label {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--mat-sys-on-surface);
+    }
+
+    .schedule-hint {
+      font-size: 12px;
+      color: var(--mat-sys-on-surface-variant);
+    }
+
   `]
 })
 export class AccountProfileComponent {
+  @Output() openChangePassword = new EventEmitter<void>();
+
   profileForm = {
     firstName: '',
     lastName: '',
@@ -190,6 +248,21 @@ export class AccountProfileComponent {
     email: ''
   };
   profileLoading = false;
+  scheduleDisabledLoading = false;
+
+  get roleIcon(): string {
+    if (this.authService.isSysadmin) return 'security';
+    if (this.authService.isOrgAdmin) return 'admin_panel_settings';
+    if (this.authService.isTeamAdmin) return 'manage_accounts';
+    return 'person';
+  }
+
+  get roleLabel(): string {
+    if (this.authService.isSysadmin) return 'common.role.sysadmin';
+    if (this.authService.isOrgAdmin) return 'common.role.orgadmin';
+    if (this.authService.isTeamAdmin) return 'common.role.teamadmin';
+    return 'common.role.user';
+  }
 
   constructor(
     public authService: AuthService,
@@ -218,6 +291,17 @@ export class AccountProfileComponent {
         email: user.email || ''
       };
     }
+  }
+
+  onScheduleDisabledChange(disabled: boolean): void {
+    this.scheduleDisabledLoading = true;
+    this.authService.updateScheduleDisabled(disabled).subscribe({
+      next: () => { this.scheduleDisabledLoading = false; },
+      error: () => {
+        this.scheduleDisabledLoading = false;
+        this.snackBar.open(this.translate.instant('common.error'), this.translate.instant('common.close'), { duration: 3000 });
+      }
+    });
   }
 
   onUpdateProfile(): void {
