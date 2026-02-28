@@ -31,7 +31,8 @@
       "orgadmin": "Org Admin",
       "sysadmin": "Sysadmin"
     },
-    "select": "Select"
+    "select": "Select",
+    "saved": "Saved"
   },
   "days": {
     "sunday": "Sunday",
@@ -93,6 +94,7 @@
     "password": "Password",
     "passwordPlaceholder": "Enter your password",
     "signIn": "Log In",
+    "rememberMe": "Remember me",
     "forgotPassword": "Forgot password?",
     "emailAddress": "Your email address",
     "sendResetLink": "Send Reset Link",
@@ -219,7 +221,8 @@
       "startDate": "Start date",
       "endDate": "End date",
       "saveButton": "Save Date Range",
-      "confirmDelete": "Changing the schedule date range will permanently delete any member holiday data that falls outside the new range.\n\nAre you sure you want to continue?"
+      "confirmDelete": "Changing the schedule date range will permanently delete any member holiday data that falls outside the new range.\n\nAre you sure you want to continue?",
+      "warning": "Saving will permanently remove member holidays that fall outside the new range"
     },
     "holidays": {
       "title": "Public Holidays (Netherlands)",
@@ -309,20 +312,30 @@
   "importExport": {
     "title": "Import / Export",
     "subtitle": "Import and export member holiday data",
+    "orgSubtitle": "Export and import organisation structure and settings",
     "export": {
-      "title": "Export Member Holidays",
+      "title": "Export Organisation Data",
       "description": "Download all member holiday periods as a JSON file. This includes member IDs, names, dates, day parts, descriptions, and holiday types.",
+      "orgDescription": "Download a JSON file containing all organisation settings, team structure, and member data. Use this to back up or migrate your organisation.",
       "button": "Export to JSON",
       "success": "Exported {{ count }} holiday period(s).",
       "failed": "Export failed: {{ error }}"
     },
     "import": {
-      "title": "Import Member Holidays",
+      "title": "Import Organisation Data",
       "description": "Import member holiday periods from a JSON file. The file must match the export format. Holidays are added to existing data (not replaced). Members must already exist in the system.",
+      "orgDescription": "Import settings and team memberships from a previously exported JSON file. Select what to import below.",
       "selectFile": "Select JSON File",
-      "importButton": "Import {{ count }} holiday period(s)",
+      "importButton": "Import",
+      "orgSettings": "Organisation settings (working days, colors)",
+      "teamMemberships": "Team memberships",
+      "whichTeams": "Which teams:",
+      "allTeams": "All teams",
+      "specificTeam": "Specific team",
+      "settingsImported": "Organisation settings imported.",
       "invalidArray": "Invalid file: expected a JSON array.",
       "invalidJson": "Invalid JSON file.",
+      "invalidFormat": "Invalid file: not a TeamSchedule organisation export.",
       "failed": "Import failed: {{ error }}"
     }
   },

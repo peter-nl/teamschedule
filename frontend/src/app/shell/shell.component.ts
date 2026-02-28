@@ -16,12 +16,11 @@ import { AccountProfileComponent } from '../features/account/account-profile.com
 import { AccountPasswordComponent } from '../features/account/account-password.component';
 import { ManageOrgComponent } from '../features/manage/manage-org.component';
 import { ManageMembersComponent } from '../features/manage/manage-members.component';
-import { ManageImportExportComponent } from '../features/manage/manage-import-export.component';
 import { ManageOrganisationsComponent } from '../features/manage/manage-organisations.component';
 
 type NavBarType = 'management';
 type PanelType = 'login' | 'profile' | 'password'
-              | 'manage-org' | 'manage-org-teams' | 'manage-my-teams' | 'manage-members' | 'manage-import-export'
+              | 'manage-org' | 'manage-org-teams' | 'manage-my-teams' | 'manage-members'
               | 'manage-organisations';
 
 interface NavItem {
@@ -51,7 +50,6 @@ interface ManagementItem {
     AccountPasswordComponent,
     ManageOrgComponent,
     ManageMembersComponent,
-    ManageImportExportComponent,
     ManageOrganisationsComponent
   ],
   template: `
@@ -161,7 +159,6 @@ interface ManagementItem {
         <app-manage-org *ngIf="activePanel === 'manage-org-teams'" [view]="'teams'" [myTeamsOnly]="false"></app-manage-org>
         <app-manage-org *ngIf="activePanel === 'manage-my-teams'" [view]="'teams'" [myTeamsOnly]="true"></app-manage-org>
         <app-manage-members *ngIf="activePanel === 'manage-members'"></app-manage-members>
-        <app-manage-import-export *ngIf="activePanel === 'manage-import-export'"></app-manage-import-export>
         <!-- Account views replace the main content area -->
         <div class="account-view" *ngIf="isAccountPanel">
           <app-account-login *ngIf="activePanel === 'login'" (loginSuccess)="onLoginSuccess()"></app-account-login>
@@ -627,9 +624,6 @@ export class ShellComponent {
       items.push({ panel: 'manage-my-teams', icon: 'group_work', label: 'shell.management.myTeams' });
     }
     items.push({ panel: 'manage-members', icon: 'manage_accounts', label: 'shell.management.members' });
-    if (this.authService.isOrgAdmin) {
-      items.push({ panel: 'manage-import-export', icon: 'import_export', label: 'shell.management.importExport' });
-    }
     return items;
   }
 
@@ -638,8 +632,7 @@ export class ShellComponent {
         || this.activePanel === 'manage-org'
         || this.activePanel === 'manage-org-teams'
         || this.activePanel === 'manage-my-teams'
-        || this.activePanel === 'manage-members'
-        || this.activePanel === 'manage-import-export';
+        || this.activePanel === 'manage-members';
   }
 
   get isAccountPanel(): boolean {
@@ -711,20 +704,18 @@ export class ShellComponent {
   }
 
   openPanel(panel: PanelType): void {
+    // Clicking the active panel does nothing
+    if (this.activePanel === panel) return;
+
     const isManagement = panel.startsWith('manage');
 
-    // Only close slide-in panels when opening an account (overlay) panel
+    // Close any slide-in panels when switching to an account (overlay) panel
     if (!isManagement) {
       this.panelService.closeAll();
       this.activeNavBar = null;
     }
 
-    if (this.activePanel === panel) {
-      // Clicking the active item closes the panel
-      this.activePanel = null;
-    } else {
-      this.activePanel = panel;
-    }
+    this.activePanel = panel;
     this.cdr.detectChanges();
   }
 

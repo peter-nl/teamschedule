@@ -330,6 +330,11 @@ const typeDefs = `#graphql
     afternoon: Float!
   }
 
+  input TeamMembershipImportInput {
+    name: String!
+    memberIds: [String!]!
+  }
+
   input MemberHolidayImportInput {
     memberId: String!
     startDate: String!
@@ -388,6 +393,7 @@ const typeDefs = `#graphql
     saveScheduleDateRange(startDate: String!, endDate: String!): DeletedHolidaysResult!
     saveOrgSettings(settings: OrgSettingsInput!, orgId: ID): OrgSettings!
     importMemberHolidays(holidays: [MemberHolidayImportInput!]!): ImportResult!
+    importTeamMemberships(teams: [TeamMembershipImportInput!]!, orgId: ID): ImportResult!
     # TeamAdmin or OrgAdmin
     addMemberToTeam(teamId: ID!, memberId: ID!): Team!
     removeMemberFromTeam(teamId: ID!, memberId: ID!): Team!
@@ -1095,6 +1101,49 @@ const resolvers = {
       return {
         success: true,
         message: `Imported ${importedCount} holiday period(s). ${skippedCount > 0 ? `${skippedCount} skipped.` : ''}`,
+        importedCount,
+        skippedCount,
+      };
+    },
+
+    importTeamMemberships: async (_: any, { teams, orgId }: { teams: Array<{ name: string; memberIds: string[] }>; orgId?: string }, ctx: AuthContext) => {
+      const user = orgId ? requireSysadmin(ctx) : requireOrgAdmin(ctx);
+      const targetOrgId = orgId ? parseInt(orgId) : user.organisationId!;
+      let importedCount = 0;
+      let skippedCount = 0;
+      for (const teamInput of teams) {
+        // Find or create team by name
+        const existing = await pool.query(
+          'SELECT id FROM team WHERE name = $1 AND organisation_id = $2',
+          [teamInput.name, targetOrgId]
+        );
+        let teamId: number;
+        if (existing.rows.length > 0) {
+          teamId = existing.rows[0].id;
+        } else {
+          const created = await pool.query(
+            'INSERT INTO team (name, organisation_id) VALUES ($1, $2) RETURNING id',
+            [teamInput.name, targetOrgId]
+          );
+          teamId = created.rows[0].id;
+        }
+        // Add members to team (skip if member not in org)
+        for (const memberId of teamInput.memberIds) {
+          const memberCheck = await pool.query(
+            'SELECT 1 FROM member WHERE id = $1 AND organisation_id = $2',
+            [memberId, targetOrgId]
+          );
+          if (memberCheck.rows.length === 0) { skippedCount++; continue; }
+          await pool.query(
+            'INSERT INTO team_member (team_id, member_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+            [teamId, memberId]
+          );
+          importedCount++;
+        }
+      }
+      return {
+        success: true,
+        message: `Imported ${importedCount} team membership(s).${skippedCount > 0 ? ` ${skippedCount} skipped (member not found in organisation).` : ''}`,
         importedCount,
         skippedCount,
       };

@@ -7,6 +7,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { NotificationService } from '../../shared/services/notification.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
@@ -31,6 +32,7 @@ const REQUEST_PASSWORD_RESET = gql`
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
+    MatCheckboxModule,
     TranslateModule
   ],
   template: `
@@ -65,6 +67,10 @@ const REQUEST_PASSWORD_RESET = gql`
               <mat-icon>{{ hidePassword ? 'visibility_off' : 'visibility' }}</mat-icon>
             </button>
           </mat-form-field>
+
+          <mat-checkbox [(ngModel)]="rememberMe" name="rememberMe" class="remember-me">
+            {{ 'login.rememberMe' | translate }}
+          </mat-checkbox>
 
           <div *ngIf="loginError" class="error-message">
             <mat-icon>error</mat-icon>
@@ -156,6 +162,10 @@ const REQUEST_PASSWORD_RESET = gql`
       height: 48px;
     }
 
+    .remember-me {
+      font-size: 14px;
+    }
+
     .forgot-password-section {
       margin-top: 8px;
       text-align: center;
@@ -195,6 +205,7 @@ export class AccountLoginComponent {
   loginLoading = false;
   loginError: string | null = null;
   hidePassword = true;
+  rememberMe = false;
 
   showForgotForm = false;
   forgotEmail = '';
@@ -216,7 +227,7 @@ export class AccountLoginComponent {
     this.loginLoading = true;
     this.loginError = null;
 
-    this.authService.login(this.loginForm.memberId, this.loginForm.password).subscribe({
+    this.authService.login(this.loginForm.memberId, this.loginForm.password, this.rememberMe).subscribe({
       next: (result) => {
         this.loginLoading = false;
         if (result.success) {

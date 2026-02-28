@@ -9,6 +9,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { NotificationService } from '../../shared/services/notification.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
@@ -58,6 +59,34 @@ const GET_ORG_LIST = gql`
   }
 `;
 
+const GET_ORG_SETTINGS_FOR_EXPORT = gql`
+  query GetOrgSettingsForExport($orgId: ID) {
+    orgSettings(orgId: $orgId) {
+      workingDays weekStartDay scheduleStartDate scheduleEndDate
+      nonWorkingDayColorLight nonWorkingDayColorDark
+      holidayColorLight holidayColorDark
+      scheduledDayOffColorLight scheduledDayOffColorDark
+      noContractColorLight noContractColorDark
+    }
+  }
+`;
+
+const SAVE_ORG_SETTINGS = gql`
+  mutation SaveOrgSettings($settings: OrgSettingsInput!, $orgId: ID) {
+    saveOrgSettings(settings: $settings, orgId: $orgId) {
+      workingDays weekStartDay
+    }
+  }
+`;
+
+const IMPORT_TEAM_MEMBERSHIPS = gql`
+  mutation ImportTeamMemberships($teams: [TeamMembershipImportInput!]!, $orgId: ID) {
+    importTeamMemberships(teams: $teams, orgId: $orgId) {
+      success message importedCount skippedCount
+    }
+  }
+`;
+
 const ASSIGN_ORG_ADMIN = gql`mutation AssignOrgAdmin($memberId: String!, $orgId: ID) { assignOrgAdmin(memberId: $memberId, orgId: $orgId) }`;
 const REMOVE_ORG_ADMIN = gql`mutation RemoveOrgAdmin($memberId: String!, $orgId: ID) { removeOrgAdmin(memberId: $memberId, orgId: $orgId) }`;
 const ASSIGN_TEAM_ADMIN = gql`mutation AssignTeamAdmin($memberId: String!, $teamId: Int!, $orgId: ID) { assignTeamAdmin(memberId: $memberId, teamId: $teamId, orgId: $orgId) }`;
@@ -92,6 +121,7 @@ const UPDATE_TEAM = gql`
     MatSelectModule,
     MatDividerModule,
     MatProgressSpinnerModule,
+    MatCheckboxModule,
     TranslateModule,
     ManageOrgSettingsComponent,
   ],
@@ -154,6 +184,96 @@ const UPDATE_TEAM = gql`
             <mat-divider *ngIf="canManageOrgAdmins"></mat-divider>
             <!-- Organisation settings (date range, holidays, working days, colors, holiday types) -->
             <app-manage-org-settings></app-manage-org-settings>
+
+            <mat-divider></mat-divider>
+
+            <!-- Import / Export -->
+            <div class="settings-section ie-section">
+              <div class="ie-header">
+                <mat-icon class="ie-icon">import_export</mat-icon>
+                <div>
+                  <h3 class="ie-title">{{ 'importExport.title' | translate }}</h3>
+                  <p class="ie-desc">{{ 'importExport.orgSubtitle' | translate }}</p>
+                </div>
+              </div>
+
+              <!-- Export -->
+              <div class="ie-block">
+                <h4 class="ie-block-title">{{ 'importExport.export.title' | translate }}</h4>
+                <p class="ie-block-desc">{{ 'importExport.export.orgDescription' | translate }}</p>
+                <button mat-flat-button (click)="exportOrgData()" [disabled]="exporting">
+                  <mat-progress-spinner *ngIf="exporting" mode="indeterminate" diameter="16"></mat-progress-spinner>
+                  <mat-icon *ngIf="!exporting">download</mat-icon>
+                  {{ 'importExport.export.button' | translate }}
+                </button>
+              </div>
+
+              <mat-divider></mat-divider>
+
+              <!-- Import -->
+              <div class="ie-block">
+                <h4 class="ie-block-title">{{ 'importExport.import.title' | translate }}</h4>
+                <p class="ie-block-desc">{{ 'importExport.import.orgDescription' | translate }}</p>
+
+                <div class="ie-file-row">
+                  <input type="file" #ieFileInput accept=".json"
+                         (change)="onImportFileSelected($event)"
+                         style="display: none">
+                  <button mat-stroked-button (click)="ieFileInput.click()" [disabled]="importing">
+                    <mat-icon>upload_file</mat-icon>
+                    {{ 'importExport.import.selectFile' | translate }}
+                  </button>
+                  <span *ngIf="importFileName" class="ie-file-name">{{ importFileName }}</span>
+                </div>
+
+                <ng-container *ngIf="importFile">
+                  <!-- What to import -->
+                  <div class="ie-options">
+                    <mat-checkbox [(ngModel)]="importOrgSettings">
+                      {{ 'importExport.import.orgSettings' | translate }}
+                    </mat-checkbox>
+                    <mat-checkbox [(ngModel)]="importTeams">
+                      {{ 'importExport.import.teamMemberships' | translate }}
+                    </mat-checkbox>
+                    <div *ngIf="importTeams" class="ie-team-picker">
+                      <label class="ie-option-label">{{ 'importExport.import.whichTeams' | translate }}</label>
+                      <div class="ie-radio-row">
+                        <label class="ie-radio">
+                          <input type="radio" [(ngModel)]="importTeamScope" value="all">
+                          {{ 'importExport.import.allTeams' | translate }}
+                          <span class="ie-team-count">({{ importFile.teams?.length || 0 }})</span>
+                        </label>
+                        <label class="ie-radio">
+                          <input type="radio" [(ngModel)]="importTeamScope" value="specific">
+                          {{ 'importExport.import.specificTeam' | translate }}
+                        </label>
+                      </div>
+                      <select *ngIf="importTeamScope === 'specific'" class="member-select"
+                              [(ngModel)]="importSpecificTeamName">
+                        <option value="">{{ 'common.select' | translate }}…</option>
+                        <option *ngFor="let t of importFile.teams" [value]="t.name">{{ t.name }}</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <button mat-flat-button color="primary"
+                          (click)="runImport()"
+                          [disabled]="importing || (!importOrgSettings && !importTeams)
+                                      || (importTeams && importTeamScope === 'specific' && !importSpecificTeamName)"
+                          class="ie-import-btn">
+                    <mat-progress-spinner *ngIf="importing" mode="indeterminate" diameter="16"></mat-progress-spinner>
+                    {{ 'importExport.import.importButton' | translate }}
+                  </button>
+                </ng-container>
+
+                <div *ngIf="importResultMessage" class="ie-result"
+                     [class.ie-result-success]="importResultSuccess"
+                     [class.ie-result-error]="!importResultSuccess">
+                  <mat-icon>{{ importResultSuccess ? 'check_circle' : 'error' }}</mat-icon>
+                  {{ importResultMessage }}
+                </div>
+              </div>
+            </div>
           </div>
         </ng-container>
 
@@ -784,6 +904,139 @@ const UPDATE_TEAM = gql`
     }
 
     .cdk-drag-placeholder { opacity: 0.3; }
+
+    /* Import / Export */
+    .ie-section {
+      padding: 20px 0 12px;
+    }
+
+    .ie-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .ie-icon {
+      font-size: 28px;
+      width: 28px;
+      height: 28px;
+      color: var(--mat-sys-primary);
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .ie-title {
+      margin: 0 0 4px 0;
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--mat-sys-on-surface);
+    }
+
+    .ie-desc {
+      margin: 0;
+      font-size: 13px;
+      color: var(--mat-sys-on-surface-variant);
+    }
+
+    .ie-block {
+      padding: 16px 0 8px;
+    }
+
+    .ie-block-title {
+      margin: 0 0 4px 0;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--mat-sys-on-surface);
+    }
+
+    .ie-block-desc {
+      margin: 0 0 12px 0;
+      font-size: 13px;
+      color: var(--mat-sys-on-surface-variant);
+    }
+
+    .ie-file-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .ie-file-name {
+      font-size: 13px;
+      color: var(--mat-sys-on-surface-variant);
+    }
+
+    .ie-options {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .ie-team-picker {
+      margin-left: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .ie-option-label {
+      font-size: 12px;
+      color: var(--mat-sys-on-surface-variant);
+    }
+
+    .ie-radio-row {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .ie-radio {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .ie-team-count {
+      font-size: 12px;
+      color: var(--mat-sys-on-surface-variant);
+    }
+
+    .ie-import-btn {
+      margin-top: 4px;
+    }
+
+    .ie-result {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      margin-top: 12px;
+      font-size: 13px;
+    }
+
+    .ie-result mat-icon { font-size: 18px; width: 18px; height: 18px; }
+
+    .ie-result-success {
+      background: var(--mat-sys-primary-container);
+      color: var(--mat-sys-on-primary-container);
+    }
+
+    .ie-result-error {
+      background: var(--mat-sys-error-container);
+      color: var(--mat-sys-on-error-container);
+    }
+
+    button mat-progress-spinner {
+      display: inline-block;
+      margin-right: 6px;
+    }
   `]
 })
 export class ManageOrgComponent implements OnInit, OnChanges {
@@ -825,6 +1078,18 @@ export class ManageOrgComponent implements OnInit, OnChanges {
   // Team name editing
   editingTeamName = false;
   teamNameDraft = '';
+
+  // Import / Export
+  exporting = false;
+  importing = false;
+  importFileName: string | null = null;
+  importFile: { organisation?: any; teams?: { name: string; memberIds: string[] }[]; members?: any[] } | null = null;
+  importOrgSettings = true;
+  importTeams = true;
+  importTeamScope: 'all' | 'specific' = 'all';
+  importSpecificTeamName = '';
+  importResultMessage: string | null = null;
+  importResultSuccess = false;
 
   constructor(
     public authService: AuthService,
@@ -1105,6 +1370,116 @@ export class ManageOrgComponent implements OnInit, OnChanges {
       await this.loadData();
     } catch (e) {
       this.notificationService.error(this.translate.instant('common.error'));
+    }
+  }
+
+  async exportOrgData(): Promise<void> {
+    this.exporting = true;
+    try {
+      const orgId = this.authService.isSysadmin ? this.selectedOrgId || undefined : undefined;
+      const [orgResult, settingsResult] = await Promise.all([
+        apolloClient.query({ query: GET_ORG_DATA, variables: { orgId }, fetchPolicy: 'network-only' }),
+        apolloClient.query({ query: GET_ORG_SETTINGS_FOR_EXPORT, variables: { orgId }, fetchPolicy: 'network-only' }),
+      ]);
+      const data = (orgResult as any).data;
+      const settings = (settingsResult as any).data.orgSettings;
+      const exportObj = {
+        format: 'teamschedule-org-v1',
+        exportDate: new Date().toISOString().split('T')[0],
+        organisation: {
+          name: data.organisation?.name,
+          settings,
+        },
+        teams: (data.teams as any[]).map((t: any) => ({
+          name: t.name,
+          memberIds: (t.members as any[]).map((m: any) => m.id),
+        })),
+        members: (data.members as any[]).map((m: any) => ({
+          id: m.id,
+          firstName: m.firstName,
+          particles: m.particles,
+          lastName: m.lastName,
+        })),
+      };
+      const json = JSON.stringify(exportObj, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(data.organisation?.name || 'org').replace(/\s+/g, '-').toLowerCase()}-${exportObj.exportDate}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      this.notificationService.error(this.translate.instant('importExport.export.failed', { error: err.message }));
+    } finally {
+      this.exporting = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  onImportFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    this.importFileName = file.name;
+    this.importFile = null;
+    this.importResultMessage = null;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result as string);
+        if (data.format !== 'teamschedule-org-v1') {
+          this.importResultMessage = this.translate.instant('importExport.import.invalidFormat');
+          this.importResultSuccess = false;
+          this.cdr.detectChanges();
+          return;
+        }
+        this.importFile = data;
+        this.importSpecificTeamName = '';
+        this.cdr.detectChanges();
+      } catch {
+        this.importResultMessage = this.translate.instant('importExport.import.invalidJson');
+        this.importResultSuccess = false;
+        this.cdr.detectChanges();
+      }
+    };
+    reader.readAsText(file);
+    input.value = '';
+  }
+
+  async runImport(): Promise<void> {
+    if (!this.importFile) return;
+    this.importing = true;
+    this.importResultMessage = null;
+    const orgId = this.authService.isSysadmin ? this.selectedOrgId || undefined : undefined;
+    const messages: string[] = [];
+    try {
+      if (this.importOrgSettings && this.importFile.organisation?.settings) {
+        await apolloClient.mutate({
+          mutation: SAVE_ORG_SETTINGS,
+          variables: { settings: this.importFile.organisation.settings, orgId: orgId ?? null },
+        });
+        messages.push(this.translate.instant('importExport.import.settingsImported'));
+      }
+      if (this.importTeams && this.importFile.teams?.length) {
+        const teams = this.importTeamScope === 'all'
+          ? this.importFile.teams
+          : this.importFile.teams.filter(t => t.name === this.importSpecificTeamName);
+        const result: any = await apolloClient.mutate({
+          mutation: IMPORT_TEAM_MEMBERSHIPS,
+          variables: { teams, orgId: orgId ?? null },
+        });
+        messages.push(result.data.importTeamMemberships.message);
+      }
+      this.importResultSuccess = true;
+      this.importResultMessage = messages.join(' ');
+      await this.loadData();
+    } catch (err: any) {
+      this.importResultSuccess = false;
+      this.importResultMessage = this.translate.instant('importExport.import.failed', { error: err.message });
+    } finally {
+      this.importing = false;
+      this.cdr.detectChanges();
     }
   }
 
