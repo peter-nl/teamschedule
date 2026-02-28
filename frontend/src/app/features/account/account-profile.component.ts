@@ -6,13 +6,12 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatTooltipModule } from '@angular/material/tooltip';
+import { NotificationService } from '../../shared/services/notification.service';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AuthService } from '../../shared/services/auth.service';
+import { UiEventService } from '../../shared/services/ui-event.service';
 
 @Component({
   selector: 'app-account-profile',
@@ -25,9 +24,6 @@ import { AuthService } from '../../shared/services/auth.service';
     MatInputModule,
     MatButtonModule,
     MatIconModule,
-    MatProgressSpinnerModule,
-    MatSnackBarModule,
-    MatTooltipModule,
     MatDividerModule,
     MatSlideToggleModule,
     TranslateModule
@@ -41,13 +37,25 @@ import { AuthService } from '../../shared/services/auth.service';
       </mat-card-header>
 
       <mat-card-content>
-        <form (ngSubmit)="onUpdateProfile()" class="profile-form">
+
+        <h3 class="section-title">{{ 'profile.role' | translate }}</h3>
+        <div class="role-section">
+          <div class="role-display">
+            <mat-icon>{{ roleIcon }}</mat-icon>
+            <span class="role-label">{{ roleLabel | translate }}</span>
+          </div>
+        </div>
+
+        <mat-divider class="section-divider"></mat-divider>
+
+        <h3 class="section-title">{{ 'profile.details' | translate }}</h3>
+        <div class="profile-form">
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>{{ 'profile.firstName' | translate }}</mat-label>
             <input matInput
                    [(ngModel)]="profileForm.firstName"
                    name="firstName"
-                   required>
+                   (blur)="onFieldBlur()">
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
@@ -55,7 +63,8 @@ import { AuthService } from '../../shared/services/auth.service';
             <input matInput
                    [(ngModel)]="profileForm.particles"
                    name="particles"
-                   [placeholder]="'profile.particlesPlaceholder' | translate">
+                   [placeholder]="'profile.particlesPlaceholder' | translate"
+                   (blur)="onFieldBlur()">
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
@@ -63,7 +72,7 @@ import { AuthService } from '../../shared/services/auth.service';
             <input matInput
                    [(ngModel)]="profileForm.lastName"
                    name="lastName"
-                   required>
+                   (blur)="onFieldBlur()">
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
@@ -72,28 +81,9 @@ import { AuthService } from '../../shared/services/auth.service';
                    [(ngModel)]="profileForm.email"
                    name="email"
                    type="email"
-                   [placeholder]="'profile.emailPlaceholder' | translate">
+                   [placeholder]="'profile.emailPlaceholder' | translate"
+                   (blur)="onFieldBlur()">
           </mat-form-field>
-
-          <div class="form-actions">
-            <button mat-icon-button type="button" (click)="resetProfileForm()" [matTooltip]="'common.cancel' | translate">
-              <mat-icon>close</mat-icon>
-            </button>
-            <button mat-icon-button color="primary" type="submit" [disabled]="profileLoading" [matTooltip]="'profile.saveChanges' | translate">
-              <mat-spinner *ngIf="profileLoading" diameter="20"></mat-spinner>
-              <mat-icon *ngIf="!profileLoading">check</mat-icon>
-            </button>
-          </div>
-        </form>
-
-        <mat-divider class="section-divider"></mat-divider>
-
-        <h3 class="section-title">{{ 'profile.role' | translate }}</h3>
-        <div class="role-section">
-          <div class="role-display">
-            <mat-icon>{{ roleIcon }}</mat-icon>
-            <span class="role-label">{{ roleLabel | translate }}</span>
-          </div>
         </div>
 
         <mat-divider class="section-divider"></mat-divider>
@@ -148,12 +138,6 @@ import { AuthService } from '../../shared/services/auth.service';
       width: 100%;
     }
 
-    .form-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 4px;
-    }
-
     .section-divider {
       margin: 32px 0;
     }
@@ -166,18 +150,6 @@ import { AuthService } from '../../shared/services/auth.service';
       display: flex;
       align-items: center;
       gap: 8px;
-    }
-
-    .section-icon {
-      font-size: 20px;
-      width: 20px;
-      height: 20px;
-      color: var(--mat-sys-primary);
-    }
-
-    button mat-spinner {
-      display: inline-block;
-      margin-right: 8px;
     }
 
     .role-section {
@@ -235,19 +207,13 @@ import { AuthService } from '../../shared/services/auth.service';
       font-size: 12px;
       color: var(--mat-sys-on-surface-variant);
     }
-
   `]
 })
 export class AccountProfileComponent {
   @Output() openChangePassword = new EventEmitter<void>();
 
-  profileForm = {
-    firstName: '',
-    lastName: '',
-    particles: '',
-    email: ''
-  };
-  profileLoading = false;
+  profileForm = { firstName: '', lastName: '', particles: '', email: '' };
+  private savedProfile = { firstName: '', lastName: '', particles: '', email: '' };
   scheduleDisabledLoading = false;
 
   get roleIcon(): string {
@@ -266,68 +232,64 @@ export class AccountProfileComponent {
 
   constructor(
     public authService: AuthService,
-    private snackBar: MatSnackBar,
+    private uiEventService: UiEventService,
+    private notificationService: NotificationService,
     private translate: TranslateService
   ) {
     this.authService.currentUser$.subscribe(user => {
       if (user) {
-        this.profileForm = {
+        const snapshot = {
           firstName: user.firstName,
           lastName: user.lastName,
           particles: user.particles || '',
           email: user.email || ''
         };
+        this.profileForm = { ...snapshot };
+        this.savedProfile = { ...snapshot };
       }
     });
   }
 
-  resetProfileForm(): void {
-    const user = this.authService.currentUser;
-    if (user) {
-      this.profileForm = {
-        firstName: user.firstName,
-        lastName: user.lastName,
-        particles: user.particles || '',
-        email: user.email || ''
-      };
+  onFieldBlur(): void {
+    const f = this.profileForm;
+    const s = this.savedProfile;
+    const changed = f.firstName !== s.firstName || f.lastName !== s.lastName
+                 || f.particles !== s.particles || f.email !== s.email;
+    if (!changed) return;
+
+    // Silently reset empty required fields instead of saving
+    if (!f.firstName.trim() || !f.lastName.trim()) {
+      this.profileForm = { ...this.savedProfile };
+      return;
     }
+
+    this.authService.updateProfile(
+      f.firstName.trim(),
+      f.lastName.trim(),
+      f.particles.trim() || null,
+      f.email.trim() || null
+    ).subscribe({
+      next: () => {
+        this.savedProfile = { ...this.profileForm };
+      },
+      error: () => {
+        this.profileForm = { ...this.savedProfile };
+        this.notificationService.error(this.translate.instant('profile.messages.updateFailed'));
+      }
+    });
   }
 
   onScheduleDisabledChange(disabled: boolean): void {
     this.scheduleDisabledLoading = true;
     this.authService.updateScheduleDisabled(disabled).subscribe({
-      next: () => { this.scheduleDisabledLoading = false; },
+      next: () => {
+        this.scheduleDisabledLoading = false;
+        this.uiEventService.scheduleReload$.next();
+      },
       error: () => {
         this.scheduleDisabledLoading = false;
-        this.snackBar.open(this.translate.instant('common.error'), this.translate.instant('common.close'), { duration: 3000 });
+        this.notificationService.error(this.translate.instant('common.error'));
       }
     });
   }
-
-  onUpdateProfile(): void {
-    if (!this.profileForm.firstName || !this.profileForm.lastName) {
-      this.snackBar.open(this.translate.instant('profile.messages.nameRequired'), this.translate.instant('common.close'), { duration: 3000 });
-      return;
-    }
-
-    this.profileLoading = true;
-
-    this.authService.updateProfile(
-      this.profileForm.firstName,
-      this.profileForm.lastName,
-      this.profileForm.particles || null,
-      this.profileForm.email || null
-    ).subscribe({
-      next: () => {
-        this.profileLoading = false;
-        this.snackBar.open(this.translate.instant('profile.messages.updated'), this.translate.instant('common.close'), { duration: 3000 });
-      },
-      error: (error) => {
-        this.profileLoading = false;
-        this.snackBar.open(this.translate.instant('profile.messages.updateFailed'), this.translate.instant('common.close'), { duration: 3000 });
-        console.error('Update profile error:', error);
-      }
-    });
-  }
-
 }

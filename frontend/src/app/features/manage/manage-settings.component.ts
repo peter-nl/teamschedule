@@ -12,7 +12,6 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { provideNativeDateAdapter } from '@angular/material/core';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AppSettingsService } from '../../core/services/app-settings.service';
@@ -45,7 +44,6 @@ interface HolidayYearGroup {
     MatInputModule,
     MatSelectModule,
     MatDatepickerModule,
-    MatSnackBarModule,
     MatTooltipModule,
     TranslateModule,
   ],
@@ -804,7 +802,6 @@ export class ManageSettingsComponent implements OnInit {
     private appSettingsService: AppSettingsService,
     private holidayService: HolidayService,
     private holidayTypeService: HolidayTypeService,
-    private snackBar: MatSnackBar,
     private translate: TranslateService
   ) {
     const s = this.appSettingsService.settings;

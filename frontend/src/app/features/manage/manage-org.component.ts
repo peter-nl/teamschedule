@@ -9,7 +9,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { NotificationService } from '../../shared/services/notification.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
@@ -17,6 +17,7 @@ import { AuthService } from '../../shared/services/auth.service';
 import { SlideInPanelService } from '../../shared/services/slide-in-panel.service';
 import { UserPreferencesService } from '../../shared/services/user-preferences.service';
 import { AddTeamDialogComponent } from '../../shell/add-team-dialog.component';
+import { ManageOrgSettingsComponent } from './manage-org-settings.component';
 
 interface MemberRef {
   id: string;
@@ -91,8 +92,8 @@ const UPDATE_TEAM = gql`
     MatSelectModule,
     MatDividerModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule,
     TranslateModule,
+    ManageOrgSettingsComponent,
   ],
   template: `
     <!-- Sysadmin org picker -->
@@ -114,38 +115,47 @@ const UPDATE_TEAM = gql`
     <ng-container *ngIf="!loading; else loadingTpl">
       <div class="org-layout">
 
-        <!-- ORG HEADER: org name + org admins -->
-        <div class="org-header" *ngIf="view === 'org'">
-          <div class="org-name-row" *ngIf="organisation">
+        <!-- ORG VIEW: org name bar + scrollable content (admins + settings) -->
+        <ng-container *ngIf="view === 'org'">
+          <!-- Fixed org name bar -->
+          <div class="org-name-bar" *ngIf="organisation">
             <mat-icon class="org-icon">corporate_fare</mat-icon>
             <h2 class="org-name">{{ organisation.name }}</h2>
           </div>
-          <div class="section-row" *ngIf="canManageOrgAdmins">
-            <span class="section-label">{{ 'org.admins' | translate }}</span>
-            <div class="chips-row">
-              <span *ngFor="let a of orgAdmins" class="chip">
-                <span class="chip-label">{{ fullName(a) }}</span>
-                <button class="chip-remove" (click)="removeOrgAdmin(a)">
-                  <mat-icon>close</mat-icon>
-                </button>
-              </span>
-              <button *ngIf="!showAddOrgAdmin" mat-icon-button class="add-chip-btn"
-                      (click)="showAddOrgAdmin = true"
-                      [matTooltip]="'org.addAdmin' | translate">
-                <mat-icon>person_add</mat-icon>
-              </button>
+          <!-- Scrollable content area -->
+          <div class="org-view-scroll">
+            <!-- Org admins section -->
+            <div class="section-block" *ngIf="canManageOrgAdmins">
+              <div class="section-row">
+                <span class="section-label">{{ 'org.admins' | translate }}</span>
+                <div class="chips-row">
+                  <span *ngFor="let a of orgAdmins" class="chip">
+                    <span class="chip-label">{{ fullName(a) }}</span>
+                    <button class="chip-remove" (click)="removeOrgAdmin(a)">
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  </span>
+                  <button *ngIf="!showAddOrgAdmin" mat-icon-button class="add-chip-btn"
+                          (click)="showAddOrgAdmin = true"
+                          [matTooltip]="'org.addAdmin' | translate">
+                    <mat-icon>person_add</mat-icon>
+                  </button>
+                </div>
+                <div *ngIf="showAddOrgAdmin" class="inline-add">
+                  <select class="member-select" [(ngModel)]="selectedOrgAdminId">
+                    <option value="">{{ 'common.select' | translate }}…</option>
+                    <option *ngFor="let m of nonAdminMembers" [value]="m.id">{{ fullName(m) }}</option>
+                  </select>
+                  <button mat-flat-button (click)="addOrgAdmin()" [disabled]="!selectedOrgAdminId">{{ 'common.add' | translate }}</button>
+                  <button mat-button (click)="showAddOrgAdmin = false; selectedOrgAdminId = ''">{{ 'common.cancel' | translate }}</button>
+                </div>
+              </div>
             </div>
-            <!-- inline add org admin -->
-            <div *ngIf="showAddOrgAdmin" class="inline-add">
-              <select class="member-select" [(ngModel)]="selectedOrgAdminId">
-                <option value="">{{ 'common.select' | translate }}…</option>
-                <option *ngFor="let m of nonAdminMembers" [value]="m.id">{{ fullName(m) }}</option>
-              </select>
-              <button mat-flat-button (click)="addOrgAdmin()" [disabled]="!selectedOrgAdminId">{{ 'common.add' | translate }}</button>
-              <button mat-button (click)="showAddOrgAdmin = false; selectedOrgAdminId = ''">{{ 'common.cancel' | translate }}</button>
-            </div>
+            <mat-divider *ngIf="canManageOrgAdmins"></mat-divider>
+            <!-- Organisation settings (date range, holidays, working days, colors, holiday types) -->
+            <app-manage-org-settings></app-manage-org-settings>
           </div>
-        </div>
+        </ng-container>
 
         <!-- MAIN BODY -->
         <div class="org-body" *ngIf="view === 'teams'">
@@ -389,19 +399,21 @@ const UPDATE_TEAM = gql`
       overflow: hidden;
     }
 
-    /* Org header */
-    .org-header {
-      flex-shrink: 0;
-      padding: 8px 16px;
-      border-bottom: 1px solid var(--mat-sys-outline-variant);
-      background: var(--mat-sys-surface-container-low);
-    }
-
-    .org-name-row {
+    /* Org view */
+    .org-name-bar {
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 8px 0 12px;
+      padding: 12px 16px;
+      background: var(--mat-sys-surface-container-low);
+      border-bottom: 1px solid var(--mat-sys-outline-variant);
+      flex-shrink: 0;
+    }
+
+    .org-view-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 16px 24px;
     }
 
     .org-icon {
@@ -816,7 +828,7 @@ export class ManageOrgComponent implements OnInit, OnChanges {
 
   constructor(
     public authService: AuthService,
-    private snackBar: MatSnackBar,
+    private notificationService: NotificationService,
     private panelService: SlideInPanelService,
     private userPreferencesService: UserPreferencesService,
     private translate: TranslateService,
@@ -911,11 +923,7 @@ export class ManageOrgComponent implements OnInit, OnChanges {
       this.filterTeams();
     } catch (error) {
       console.error('Failed to load org data:', error);
-      this.snackBar.open(
-        this.translate.instant('teams.messages.loadFailed'),
-        this.translate.instant('common.close'),
-        { duration: 3000 }
-      );
+      this.notificationService.error(this.translate.instant('teams.messages.loadFailed'));
     } finally {
       this.loading = false;
       this.cdr.detectChanges();
@@ -1007,7 +1015,7 @@ export class ManageOrgComponent implements OnInit, OnChanges {
       this.selectedOrgAdminId = '';
       await this.loadData();
     } catch (e) {
-      this.snackBar.open(this.translate.instant('common.error'), this.translate.instant('common.close'), { duration: 3000 });
+      this.notificationService.error(this.translate.instant('common.error'));
     }
   }
 
@@ -1017,7 +1025,7 @@ export class ManageOrgComponent implements OnInit, OnChanges {
       await apolloClient.mutate({ mutation: REMOVE_ORG_ADMIN, variables: { memberId: admin.id, orgId } });
       await this.loadData();
     } catch (e) {
-      this.snackBar.open(this.translate.instant('common.error'), this.translate.instant('common.close'), { duration: 3000 });
+      this.notificationService.error(this.translate.instant('common.error'));
     }
   }
 
@@ -1033,7 +1041,7 @@ export class ManageOrgComponent implements OnInit, OnChanges {
       this.selectedTeamAdminId = '';
       await this.loadData();
     } catch (e) {
-      this.snackBar.open(this.translate.instant('common.error'), this.translate.instant('common.close'), { duration: 3000 });
+      this.notificationService.error(this.translate.instant('common.error'));
     }
   }
 
@@ -1046,7 +1054,7 @@ export class ManageOrgComponent implements OnInit, OnChanges {
       });
       await this.loadData();
     } catch (e) {
-      this.snackBar.open(this.translate.instant('common.error'), this.translate.instant('common.close'), { duration: 3000 });
+      this.notificationService.error(this.translate.instant('common.error'));
     }
   }
 
@@ -1062,7 +1070,7 @@ export class ManageOrgComponent implements OnInit, OnChanges {
       this.selectedNewMemberId = '';
       await this.loadData();
     } catch (e) {
-      this.snackBar.open(this.translate.instant('common.error'), this.translate.instant('common.close'), { duration: 3000 });
+      this.notificationService.error(this.translate.instant('common.error'));
     }
   }
 
@@ -1075,7 +1083,7 @@ export class ManageOrgComponent implements OnInit, OnChanges {
       });
       await this.loadData();
     } catch (e) {
-      this.snackBar.open(this.translate.instant('common.error'), this.translate.instant('common.close'), { duration: 3000 });
+      this.notificationService.error(this.translate.instant('common.error'));
     }
   }
 
@@ -1096,7 +1104,7 @@ export class ManageOrgComponent implements OnInit, OnChanges {
       this.editingTeamName = false;
       await this.loadData();
     } catch (e) {
-      this.snackBar.open(this.translate.instant('common.error'), this.translate.instant('common.close'), { duration: 3000 });
+      this.notificationService.error(this.translate.instant('common.error'));
     }
   }
 

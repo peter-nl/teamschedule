@@ -7,7 +7,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { NotificationService } from '../../shared/services/notification.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AuthService } from '../../shared/services/auth.service';
 
@@ -23,7 +23,6 @@ import { AuthService } from '../../shared/services/auth.service';
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule,
     TranslateModule
   ],
   template: `
@@ -130,18 +129,18 @@ export class AccountPasswordComponent {
 
   constructor(
     private authService: AuthService,
-    private snackBar: MatSnackBar,
+    private notificationService: NotificationService,
     private translate: TranslateService
   ) {}
 
   onChangePassword(): void {
     if (!this.passwordForm.currentPassword || !this.passwordForm.newPassword || !this.passwordForm.confirmPassword) {
-      this.snackBar.open(this.translate.instant('password.messages.fieldsRequired'), this.translate.instant('common.close'), { duration: 3000 });
+      this.notificationService.error(this.translate.instant('password.messages.fieldsRequired'));
       return;
     }
 
     if (this.passwordForm.newPassword !== this.passwordForm.confirmPassword) {
-      this.snackBar.open(this.translate.instant('password.messages.mismatch'), this.translate.instant('common.close'), { duration: 3000 });
+      this.notificationService.error(this.translate.instant('password.messages.mismatch'));
       return;
     }
 
@@ -154,15 +153,15 @@ export class AccountPasswordComponent {
       next: (result) => {
         this.passwordLoading = false;
         if (result.success) {
-          this.snackBar.open(this.translate.instant('password.messages.changed'), this.translate.instant('common.close'), { duration: 3000 });
+          this.notificationService.success(this.translate.instant('password.messages.changed'));
           this.passwordForm = { currentPassword: '', newPassword: '', confirmPassword: '' };
         } else {
-          this.snackBar.open(result.message || this.translate.instant('password.messages.changeFailed'), this.translate.instant('common.close'), { duration: 3000 });
+          this.notificationService.error(result.message || this.translate.instant('password.messages.changeFailed'));
         }
       },
       error: (error) => {
         this.passwordLoading = false;
-        this.snackBar.open(this.translate.instant('password.messages.changeFailed'), this.translate.instant('common.close'), { duration: 3000 });
+        this.notificationService.error(this.translate.instant('password.messages.changeFailed'));
         console.error('Change password error:', error);
       }
     });

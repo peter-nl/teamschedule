@@ -8,7 +8,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { NotificationService } from '../services/notification.service';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { provideNativeDateAdapter } from '@angular/material/core';
 import { MemberHolidayService, MemberHolidayPeriod, MemberHolidayInput, DayPart } from '../../core/services/member-holiday.service';
@@ -42,7 +42,6 @@ export interface HolidayDialogResult {
     MatSelectModule,
     MatDatepickerModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule,
     MatTooltipModule,
     TranslateModule
   ],
@@ -245,7 +244,7 @@ export class HolidayDialogComponent implements OnInit {
     private memberHolidayService: MemberHolidayService,
     private holidayTypeService: HolidayTypeService,
     private userPreferencesService: UserPreferencesService,
-    private snackBar: MatSnackBar,
+    private notificationService: NotificationService,
     private translate: TranslateService
   ) {}
 
@@ -329,12 +328,12 @@ export class HolidayDialogComponent implements OnInit {
       this.memberHolidayService.addHoliday(this.data.memberId, input).subscribe({
         next: () => {
           this.saving = false;
-          this.snackBar.open(this.translate.instant('holidayDialog.messages.added'), this.translate.instant('common.close'), { duration: 3000 });
+          this.notificationService.success(this.translate.instant('holidayDialog.messages.added'));
           this.panelRef.close({ action: 'saved' });
         },
         error: (error) => {
           this.saving = false;
-          this.snackBar.open(this.translate.instant('holidayDialog.messages.addFailed'), this.translate.instant('common.close'), { duration: 3000 });
+          this.notificationService.error(this.translate.instant('holidayDialog.messages.addFailed'));
           console.error('Add holiday error:', error);
         }
       });
@@ -342,12 +341,12 @@ export class HolidayDialogComponent implements OnInit {
       this.memberHolidayService.updateHoliday(this.data.period!.id, input).subscribe({
         next: () => {
           this.saving = false;
-          this.snackBar.open(this.translate.instant('holidayDialog.messages.updated'), this.translate.instant('common.close'), { duration: 3000 });
+          this.notificationService.success(this.translate.instant('holidayDialog.messages.updated'));
           this.panelRef.close({ action: 'saved' });
         },
         error: (error) => {
           this.saving = false;
-          this.snackBar.open(this.translate.instant('holidayDialog.messages.updateFailed'), this.translate.instant('common.close'), { duration: 3000 });
+          this.notificationService.error(this.translate.instant('holidayDialog.messages.updateFailed'));
           console.error('Update holiday error:', error);
         }
       });
@@ -361,12 +360,12 @@ export class HolidayDialogComponent implements OnInit {
     this.memberHolidayService.removeHoliday(this.data.period.id).subscribe({
       next: () => {
         this.deleting = false;
-        this.snackBar.open(this.translate.instant('holidayDialog.messages.removed'), this.translate.instant('common.close'), { duration: 3000 });
+        this.notificationService.success(this.translate.instant('holidayDialog.messages.removed'));
         this.panelRef.close({ action: 'deleted' });
       },
       error: (error) => {
         this.deleting = false;
-        this.snackBar.open(this.translate.instant('holidayDialog.messages.removeFailed'), this.translate.instant('common.close'), { duration: 3000 });
+        this.notificationService.error(this.translate.instant('holidayDialog.messages.removeFailed'));
         console.error('Remove holiday error:', error);
       }
     });

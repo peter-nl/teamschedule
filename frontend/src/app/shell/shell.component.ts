@@ -3,11 +3,11 @@ import { CommonModule } from '@angular/common';
 import { RouterModule, RouterOutlet, Router, NavigationEnd } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { NotificationService } from '../shared/services/notification.service';
 import { filter } from 'rxjs/operators';
 import { AuthService } from '../shared/services/auth.service';
 import { APP_VERSION } from '../version';
-import { UserPreferencesService, AdminMode } from '../shared/services/user-preferences.service';
+import { UserPreferencesService } from '../shared/services/user-preferences.service';
 import { SlideInPanelService } from '../shared/services/slide-in-panel.service';
 import { UiEventService } from '../shared/services/ui-event.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
@@ -16,13 +16,12 @@ import { AccountProfileComponent } from '../features/account/account-profile.com
 import { AccountPasswordComponent } from '../features/account/account-password.component';
 import { ManageOrgComponent } from '../features/manage/manage-org.component';
 import { ManageMembersComponent } from '../features/manage/manage-members.component';
-import { ManageSettingsComponent } from '../features/manage/manage-settings.component';
 import { ManageImportExportComponent } from '../features/manage/manage-import-export.component';
 import { ManageOrganisationsComponent } from '../features/manage/manage-organisations.component';
 
-type NavBarType = 'account' | 'management';
+type NavBarType = 'management';
 type PanelType = 'login' | 'profile' | 'password'
-              | 'manage-org' | 'manage-org-teams' | 'manage-my-teams' | 'manage-members' | 'manage-import-export' | 'manage-settings'
+              | 'manage-org' | 'manage-org-teams' | 'manage-my-teams' | 'manage-members' | 'manage-import-export'
               | 'manage-organisations';
 
 interface NavItem {
@@ -46,7 +45,6 @@ interface ManagementItem {
     RouterOutlet,
     MatIconModule,
     MatTooltipModule,
-    MatSnackBarModule,
     TranslateModule,
     AccountLoginComponent,
     AccountProfileComponent,
@@ -54,7 +52,6 @@ interface ManagementItem {
     ManageOrgComponent,
     ManageMembersComponent,
     ManageImportExportComponent,
-    ManageSettingsComponent,
     ManageOrganisationsComponent
   ],
   template: `
@@ -65,15 +62,14 @@ interface ManagementItem {
           <button class="menu-button" (click)="toggleExpanded()" [matTooltip]="'shell.nav.menu' | translate" matTooltipPosition="right">
             <mat-icon>{{ isExpanded ? 'menu_open' : 'menu' }}</mat-icon>
           </button>
-          <a *ngIf="isExpanded" class="app-title" [routerLink]="['/']" (click)="onNavItemClick()">{{ 'shell.appTitle' | translate }}</a>
+          <a *ngIf="isExpanded" class="app-title" (click)="onNavItemClick('/')">{{ 'shell.appTitle' | translate }}</a>
         </div>
 
         <div class="nav-items">
           <a *ngFor="let item of navItems"
              class="nav-item"
              [class.active]="isActive(item.path)"
-             [routerLink]="item.path"
-             (click)="onNavItemClick()"
+             (click)="onNavItemClick(item.path)"
              [matTooltip]="isExpanded ? '' : (item.label | translate)"
              matTooltipPosition="right">
             <mat-icon>{{ item.icon }}</mat-icon>
@@ -87,20 +83,21 @@ interface ManagementItem {
         <div class="nav-account">
           <a *ngIf="showManagement"
              class="nav-item"
-             [class.active]="activeNavBar === 'management'"
+             [class.active]="isManagementPanel"
              (click)="toggleNavBar('management')"
              [matTooltip]="isExpanded ? '' : ('shell.management.label' | translate)"
              matTooltipPosition="right">
             <mat-icon>admin_panel_settings</mat-icon>
             <span class="nav-label">{{ 'shell.management.label' | translate }}</span>
           </a>
-          <a class="nav-item"
-             [class.active]="activeNavBar === 'account' || activePanel === 'login'"
-             (click)="authService.isLoggedIn ? toggleNavBar('account') : openLoginPanel()"
-             [matTooltip]="isExpanded ? '' : ((authService.isLoggedIn ? 'shell.account.account' : 'shell.account.login') | translate)"
+          <a *ngIf="authService.isLoggedIn"
+             class="nav-item"
+             [class.active]="activePanel === 'profile' || activePanel === 'password'"
+             (click)="openPanel('profile')"
+             [matTooltip]="isExpanded ? '' : ('shell.account.account' | translate)"
              matTooltipPosition="right">
-            <mat-icon>{{ authService.isLoggedIn ? 'account_circle' : 'login' }}</mat-icon>
-            <span class="nav-label">{{ (authService.isLoggedIn ? 'shell.account.account' : 'shell.account.login') | translate }}</span>
+            <mat-icon>account_circle</mat-icon>
+            <span class="nav-label">{{ 'shell.account.account' | translate }}</span>
           </a>
           <a class="nav-item lang-toggle"
              (click)="toggleLanguage()"
@@ -117,44 +114,26 @@ interface ManagementItem {
             <mat-icon>{{ isDark ? 'light_mode' : 'dark_mode' }}</mat-icon>
             <span class="nav-label">{{ (isDark ? 'shell.account.lightTheme' : 'shell.account.darkTheme') | translate }}</span>
           </a>
+          <!-- Log in / Log out always at the very bottom -->
+          <a *ngIf="!authService.isLoggedIn"
+             class="nav-item"
+             (click)="openLoginPanel()"
+             [matTooltip]="isExpanded ? '' : ('shell.account.logIn' | translate)"
+             matTooltipPosition="right">
+            <mat-icon>login</mat-icon>
+            <span class="nav-label">{{ 'shell.account.logIn' | translate }}</span>
+          </a>
+          <a *ngIf="authService.isLoggedIn"
+             class="nav-item"
+             (click)="onSignOut()"
+             [matTooltip]="isExpanded ? '' : ('shell.account.logOut' | translate)"
+             matTooltipPosition="right">
+            <mat-icon>logout</mat-icon>
+            <span class="nav-label">{{ 'shell.account.logOut' | translate }}</span>
+          </a>
         </div>
         <div class="nav-version">v{{ version }}</div>
         <div class="nav-version-mobile">v{{ version }}</div>
-      </nav>
-
-      <!-- Account Nav Bar -->
-      <nav class="nav-bar" *ngIf="activeNavBar === 'account'">
-        <div class="nav-bar-spacer"></div>
-        <div class="nav-bar-items">
-          <button *ngIf="authService.isLoggedIn && !authService.isSysadmin && authService.isAnyAdmin"
-                  class="nav-bar-item"
-                  (click)="setAdminMode(adminMode === 'manager' ? 'member' : 'manager')">
-            <mat-icon>{{ adminMode === 'manager' ? 'person' : 'admin_panel_settings' }}</mat-icon>
-            <span>{{ (adminMode === 'manager' ? 'shell.account.memberMode' : 'shell.account.managerMode') | translate }}</span>
-          </button>
-
-          <button *ngIf="!authService.isLoggedIn"
-                  class="nav-bar-item"
-                  [class.active]="activePanel === 'login'"
-                  (click)="openPanel('login')">
-            <mat-icon>login</mat-icon>
-            <span>{{ 'shell.account.signIn' | translate }}</span>
-          </button>
-
-          <button *ngIf="authService.isLoggedIn"
-                  class="nav-bar-item"
-                  [class.active]="activePanel === 'profile'"
-                  (click)="openPanel('profile')">
-            <mat-icon>account_circle</mat-icon>
-            <span>{{ 'shell.account.account' | translate }}</span>
-          </button>
-          <button *ngIf="authService.isLoggedIn"
-                  class="nav-bar-item"
-                  (click)="onSignOut()">
-            <mat-icon>logout</mat-icon>
-            <span>{{ 'shell.account.signOut' | translate }}</span>
-          </button>
-        </div>
       </nav>
 
       <!-- Management Nav Bar -->
@@ -183,23 +162,15 @@ interface ManagementItem {
         <app-manage-org *ngIf="activePanel === 'manage-my-teams'" [view]="'teams'" [myTeamsOnly]="true"></app-manage-org>
         <app-manage-members *ngIf="activePanel === 'manage-members'"></app-manage-members>
         <app-manage-import-export *ngIf="activePanel === 'manage-import-export'"></app-manage-import-export>
-        <app-manage-settings *ngIf="activePanel === 'manage-settings'"></app-manage-settings>
-        <!-- Route content shown only when no management panel is active -->
-        <router-outlet *ngIf="!isManagementPanel"></router-outlet>
+        <!-- Account views replace the main content area -->
+        <div class="account-view" *ngIf="isAccountPanel">
+          <app-account-login *ngIf="activePanel === 'login'" (loginSuccess)="onLoginSuccess()"></app-account-login>
+          <app-account-profile *ngIf="activePanel === 'profile'" (openChangePassword)="openPanel('password')"></app-account-profile>
+          <app-account-password *ngIf="activePanel === 'password'"></app-account-password>
+        </div>
+        <!-- Route content shown only when no panel is active -->
+        <router-outlet *ngIf="!isManagementPanel && !isAccountPanel"></router-outlet>
       </main>
-    </div>
-
-    <!-- Slide-in Panel (account panels only) -->
-    <div class="slide-in-backdrop" *ngIf="isAccountPanel" [style.left.px]="panelLeftOffset" (click)="closePanel()"></div>
-    <div class="slide-in-shell-panel" *ngIf="isAccountPanel" [style.left.px]="panelLeftOffset">
-      <button class="panel-close" (click)="closePanel()">
-        <mat-icon>close</mat-icon>
-      </button>
-      <div class="slide-in-content">
-        <app-account-login *ngIf="activePanel === 'login'" (loginSuccess)="onLoginSuccess()"></app-account-login>
-        <app-account-profile *ngIf="activePanel === 'profile'" (openChangePassword)="openPanel('password')"></app-account-profile>
-        <app-account-password *ngIf="activePanel === 'password'"></app-account-password>
-      </div>
     </div>
   `,
   styles: [`
@@ -429,74 +400,13 @@ interface ManagementItem {
       height: 20px;
     }
 
-    /* Slide-in Panel */
-    .slide-in-backdrop {
-      position: fixed;
-      top: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.3);
-      z-index: 199;
-      animation: fadeIn 200ms ease;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-
-    .slide-in-shell-panel {
-      position: fixed;
-      top: 0;
-      right: 0;
-      bottom: 0;
-      background: var(--mat-sys-surface);
-      z-index: 200;
-      display: flex;
-      flex-direction: column;
-      animation: slideInFromRight 300ms ease;
-      box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
-    }
-
-    @keyframes slideInFromRight {
-      from { transform: translateX(100%); }
-      to { transform: translateX(0); }
-    }
-
-    .slide-in-content {
+    /* Account View (shown in main content area) */
+    .account-view {
       flex: 1;
       overflow-y: auto;
       display: flex;
       justify-content: center;
       padding: 24px;
-    }
-
-    .panel-close {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      z-index: 1;
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      border: none;
-      background: var(--mat-sys-surface-container-highest);
-      color: var(--mat-sys-on-surface-variant);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: background 0.15s;
-    }
-
-    .panel-close:hover {
-      background: var(--mat-sys-outline-variant);
-    }
-
-    .panel-close mat-icon {
-      font-size: 20px;
-      width: 20px;
-      height: 20px;
     }
 
     /* Nav Bar Backdrop (mobile only) */
@@ -627,14 +537,6 @@ interface ManagementItem {
         display: block;
       }
 
-      .slide-in-backdrop {
-        left: 0 !important;
-      }
-
-      .slide-in-shell-panel {
-        left: 0 !important;
-      }
-
       .main-content {
         flex: 1;
         min-height: 0;
@@ -651,7 +553,6 @@ export class ShellComponent {
   currentPath = '';
   isExpanded = true;
   isDark = false;
-  adminMode: AdminMode = 'member';
   activeNavBar: NavBarType | null = null;
   activePanel: PanelType | null = null;
   version = APP_VERSION;
@@ -661,7 +562,7 @@ export class ShellComponent {
     private router: Router,
     public authService: AuthService,
     private userPreferencesService: UserPreferencesService,
-    private snackBar: MatSnackBar,
+    private notificationService: NotificationService,
     private panelService: SlideInPanelService,
     private translate: TranslateService,
     private uiEventService: UiEventService,
@@ -670,15 +571,8 @@ export class ShellComponent {
     this.uiEventService.openLogin$.subscribe(() => this.openLoginPanel());
     const isNarrow = window.innerWidth < this.TABLET_BREAKPOINT;
     this.isExpanded = isNarrow ? false : this.userPreferencesService.preferences.navigationExpanded;
-    this.adminMode = this.userPreferencesService.preferences.adminMode;
     this.userPreferencesService.preferences$.subscribe(prefs => {
       this.isExpanded = window.innerWidth < this.TABLET_BREAKPOINT ? false : prefs.navigationExpanded;
-      this.adminMode = prefs.adminMode;
-      // Close management nav bar if switching to member mode
-      if (prefs.adminMode === 'member' && this.activeNavBar === 'management') {
-        this.activeNavBar = null;
-        this.activePanel = null;
-      }
     });
 
     // On mobile, force system theme since browser dark mode overrides app theme
@@ -714,8 +608,8 @@ export class ShellComponent {
   }
 
   get showManagement(): boolean {
-    if (this.authService.isSysadmin) return true;
-    return this.adminMode !== 'member';
+    if (!this.authService.isLoggedIn) return false;
+    return this.authService.isSysadmin || this.authService.isAnyAdmin;
   }
 
   get managementItems(): ManagementItem[] {
@@ -726,18 +620,15 @@ export class ShellComponent {
       items.push({ panel: 'manage-members', icon: 'manage_accounts', label: 'shell.management.members' });
       return items;
     }
-    if (this.adminMode === 'manager') {
-      if (this.authService.isOrgAdmin) {
-        items.push({ panel: 'manage-org', icon: 'corporate_fare', label: 'shell.management.organisation' });
-        items.push({ panel: 'manage-org-teams', icon: 'group_work', label: 'shell.management.teams' });
-      } else {
-        items.push({ panel: 'manage-my-teams', icon: 'group_work', label: 'shell.management.myTeams' });
-      }
-      items.push({ panel: 'manage-members', icon: 'manage_accounts', label: 'shell.management.members' });
-      if (this.authService.isOrgAdmin) {
-        items.push({ panel: 'manage-import-export', icon: 'import_export', label: 'shell.management.importExport' });
-        items.push({ panel: 'manage-settings', icon: 'settings', label: 'shell.management.settings' });
-      }
+    if (this.authService.isOrgAdmin) {
+      items.push({ panel: 'manage-org', icon: 'corporate_fare', label: 'shell.management.organisation' });
+      items.push({ panel: 'manage-org-teams', icon: 'group_work', label: 'shell.management.teams' });
+    } else {
+      items.push({ panel: 'manage-my-teams', icon: 'group_work', label: 'shell.management.myTeams' });
+    }
+    items.push({ panel: 'manage-members', icon: 'manage_accounts', label: 'shell.management.members' });
+    if (this.authService.isOrgAdmin) {
+      items.push({ panel: 'manage-import-export', icon: 'import_export', label: 'shell.management.importExport' });
     }
     return items;
   }
@@ -748,20 +639,13 @@ export class ShellComponent {
         || this.activePanel === 'manage-org-teams'
         || this.activePanel === 'manage-my-teams'
         || this.activePanel === 'manage-members'
-        || this.activePanel === 'manage-import-export'
-        || this.activePanel === 'manage-settings';
+        || this.activePanel === 'manage-import-export';
   }
 
   get isAccountPanel(): boolean {
     return this.activePanel === 'login'
         || this.activePanel === 'profile'
         || this.activePanel === 'password';
-  }
-
-  get panelLeftOffset(): number {
-    const railWidth = this.isExpanded ? 220 : 80;
-    const barWidth = this.activeNavBar ? 200 : 0;
-    return railWidth + barWidth;
   }
 
   @HostListener('window:resize')
@@ -784,13 +668,15 @@ export class ShellComponent {
     }
   }
 
-  onNavItemClick(): void {
+  onNavItemClick(path: string): void {
     this.activeNavBar = null;
     this.activePanel = null;
     this.panelService.closeAll();
+    this.router.navigate([path]);
   }
 
   isActive(path: string): boolean {
+    if (this.activePanel) return false;
     return this.currentPath.startsWith(path);
   }
 
@@ -810,9 +696,13 @@ export class ShellComponent {
       this.activeNavBar = null;
       this.activePanel = null;
     } else {
-      // Switching to a different rail item: close current panel, show new bar
-      this.activePanel = null;
       this.activeNavBar = type;
+      // Auto-select the first sub-item so a view is shown immediately
+      if (type === 'management' && this.managementItems.length > 0) {
+        this.activePanel = this.managementItems[0].panel;
+      } else {
+        this.activePanel = null;
+      }
     }
   }
 
@@ -821,19 +711,21 @@ export class ShellComponent {
   }
 
   openPanel(panel: PanelType): void {
-    this.panelService.closeAll();
+    const isManagement = panel.startsWith('manage');
+
+    // Only close slide-in panels when opening an account (overlay) panel
+    if (!isManagement) {
+      this.panelService.closeAll();
+      this.activeNavBar = null;
+    }
+
     if (this.activePanel === panel) {
       // Clicking the active item closes the panel
       this.activePanel = null;
     } else {
-      // Switch directly to the new panel
       this.activePanel = panel;
     }
     this.cdr.detectChanges();
-    // On mobile, close the nav-bar overlay when opening a panel
-    if (this.isMobile && this.activePanel) {
-      this.activeNavBar = null;
-    }
   }
 
   closePanel(): void {
@@ -860,6 +752,7 @@ export class ShellComponent {
   }
 
   toggleTheme(): void {
+    this.activeNavBar = null;
     const current = this.userPreferencesService.preferences.theme;
     if (current === 'light' || (current === 'system' && !this.isDark)) {
       this.userPreferencesService.setTheme('dark');
@@ -868,11 +761,8 @@ export class ShellComponent {
     }
   }
 
-  setAdminMode(mode: AdminMode): void {
-    this.userPreferencesService.setAdminMode(mode);
-  }
-
   toggleLanguage(): void {
+    this.activeNavBar = null;
     const newLang = this.currentLang === 'en' ? 'nl' : 'en';
     this.currentLang = newLang;
     this.translate.use(newLang);
@@ -881,8 +771,9 @@ export class ShellComponent {
 
   onSignOut(): void {
     this.authService.logout();
-    this.snackBar.open(this.translate.instant('shell.messages.signedOut'), this.translate.instant('common.close'), { duration: 3000 });
+    this.notificationService.success(this.translate.instant('shell.messages.loggedOut'));
     this.activeNavBar = null;
     this.activePanel = null;
+    this.router.navigate(['/']);
   }
 }

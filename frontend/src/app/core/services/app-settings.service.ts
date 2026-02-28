@@ -50,6 +50,30 @@ const SAVE_SCHEDULE_DATE_RANGE_MUTATION = gql`
   }
 `;
 
+const ORG_SETTINGS_QUERY = gql`
+  query OrgSettings($orgId: ID) {
+    orgSettings(orgId: $orgId) {
+      workingDays weekStartDay
+      nonWorkingDayColorLight nonWorkingDayColorDark
+      holidayColorLight holidayColorDark
+      scheduledDayOffColorLight scheduledDayOffColorDark
+      noContractColorLight noContractColorDark
+    }
+  }
+`;
+
+const SAVE_ORG_SETTINGS_MUTATION = gql`
+  mutation SaveOrgSettings($settings: OrgSettingsInput!, $orgId: ID) {
+    saveOrgSettings(settings: $settings, orgId: $orgId) {
+      workingDays weekStartDay
+      nonWorkingDayColorLight nonWorkingDayColorDark
+      holidayColorLight holidayColorDark
+      scheduledDayOffColorLight scheduledDayOffColorDark
+      noContractColorLight noContractColorDark
+    }
+  }
+`;
+
 function getDefaultDateRange(): ScheduleDateRange {
   const now = new Date();
   return {
@@ -107,6 +131,60 @@ export class AppSettingsService {
     ).pipe(
       map((result: any) => result.data.scheduleDateRange as ScheduleDateRange),
       tap(range => this.dateRangeSubject.next(range))
+    );
+  }
+
+  loadOrgSettings(orgId?: string): Observable<AppSettings> {
+    return from(
+      apolloClient.query({ query: ORG_SETTINGS_QUERY, variables: { orgId: orgId ?? null }, fetchPolicy: 'network-only' })
+    ).pipe(
+      map((result: any) => {
+        const s = result.data.orgSettings;
+        return {
+          workingDays: s.workingDays,
+          weekStartDay: s.weekStartDay as 0 | 1,
+          nonWorkingDayColorLight: s.nonWorkingDayColorLight,
+          nonWorkingDayColorDark: s.nonWorkingDayColorDark,
+          holidayColorLight: s.holidayColorLight,
+          holidayColorDark: s.holidayColorDark,
+          scheduledDayOffColorLight: s.scheduledDayOffColorLight,
+          scheduledDayOffColorDark: s.scheduledDayOffColorDark,
+          noContractColorLight: s.noContractColorLight,
+          noContractColorDark: s.noContractColorDark,
+        } as AppSettings;
+      }),
+      tap(settings => {
+        if (!orgId) {
+          this.settingsSubject.next(settings);
+          this.saveSettings();
+        }
+      })
+    );
+  }
+
+  saveOrgSettings(settingsOverride?: AppSettings, orgId?: string): Observable<AppSettings> {
+    const s = settingsOverride ?? this.settingsSubject.value;
+    return from(
+      apolloClient.mutate({
+        mutation: SAVE_ORG_SETTINGS_MUTATION,
+        variables: {
+          orgId: orgId ?? null,
+          settings: {
+            workingDays: s.workingDays,
+            weekStartDay: s.weekStartDay,
+            nonWorkingDayColorLight: s.nonWorkingDayColorLight,
+            nonWorkingDayColorDark: s.nonWorkingDayColorDark,
+            holidayColorLight: s.holidayColorLight,
+            holidayColorDark: s.holidayColorDark,
+            scheduledDayOffColorLight: s.scheduledDayOffColorLight,
+            scheduledDayOffColorDark: s.scheduledDayOffColorDark,
+            noContractColorLight: s.noContractColorLight,
+            noContractColorDark: s.noContractColorDark,
+          }
+        }
+      })
+    ).pipe(
+      map((result: any) => result.data.saveOrgSettings as AppSettings)
     );
   }
 

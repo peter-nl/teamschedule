@@ -280,6 +280,32 @@ const typeDefs = `#graphql
     deletedCount: Int!
   }
 
+  type OrgSettings {
+    workingDays: [Boolean!]!
+    weekStartDay: Int!
+    nonWorkingDayColorLight: String!
+    nonWorkingDayColorDark: String!
+    holidayColorLight: String!
+    holidayColorDark: String!
+    scheduledDayOffColorLight: String!
+    scheduledDayOffColorDark: String!
+    noContractColorLight: String!
+    noContractColorDark: String!
+  }
+
+  input OrgSettingsInput {
+    workingDays: [Boolean!]
+    weekStartDay: Int
+    nonWorkingDayColorLight: String
+    nonWorkingDayColorDark: String
+    holidayColorLight: String
+    holidayColorDark: String
+    scheduledDayOffColorLight: String
+    scheduledDayOffColorDark: String
+    noContractColorLight: String
+    noContractColorDark: String
+  }
+
   type ImportResult {
     success: Boolean!
     message: String
@@ -331,6 +357,7 @@ const typeDefs = `#graphql
     memberHolidays(memberId: String!): [MemberHoliday!]!
     allMemberHolidays(startDate: String!, endDate: String!): [MemberHoliday!]!
     scheduleDateRange: ScheduleDateRange!
+    orgSettings(orgId: ID): OrgSettings!
     exportMemberHolidays: [MemberHolidayExport!]!
     memberSchedules: [MemberSchedule!]!
     memberSchedule(memberId: String!): MemberSchedule
@@ -359,6 +386,7 @@ const typeDefs = `#graphql
     updateHolidayType(id: ID!, name: String, colorLight: String, colorDark: String, sortOrder: Int): HolidayType!
     deleteHolidayType(id: ID!): Boolean!
     saveScheduleDateRange(startDate: String!, endDate: String!): DeletedHolidaysResult!
+    saveOrgSettings(settings: OrgSettingsInput!, orgId: ID): OrgSettings!
     importMemberHolidays(holidays: [MemberHolidayImportInput!]!): ImportResult!
     # TeamAdmin or OrgAdmin
     addMemberToTeam(teamId: ID!, memberId: ID!): Team!
@@ -581,6 +609,50 @@ const resolvers = {
       return {
         startDate: settings.schedule_start_date || defaultStart,
         endDate: settings.schedule_end_date || defaultEnd,
+      };
+    },
+
+    orgSettings: async (_: any, { orgId }: { orgId?: string }, ctx: AuthContext) => {
+      const user = requireAuth(ctx);
+      const defaults = {
+        workingDays: [false, true, true, true, true, true, false],
+        weekStartDay: 1,
+        nonWorkingDayColorLight: '#e0e0e0',
+        nonWorkingDayColorDark: '#3a3a3a',
+        holidayColorLight: '#ffcdd2',
+        holidayColorDark: '#772727',
+        scheduledDayOffColorLight: '#bdbdbd',
+        scheduledDayOffColorDark: '#757575',
+        noContractColorLight: '#9e9e9e',
+        noContractColorDark: '#616161',
+      };
+      const targetOrgId = orgId ? parseInt(orgId) : user.organisationId;
+      if (orgId) requireSysadmin(ctx);
+      if (targetOrgId === null) return defaults;
+      const keys = [
+        'working_days', 'week_start_day',
+        'non_working_day_color_light', 'non_working_day_color_dark',
+        'holiday_color_light', 'holiday_color_dark',
+        'scheduled_day_off_color_light', 'scheduled_day_off_color_dark',
+        'no_contract_color_light', 'no_contract_color_dark',
+      ];
+      const result = await pool.query(
+        'SELECT key, value FROM org_setting WHERE organisation_id = $1 AND key = ANY($2)',
+        [targetOrgId, keys]
+      );
+      const s: Record<string, string> = {};
+      for (const row of result.rows) s[row.key] = row.value;
+      return {
+        workingDays: s.working_days ? JSON.parse(s.working_days) : defaults.workingDays,
+        weekStartDay: s.week_start_day !== undefined ? parseInt(s.week_start_day) : defaults.weekStartDay,
+        nonWorkingDayColorLight: s.non_working_day_color_light || defaults.nonWorkingDayColorLight,
+        nonWorkingDayColorDark: s.non_working_day_color_dark || defaults.nonWorkingDayColorDark,
+        holidayColorLight: s.holiday_color_light || defaults.holidayColorLight,
+        holidayColorDark: s.holiday_color_dark || defaults.holidayColorDark,
+        scheduledDayOffColorLight: s.scheduled_day_off_color_light || defaults.scheduledDayOffColorLight,
+        scheduledDayOffColorDark: s.scheduled_day_off_color_dark || defaults.scheduledDayOffColorDark,
+        noContractColorLight: s.no_contract_color_light || defaults.noContractColorLight,
+        noContractColorDark: s.no_contract_color_dark || defaults.noContractColorDark,
       };
     },
 
@@ -948,6 +1020,47 @@ const resolvers = {
           ? `Date range saved. ${deletedCount} holiday period(s) outside the new range were removed.`
           : 'Date range saved.',
         deletedCount,
+      };
+    },
+
+    saveOrgSettings: async (_: any, { settings, orgId }: { settings: Record<string, any>; orgId?: string }, ctx: AuthContext) => {
+      const user = orgId ? requireSysadmin(ctx) : requireOrgAdmin(ctx);
+      const targetOrgId = orgId ? parseInt(orgId) : user.organisationId;
+      if (targetOrgId === null) throw new Error('No organisation context');
+      const toSave: Array<[string, string]> = [];
+      if (settings.workingDays !== undefined) toSave.push(['working_days', JSON.stringify(settings.workingDays)]);
+      if (settings.weekStartDay !== undefined) toSave.push(['week_start_day', String(settings.weekStartDay)]);
+      if (settings.nonWorkingDayColorLight) toSave.push(['non_working_day_color_light', settings.nonWorkingDayColorLight]);
+      if (settings.nonWorkingDayColorDark) toSave.push(['non_working_day_color_dark', settings.nonWorkingDayColorDark]);
+      if (settings.holidayColorLight) toSave.push(['holiday_color_light', settings.holidayColorLight]);
+      if (settings.holidayColorDark) toSave.push(['holiday_color_dark', settings.holidayColorDark]);
+      if (settings.scheduledDayOffColorLight) toSave.push(['scheduled_day_off_color_light', settings.scheduledDayOffColorLight]);
+      if (settings.scheduledDayOffColorDark) toSave.push(['scheduled_day_off_color_dark', settings.scheduledDayOffColorDark]);
+      if (settings.noContractColorLight) toSave.push(['no_contract_color_light', settings.noContractColorLight]);
+      if (settings.noContractColorDark) toSave.push(['no_contract_color_dark', settings.noContractColorDark]);
+      for (const [key, value] of toSave) {
+        await setOrgSetting(targetOrgId, key, value);
+      }
+      // Return updated settings by re-reading
+      const keys = toSave.map(([k]) => k);
+      const result = await pool.query(
+        'SELECT key, value FROM org_setting WHERE organisation_id = $1 AND key = ANY($2)',
+        [targetOrgId, keys]
+      );
+      const saved: Record<string, string> = {};
+      for (const row of result.rows) saved[row.key] = row.value;
+      const defaults = { workingDays: [false,true,true,true,true,true,false], weekStartDay: 1, nonWorkingDayColorLight: '#e0e0e0', nonWorkingDayColorDark: '#3a3a3a', holidayColorLight: '#ffcdd2', holidayColorDark: '#772727', scheduledDayOffColorLight: '#bdbdbd', scheduledDayOffColorDark: '#757575', noContractColorLight: '#9e9e9e', noContractColorDark: '#616161' };
+      return {
+        workingDays: saved.working_days ? JSON.parse(saved.working_days) : (settings.workingDays ?? defaults.workingDays),
+        weekStartDay: saved.week_start_day !== undefined ? parseInt(saved.week_start_day) : (settings.weekStartDay ?? defaults.weekStartDay),
+        nonWorkingDayColorLight: saved.non_working_day_color_light || settings.nonWorkingDayColorLight || defaults.nonWorkingDayColorLight,
+        nonWorkingDayColorDark: saved.non_working_day_color_dark || settings.nonWorkingDayColorDark || defaults.nonWorkingDayColorDark,
+        holidayColorLight: saved.holiday_color_light || settings.holidayColorLight || defaults.holidayColorLight,
+        holidayColorDark: saved.holiday_color_dark || settings.holidayColorDark || defaults.holidayColorDark,
+        scheduledDayOffColorLight: saved.scheduled_day_off_color_light || settings.scheduledDayOffColorLight || defaults.scheduledDayOffColorLight,
+        scheduledDayOffColorDark: saved.scheduled_day_off_color_dark || settings.scheduledDayOffColorDark || defaults.scheduledDayOffColorDark,
+        noContractColorLight: saved.no_contract_color_light || settings.noContractColorLight || defaults.noContractColorLight,
+        noContractColorDark: saved.no_contract_color_dark || settings.noContractColorDark || defaults.noContractColorDark,
       };
     },
 

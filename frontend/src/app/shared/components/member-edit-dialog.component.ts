@@ -7,7 +7,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { NotificationService } from '../services/notification.service';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
@@ -77,7 +77,6 @@ const RESET_PASSWORD_MUTATION = gql`
     MatInputModule,
     MatSelectModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule,
     MatTooltipModule,
     MatDividerModule,
     TranslateModule,
@@ -460,7 +459,7 @@ export class MemberEditDialogComponent {
     public panelRef: SlideInPanelRef<MemberEditDialogComponent, boolean>,
     @Inject(SLIDE_IN_PANEL_DATA) public data: MemberEditDialogData,
     private authService: AuthService,
-    private snackBar: MatSnackBar,
+    private notificationService: NotificationService,
     private translate: TranslateService,
     private scheduleService: ScheduleService,
     private holidayService: MemberHolidayService,
@@ -569,11 +568,11 @@ export class MemberEditDialogComponent {
         ).subscribe();
       }
 
-      this.snackBar.open(this.translate.instant('editMember.messages.updated'), this.translate.instant('common.close'), { duration: 3000 });
+      this.notificationService.success(this.translate.instant('editMember.messages.updated'));
       this.panelRef.close(true);
     } catch (error: any) {
       console.error('Failed to update member:', error);
-      this.snackBar.open(error.message || this.translate.instant('editMember.messages.updateFailed'), this.translate.instant('common.close'), { duration: 5000 });
+      this.notificationService.error(error.message || this.translate.instant('editMember.messages.updateFailed'));
     } finally {
       this.saving = false;
     }
@@ -667,14 +666,14 @@ export class MemberEditDialogComponent {
       });
 
       if (result.data.resetPassword.success) {
-        this.snackBar.open(this.translate.instant('editMember.messages.passwordReset'), this.translate.instant('common.close'), { duration: 3000 });
+        this.notificationService.success(this.translate.instant('editMember.messages.passwordReset'));
         this.resetPasswordForm = { newPassword: '', confirmPassword: '' };
       } else {
-        this.snackBar.open(result.data.resetPassword.message || this.translate.instant('editMember.messages.passwordResetFailed'), this.translate.instant('common.close'), { duration: 5000 });
+        this.notificationService.error(result.data.resetPassword.message || this.translate.instant('editMember.messages.passwordResetFailed'));
       }
     } catch (error: any) {
       console.error('Failed to reset password:', error);
-      this.snackBar.open(error.message || this.translate.instant('editMember.messages.passwordResetFailed'), this.translate.instant('common.close'), { duration: 5000 });
+      this.notificationService.error(error.message || this.translate.instant('editMember.messages.passwordResetFailed'));
     } finally {
       this.resettingPassword = false;
     }

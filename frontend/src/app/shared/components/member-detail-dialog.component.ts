@@ -5,7 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { NotificationService } from '../services/notification.service';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatChipsModule } from '@angular/material/chips';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
@@ -75,7 +75,6 @@ const DELETE_MEMBER_MUTATION = gql`
     MatFormFieldModule,
     MatInputModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule,
     MatTooltipModule,
     MatChipsModule,
     TranslateModule
@@ -374,23 +373,18 @@ export class MemberDetailDialogComponent implements OnInit {
   holidays: MemberHolidayPeriod[] = [];
   holidaysLoading = false;
   isDark = false;
-  private managementModeEnabled = false;
-
   constructor(
     public panelRef: SlideInPanelRef<MemberDetailDialogComponent, MemberDetailDialogResult>,
     @Inject(SLIDE_IN_PANEL_DATA) public data: MemberDetailDialogData,
     private authService: AuthService,
     private userPreferencesService: UserPreferencesService,
-    private snackBar: MatSnackBar,
+    private notificationService: NotificationService,
     private panelService: SlideInPanelService,
     private translate: TranslateService,
     private scheduleService: ScheduleService,
     private holidayService: MemberHolidayService
   ) {
-    this.managementModeEnabled = this.userPreferencesService.preferences.adminMode !== 'member';
-    this.userPreferencesService.preferences$.subscribe(prefs => {
-      this.managementModeEnabled = prefs.adminMode !== 'member';
-    });
+
     this.userPreferencesService.isDarkTheme$.subscribe(dark => { this.isDark = dark; });
   }
 
@@ -411,7 +405,7 @@ export class MemberDetailDialogComponent implements OnInit {
   }
 
   private get isManager(): boolean {
-    return this.authService.isAnyAdmin && this.managementModeEnabled;
+    return this.authService.isAnyAdmin;
   }
 
   get canEdit(): boolean {
@@ -437,7 +431,7 @@ export class MemberDetailDialogComponent implements OnInit {
       this.loadHolidays();
     } catch (error) {
       console.error('Failed to load member data:', error);
-      this.snackBar.open(this.translate.instant('memberDetail.messages.loadFailed'), this.translate.instant('common.close'), { duration: 3000 });
+      this.notificationService.error(this.translate.instant('memberDetail.messages.loadFailed'));
     } finally {
       this.loadingData = false;
     }
@@ -521,11 +515,11 @@ export class MemberDetailDialogComponent implements OnInit {
         variables: { id: this.member.id }
       });
 
-      this.snackBar.open(this.translate.instant('memberDetail.messages.deleted'), this.translate.instant('common.close'), { duration: 3000 });
+      this.notificationService.success(this.translate.instant('memberDetail.messages.deleted'));
       this.panelRef.close({ action: 'deleted' });
     } catch (error: any) {
       console.error('Failed to delete member:', error);
-      this.snackBar.open(error.message || this.translate.instant('memberDetail.messages.deleteFailed'), this.translate.instant('common.close'), { duration: 5000 });
+      this.notificationService.error(error.message || this.translate.instant('memberDetail.messages.deleteFailed'));
     } finally {
       this.deleting = false;
     }

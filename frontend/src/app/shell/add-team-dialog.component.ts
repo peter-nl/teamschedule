@@ -7,7 +7,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { NotificationService } from '../shared/services/notification.service';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
@@ -61,7 +61,6 @@ const ADD_MEMBER_TO_TEAM_MUTATION = gql`
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule,
     MatTooltipModule,
     TranslateModule
   ],
@@ -144,7 +143,7 @@ export class AddTeamDialogComponent implements OnInit {
 
   constructor(
     public panelRef: SlideInPanelRef<AddTeamDialogComponent>,
-    private snackBar: MatSnackBar,
+    private notificationService: NotificationService,
     private translate: TranslateService,
     @Optional() @Inject(SLIDE_IN_PANEL_DATA) private data?: { orgId?: string }
   ) {}
@@ -200,11 +199,11 @@ export class AddTeamDialogComponent implements OnInit {
         include: ['GetTeams', 'GetMembers']
       });
 
-      this.snackBar.open(this.translate.instant('addTeam.messages.success'), this.translate.instant('common.close'), { duration: 3000 });
+      this.notificationService.success(this.translate.instant('addTeam.messages.success'));
       this.panelRef.close(true);
     } catch (error: any) {
       console.error('Failed to add team:', error);
-      this.snackBar.open(error.message || this.translate.instant('addTeam.messages.failed'), this.translate.instant('common.close'), { duration: 5000 });
+      this.notificationService.error(error.message || this.translate.instant('addTeam.messages.failed'));
     } finally {
       this.loading = false;
     }

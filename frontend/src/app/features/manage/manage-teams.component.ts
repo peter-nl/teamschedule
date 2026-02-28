@@ -8,7 +8,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatInputModule } from '@angular/material/input';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { NotificationService } from '../../shared/services/notification.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
@@ -72,7 +72,6 @@ const GET_MEMBERS_QUERY = gql`
     MatInputModule,
     MatDividerModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule,
     TranslateModule
   ],
   template: `
@@ -523,7 +522,7 @@ export class ManageTeamsComponent implements OnInit {
   memberSortDirection: 'asc' | 'desc' = 'asc';
 
   constructor(
-    private snackBar: MatSnackBar,
+    private notificationService: NotificationService,
     private panelService: SlideInPanelService,
     private userPreferencesService: UserPreferencesService,
     private translate: TranslateService
@@ -549,11 +548,7 @@ export class ManageTeamsComponent implements OnInit {
       this.filterTeams();
     } catch (error) {
       console.error('Failed to load data:', error);
-      this.snackBar.open(
-        this.translate.instant('teams.messages.loadFailed'),
-        this.translate.instant('common.close'),
-        { duration: 3000 }
-      );
+      this.notificationService.error(this.translate.instant('teams.messages.loadFailed'));
     } finally {
       this.loading = false;
     }
