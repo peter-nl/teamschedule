@@ -4,4 +4,5 @@ import { Subject } from 'rxjs';
 @Injectable({ providedIn: 'root' })
 export class UiEventService {
   readonly openLogin$ = new Subject<void>();
+  readonly scheduleReload$ = new Subject<void>();
 }

@@ -18,6 +18,7 @@ import { MemberHolidayService, ExpandedDayEntry, MemberHolidayPeriod } from '../
 import { HolidayTypeService } from '../../../core/services/holiday-type.service';
 import { UserPreferencesService, NameColumnField, TeamFilterMode } from '../../../shared/services/user-preferences.service';
 import { AuthService } from '../../../shared/services/auth.service';
+import { UiEventService } from '../../../shared/services/ui-event.service';
 import { SlideInPanelService } from '../../../shared/services/slide-in-panel.service';
 import { HolidayDialogComponent, HolidayDialogData, HolidayDialogResult } from '../../../shared/components/holiday-dialog.component';
 import { MemberDetailDialogComponent } from '../../../shared/components/member-detail-dialog.component';
@@ -861,7 +862,6 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   // Manager editing mode
-  private managementModeEnabled = false; // true when adminMode !== 'member'
   private navigationExpanded = true;
 
   // Drag-to-scroll state
@@ -898,6 +898,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
     private holidayTypeService: HolidayTypeService,
     private userPreferencesService: UserPreferencesService,
     private authService: AuthService,
+    private uiEventService: UiEventService,
     private cdr: ChangeDetectorRef,
     private panelService: SlideInPanelService,
     private translate: TranslateService
@@ -939,7 +940,6 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
 
     // Track management mode, zoom, column order, filter mode, and nav state from preferences
     this.userPreferencesService.preferences$.subscribe(prefs => {
-      this.managementModeEnabled = prefs.adminMode !== 'member';
       this.navigationExpanded = prefs.navigationExpanded;
       this.teamFilterMode = prefs.teamFilterMode || 'and';
       this.rebuildEditableMemberIds();
@@ -998,6 +998,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
   ngOnInit(): void {
     this.currentUserId = this.authService.currentUser?.id || null;
     this.generateDateColumns();
+    this.uiEventService.scheduleReload$.subscribe(() => this.loadData());
     // Load data when user is logged in, or when they log in later
     this.authService.currentUser$.subscribe(user => {
       if (user && !this.members.length) {
@@ -1765,7 +1766,7 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
 
   private rebuildEditableMemberIds(): void {
     this.editableMemberIds.clear();
-    const isManager = this.authService.isAnyAdmin && this.managementModeEnabled;
+    const isManager = this.authService.isAnyAdmin;
     for (const member of this.filteredMembers) {
       if (isManager || member.id === this.currentUserId) {
         this.editableMemberIds.add(member.id);

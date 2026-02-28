@@ -5,7 +5,6 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
@@ -36,7 +35,6 @@ const IMPORT_MEMBER_HOLIDAYS = gql`
     MatButtonModule,
     MatDividerModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule,
     TranslateModule
   ],
   template: `
@@ -218,7 +216,6 @@ export class ManageImportExportComponent {
   selectedFileName: string | null = null;
 
   constructor(
-    private snackBar: MatSnackBar,
     private translate: TranslateService
   ) {}
 

@@ -7,7 +7,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { NotificationService } from '../../shared/services/notification.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
@@ -31,7 +31,6 @@ const REQUEST_PASSWORD_RESET = gql`
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule,
     TranslateModule
   ],
   template: `
@@ -204,7 +203,7 @@ export class AccountLoginComponent {
 
   constructor(
     private authService: AuthService,
-    private snackBar: MatSnackBar,
+    private notificationService: NotificationService,
     private translate: TranslateService
   ) {}
 
@@ -221,7 +220,7 @@ export class AccountLoginComponent {
       next: (result) => {
         this.loginLoading = false;
         if (result.success) {
-          this.snackBar.open(this.translate.instant('login.messages.welcome'), this.translate.instant('common.close'), { duration: 3000 });
+          this.notificationService.success(this.translate.instant('login.messages.welcome'));
           this.loginForm = { memberId: '', password: '' };
           this.loginSuccess.emit();
         } else {

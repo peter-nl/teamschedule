@@ -7,7 +7,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { NotificationService } from '../../shared/services/notification.service';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
@@ -90,7 +90,6 @@ const GET_ORG_LIST = gql`
     MatTooltipModule,
     MatDividerModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule,
     MatSlideToggleModule,
     TranslateModule,
   ],
@@ -640,7 +639,7 @@ export class ManageMembersComponent implements OnInit {
 
   constructor(
     public authService: AuthService,
-    private snackBar: MatSnackBar,
+    private notificationService: NotificationService,
     private panelService: SlideInPanelService,
     private userPreferencesService: UserPreferencesService,
     private translate: TranslateService
@@ -687,7 +686,7 @@ export class ManageMembersComponent implements OnInit {
       }
       this.filterMembers();
     } catch (error) {
-      this.snackBar.open(this.translate.instant('members.messages.loadFailed'), this.translate.instant('common.close'), { duration: 3000 });
+      this.notificationService.error(this.translate.instant('members.messages.loadFailed'));
     } finally {
       this.loading = false;
     }
@@ -782,7 +781,7 @@ export class ManageMembersComponent implements OnInit {
         this.selectedMember = { ...this.selectedMember, scheduleDisabled: disabled };
       }
     } catch (e) {
-      this.snackBar.open(this.translate.instant('common.error'), this.translate.instant('common.close'), { duration: 3000 });
+      this.notificationService.error(this.translate.instant('common.error'));
     }
   }
 

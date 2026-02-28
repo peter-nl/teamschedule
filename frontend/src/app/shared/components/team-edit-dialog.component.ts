@@ -7,7 +7,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { NotificationService } from '../services/notification.service';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
@@ -55,7 +55,6 @@ const REMOVE_MEMBER_FROM_TEAM_MUTATION = gql`
     MatInputModule,
     MatSelectModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule,
     MatTooltipModule,
     TranslateModule
   ],
@@ -140,7 +139,7 @@ export class TeamEditDialogComponent {
   constructor(
     public panelRef: SlideInPanelRef<TeamEditDialogComponent, boolean>,
     @Inject(SLIDE_IN_PANEL_DATA) public data: TeamEditDialogData,
-    private snackBar: MatSnackBar,
+    private notificationService: NotificationService,
     private translate: TranslateService
   ) {
     this.editForm = {
@@ -193,11 +192,11 @@ export class TeamEditDialogComponent {
         }
       }
 
-      this.snackBar.open(this.translate.instant('editTeam.messages.updated'), this.translate.instant('common.close'), { duration: 3000 });
+      this.notificationService.success(this.translate.instant('editTeam.messages.updated'));
       this.panelRef.close(true);
     } catch (error: any) {
       console.error('Failed to update team:', error);
-      this.snackBar.open(error.message || this.translate.instant('editTeam.messages.updateFailed'), this.translate.instant('common.close'), { duration: 5000 });
+      this.notificationService.error(error.message || this.translate.instant('editTeam.messages.updateFailed'));
     } finally {
       this.saving = false;
     }

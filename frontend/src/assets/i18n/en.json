@@ -60,10 +60,6 @@
     "account": {
       "lightTheme": "Light theme",
       "darkTheme": "Dark theme",
-      "memberMode": "Member mode",
-      "teamAdminMode": "Team Admin mode",
-      "orgAdminMode": "Org Admin mode",
-      "managerMode": "Manager mode",
       "logIn": "Log in",
       "logOut": "Log out",
       "account": "Account",
@@ -131,8 +127,8 @@
     "lastName": "Last Name",
     "email": "Email",
     "emailPlaceholder": "e.g., john@example.com",
-    "saveChanges": "Save Changes",
     "role": "Role",
+    "details": "Personal details",
     "holidays": {
       "title": "My Personal Holidays",
       "addHoliday": "Add Holiday",
@@ -488,6 +484,7 @@
     "removeAdmin": "Remove admin",
     "selectMember": "Select member",
     "adminAdded": "Admin added",
-    "adminRemoved": "Admin removed"
+    "adminRemoved": "Admin removed",
+    "selectPrompt": "Select an organisation to view its settings"
   }
 }
