@@ -1703,26 +1703,26 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
           const hDesc = holiday?.description ? `: ${holiday.description}` : '';
 
           if (schedMorningOff) {
-            // Morning roostervrij — bottom half; holiday can colour the working afternoon (top half)
+            // Morning roostervrij — left half; holiday can colour the working afternoon (right half)
             const holidayInAfternoon = hColor && (holiday!.dayPart === 'full' || holiday!.dayPart === 'afternoon');
             this.cellRenderMap.set(`${member.id}:${col.dateKey}`, {
               bgColor: null,
               bgImage: holidayInAfternoon
-                ? `linear-gradient(to bottom, ${hColor} 50%, ${schedColor} 50%)`
-                : `linear-gradient(to bottom, transparent 50%, ${schedColor} 50%)`,
+                ? `linear-gradient(to right, ${schedColor} 50%, ${hColor} 50%)`
+                : `linear-gradient(to right, ${schedColor} 50%, transparent 50%)`,
               tooltip: holidayInAfternoon
                 ? `${this.translate.instant('schedule.morningOff')} / ${hName}${hDesc}`
                 : this.translate.instant('schedule.morningOff'),
               hasHoliday: !!holidayInAfternoon
             });
           } else {
-            // Afternoon roostervrij — top half; holiday can colour the working morning (bottom half)
+            // Afternoon roostervrij — right half; holiday can colour the working morning (left half)
             const holidayInMorning = hColor && (holiday!.dayPart === 'full' || holiday!.dayPart === 'morning');
             this.cellRenderMap.set(`${member.id}:${col.dateKey}`, {
               bgColor: null,
               bgImage: holidayInMorning
-                ? `linear-gradient(to bottom, ${schedColor} 50%, ${hColor} 50%)`
-                : `linear-gradient(to bottom, ${schedColor} 50%, transparent 50%)`,
+                ? `linear-gradient(to right, ${hColor} 50%, ${schedColor} 50%)`
+                : `linear-gradient(to right, transparent 50%, ${schedColor} 50%)`,
               tooltip: holidayInMorning
                 ? `${hName}${hDesc} / ${this.translate.instant('schedule.afternoonOff')}`
                 : this.translate.instant('schedule.afternoonOff'),
@@ -1741,9 +1741,9 @@ export class ScheduleMatrixComponent implements OnInit, AfterViewInit, OnDestroy
           if (holiday.dayPart === 'full') {
             bgColor = color;
           } else if (holiday.dayPart === 'morning') {
-            bgImage = `linear-gradient(to bottom, transparent 50%, ${color} 50%)`;
+            bgImage = `linear-gradient(to right, ${color} 50%, transparent 50%)`;
           } else if (holiday.dayPart === 'afternoon') {
-            bgImage = `linear-gradient(to bottom, ${color} 50%, transparent 50%)`;
+            bgImage = `linear-gradient(to right, transparent 50%, ${color} 50%)`;
           }
 
           const typeName = holiday.holidayType?.isSystem

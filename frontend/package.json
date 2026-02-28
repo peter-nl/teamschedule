@@ -1,6 +1,6 @@
 {
   "name": "teamschedule-frontend",
-  "version": "6.2.0",
+  "version": "6.2.1",
   "scripts": {
     "ng": "ng",
     "prestart": "node scripts/set-version.js",

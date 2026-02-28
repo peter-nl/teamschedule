@@ -15,22 +15,33 @@ const httpLink = new HttpLink({
   uri: '/graphql'
 });
 
-// Auth middleware: attach JWT token to every request
-const authMiddleware = new ApolloLink((operation, forward) => {
+const AUTH_STORAGE_KEY = 'teamschedule-auth';
+
+function getStoredToken(): string | null {
   try {
-    const stored = localStorage.getItem('teamschedule-auth');
-    if (stored) {
-      const { token } = JSON.parse(stored);
-      if (token) {
-        operation.setContext({
-          headers: {
-            authorization: `Bearer ${token}`,
-          },
-        });
-      }
+    const local = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (local) {
+      const { token } = JSON.parse(local);
+      if (token) return token;
+    }
+    const session = sessionStorage.getItem(AUTH_STORAGE_KEY);
+    if (session) {
+      const { token } = JSON.parse(session);
+      if (token) return token;
     }
   } catch {
     // ignore parse errors
+  }
+  return null;
+}
+
+// Auth middleware: attach JWT token to every request
+const authMiddleware = new ApolloLink((operation, forward) => {
+  const token = getStoredToken();
+  if (token) {
+    operation.setContext({
+      headers: { authorization: `Bearer ${token}` },
+    });
   }
   return forward(operation);
 });
@@ -39,7 +50,8 @@ const authMiddleware = new ApolloLink((operation, forward) => {
 const errorLink = onError(({ error }) => {
   if (CombinedGraphQLErrors.is(error) &&
       error.errors.some(e => e.message === 'Authentication required')) {
-    localStorage.removeItem('teamschedule-auth');
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    sessionStorage.removeItem(AUTH_STORAGE_KEY);
   }
 });
 

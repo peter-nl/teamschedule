@@ -90,6 +90,7 @@ export class AuthService {
   private currentUserSubject = new BehaviorSubject<AuthMember | null>(null);
   public currentUser$ = this.currentUserSubject.asObservable();
   private token: string | null = null;
+  private remember = true;
 
   constructor() {
     this.loadStoredAuth();
@@ -97,28 +98,48 @@ export class AuthService {
 
   private loadStoredAuth(): void {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
+      // Check localStorage first (remember me)
+      const local = localStorage.getItem(STORAGE_KEY);
+      if (local) {
+        const parsed = JSON.parse(local);
         if (parsed.token && parsed.user) {
+          this.remember = true;
+          this.token = parsed.token;
+          this.currentUserSubject.next(parsed.user);
+          return;
+        }
+        localStorage.removeItem(STORAGE_KEY);
+      }
+      // Then check sessionStorage (no remember me)
+      const session = sessionStorage.getItem(STORAGE_KEY);
+      if (session) {
+        const parsed = JSON.parse(session);
+        if (parsed.token && parsed.user) {
+          this.remember = false;
           this.token = parsed.token;
           this.currentUserSubject.next(parsed.user);
         } else {
-          localStorage.removeItem(STORAGE_KEY);
+          sessionStorage.removeItem(STORAGE_KEY);
         }
       }
     } catch (e) {
       console.warn('Failed to load stored auth:', e);
       localStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(STORAGE_KEY);
     }
   }
 
   private storeAuth(user: AuthMember | null, token: string | null): void {
     try {
+      localStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(STORAGE_KEY);
       if (user) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ user, token }));
-      } else {
-        localStorage.removeItem(STORAGE_KEY);
+        const value = JSON.stringify({ user, token });
+        if (this.remember) {
+          localStorage.setItem(STORAGE_KEY, value);
+        } else {
+          sessionStorage.setItem(STORAGE_KEY, value);
+        }
       }
     } catch (e) {
       console.warn('Failed to store auth:', e);
@@ -137,7 +158,8 @@ export class AuthService {
     return this.currentUserSubject.value;
   }
 
-  login(memberId: string, password: string): Observable<AuthPayload> {
+  login(memberId: string, password: string, remember = false): Observable<AuthPayload> {
+    this.remember = remember;
     return from(
       apolloClient.mutate({
         mutation: LOGIN_MUTATION,
@@ -156,7 +178,8 @@ export class AuthService {
     );
   }
 
-  setAuth(member: AuthMember, token: string): void {
+  setAuth(member: AuthMember, token: string, remember = true): void {
+    this.remember = remember;
     this.token = token;
     this.currentUserSubject.next(member);
     this.storeAuth(member, token);
@@ -165,7 +188,8 @@ export class AuthService {
   logout(): void {
     this.token = null;
     this.currentUserSubject.next(null);
-    this.storeAuth(null, null);
+    localStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(STORAGE_KEY);
   }
 
   updateProfile(firstName: string, lastName: string, particles: string | null, email: string | null): Observable<AuthMember | null> {

@@ -76,6 +76,10 @@ interface HolidayYearGroup { year: number; holidays: HolidayInfo[]; }
             <mat-icon *ngIf="!dateRangeSaving">save</mat-icon>
           </button>
         </div>
+        <div class="date-range-warning" *ngIf="scheduleStartDateObj || scheduleEndDateObj">
+          <mat-icon>warning</mat-icon>
+          {{ 'settings.dateRange.warning' | translate }}
+        </div>
         <div *ngIf="dateRangeMessage" class="message-row" [class.msg-success]="dateRangeSuccess" [class.msg-error]="!dateRangeSuccess">
           <mat-icon>{{ dateRangeSuccess ? 'check_circle' : 'error' }}</mat-icon>
           {{ dateRangeMessage }}
@@ -364,6 +368,22 @@ interface HolidayYearGroup { year: number; holidays: HolidayInfo[]; }
     }
 
     .date-field { width: 200px; }
+
+    .date-range-warning {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      padding: 6px 0 0;
+      color: var(--mat-sys-on-surface-variant);
+    }
+
+    .date-range-warning mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      color: var(--mat-sys-tertiary);
+    }
 
     .message-row {
       display: flex;
@@ -687,6 +707,8 @@ export class ManageOrgSettingsComponent implements OnInit, OnChanges {
   newTypeColorLight = '#c8e6c9';
   newTypeColorDark = '#2e7d32';
 
+  private colorSaveTimer?: ReturnType<typeof setTimeout>;
+
   constructor(
     private appSettingsService: AppSettingsService,
     private holidayService: HolidayService,
@@ -777,11 +799,13 @@ export class ManageOrgSettingsComponent implements OnInit, OnChanges {
   }
 
   private persistSettings(): void {
-    if (this.orgId) {
-      this.appSettingsService.saveOrgSettings(this.buildCurrentSettings() as any, this.orgId).subscribe();
-    } else {
-      this.appSettingsService.saveOrgSettings().subscribe();
-    }
+    const obs = this.orgId
+      ? this.appSettingsService.saveOrgSettings(this.buildCurrentSettings() as any, this.orgId)
+      : this.appSettingsService.saveOrgSettings();
+    obs.subscribe({
+      next: () => this.notificationService.success(this.translate.instant('common.saved')),
+      error: () => this.notificationService.error(this.translate.instant('common.error')),
+    });
   }
 
   private reorderDays(): void {
@@ -848,7 +872,8 @@ export class ManageOrgSettingsComponent implements OnInit, OnChanges {
       this.appSettingsService.setScheduledDayOffColor(this.scheduledDayOffColorLight, this.scheduledDayOffColorDark);
       this.appSettingsService.setNoContractColor(this.noContractColorLight, this.noContractColorDark);
     }
-    this.persistSettings();
+    clearTimeout(this.colorSaveTimer);
+    this.colorSaveTimer = setTimeout(() => this.persistSettings(), 400);
   }
 
   resetWorkingDays(): void {
@@ -879,8 +904,6 @@ export class ManageOrgSettingsComponent implements OnInit, OnChanges {
     if (!this.isDateRangeValid) return;
     const startDate = this.formatDate(this.scheduleStartDateObj!);
     const endDate = this.formatDate(this.scheduleEndDateObj!);
-    const proceed = window.confirm(this.translate.instant('settings.dateRange.confirmDelete'));
-    if (!proceed) return;
     this.dateRangeSaving = true;
     this.dateRangeMessage = null;
     this.appSettingsService.saveDateRange(startDate, endDate).subscribe({

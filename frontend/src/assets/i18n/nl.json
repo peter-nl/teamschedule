@@ -31,7 +31,8 @@
       "orgadmin": "Org Beheerder",
       "sysadmin": "Systeembeheerder"
     },
-    "select": "Selecteer"
+    "select": "Selecteer",
+    "saved": "Opgeslagen"
   },
   "days": {
     "sunday": "Zondag",
@@ -93,6 +94,7 @@
     "password": "Wachtwoord",
     "passwordPlaceholder": "Voer uw wachtwoord in",
     "signIn": "Inloggen",
+    "rememberMe": "Onthoud mij",
     "forgotPassword": "Wachtwoord vergeten?",
     "emailAddress": "Uw e-mailadres",
     "sendResetLink": "Herstelkoppeling versturen",
@@ -219,7 +221,8 @@
       "startDate": "Startdatum",
       "endDate": "Einddatum",
       "saveButton": "Periode opslaan",
-      "confirmDelete": "Het wijzigen van de roosterperiode verwijdert permanent alle vrije dagen van leden die buiten het nieuwe bereik vallen.\n\nWeet u zeker dat u wilt doorgaan?"
+      "confirmDelete": "Het wijzigen van de roosterperiode verwijdert permanent alle vrije dagen van leden die buiten het nieuwe bereik vallen.\n\nWeet u zeker dat u wilt doorgaan?",
+      "warning": "Opslaan verwijdert permanent vrije dagen van leden die buiten de nieuwe periode vallen"
     },
     "holidays": {
       "title": "Feestdagen (Nederland)",
@@ -309,20 +312,30 @@
   "importExport": {
     "title": "Import / Export",
     "subtitle": "Vrije dag-gegevens van leden importeren en exporteren",
+    "orgSubtitle": "Organisatiestructuur en instellingen exporteren en importeren",
     "export": {
-      "title": "Vrije dagen exporteren",
+      "title": "Organisatiegegevens exporteren",
       "description": "Download alle vrije dag-periodes van leden als een JSON-bestand. Dit bevat Lid ID's, namen, datums, dagdelen, beschrijvingen en vrije dag-typen.",
+      "orgDescription": "Download een JSON-bestand met alle organisatie-instellingen, teamstructuur en ledengegevens. Gebruik dit voor back-up of migratie van uw organisatie.",
       "button": "Exporteren naar JSON",
       "success": "{{ count }} vrije dag-periode(s) geëxporteerd.",
       "failed": "Export mislukt: {{ error }}"
     },
     "import": {
-      "title": "Vrije dagen importeren",
+      "title": "Organisatiegegevens importeren",
       "description": "Importeer vrije dag-periodes van leden uit een JSON-bestand. Het bestand moet overeenkomen met het exportformaat. Vrije dagen worden toegevoegd aan bestaande gegevens (niet vervangen). Leden moeten al in het systeem bestaan.",
+      "orgDescription": "Importeer instellingen en teamlidmaatschappen uit een eerder geëxporteerd JSON-bestand. Selecteer hieronder wat u wilt importeren.",
       "selectFile": "JSON-bestand selecteren",
-      "importButton": "{{ count }} vrije dag-periode(s) importeren",
+      "importButton": "Importeren",
+      "orgSettings": "Organisatie-instellingen (werkdagen, kleuren)",
+      "teamMemberships": "Teamlidmaatschappen",
+      "whichTeams": "Welke teams:",
+      "allTeams": "Alle teams",
+      "specificTeam": "Specifiek team",
+      "settingsImported": "Organisatie-instellingen geïmporteerd.",
       "invalidArray": "Ongeldig bestand: een JSON-array verwacht.",
       "invalidJson": "Ongeldig JSON-bestand.",
+      "invalidFormat": "Ongeldig bestand: geen TeamSchedule organisatie-export.",
       "failed": "Import mislukt: {{ error }}"
     }
   },
