@@ -17,6 +17,7 @@ import { AccountPasswordComponent } from '../features/account/account-password.c
 import { ManageOrgComponent } from '../features/manage/manage-org.component';
 import { ManageMembersComponent } from '../features/manage/manage-members.component';
 import { ManageOrganisationsComponent } from '../features/manage/manage-organisations.component';
+import { ClaimDemoDialogComponent } from '../shared/components/claim-demo-dialog.component';
 
 type NavBarType = 'management';
 type PanelType = 'login' | 'profile' | 'password'
@@ -50,7 +51,8 @@ interface ManagementItem {
     AccountPasswordComponent,
     ManageOrgComponent,
     ManageMembersComponent,
-    ManageOrganisationsComponent
+    ManageOrganisationsComponent,
+    ClaimDemoDialogComponent
   ],
   template: `
     <div class="app-layout">
@@ -153,6 +155,13 @@ interface ManagementItem {
 
       <!-- Main Content Area -->
       <main class="main-content">
+        <!-- Demo banner -->
+        <div class="demo-banner" *ngIf="authService.isDemo">
+          <mat-icon>science</mat-icon>
+          <span>{{ 'demo.banner' | translate: { date: demoExpiryDate } }}</span>
+          <button class="demo-banner-btn" (click)="showClaimDialog = true">{{ 'demo.registerButton' | translate }}</button>
+        </div>
+
         <!-- Management views fill the main content area -->
         <app-manage-organisations *ngIf="activePanel === 'manage-organisations'"></app-manage-organisations>
         <app-manage-org *ngIf="activePanel === 'manage-org'" [view]="'org'"></app-manage-org>
@@ -169,6 +178,13 @@ interface ManagementItem {
         <router-outlet *ngIf="!isManagementPanel && !isAccountPanel"></router-outlet>
       </main>
     </div>
+
+    <!-- Claim demo dialog -->
+    <app-claim-demo-dialog
+      *ngIf="showClaimDialog"
+      (close)="showClaimDialog = false"
+      (claimed)="onDemoClaimed($event)">
+    </app-claim-demo-dialog>
   `,
   styles: [`
     .app-layout {
@@ -418,6 +434,39 @@ interface ManagementItem {
       z-index: 149;
     }
 
+    /* Demo banner */
+    .demo-banner {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: var(--mat-sys-tertiary-container);
+      color: var(--mat-sys-on-tertiary-container);
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+
+    .demo-banner mat-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+    }
+
+    .demo-banner span { flex: 1; }
+
+    .demo-banner-btn {
+      background: var(--mat-sys-tertiary);
+      color: var(--mat-sys-on-tertiary);
+      border: none;
+      border-radius: 6px;
+      padding: 4px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
     /* Main Content */
     .main-content {
       flex: 1;
@@ -554,6 +603,13 @@ export class ShellComponent {
   activePanel: PanelType | null = null;
   version = APP_VERSION;
   currentLang = 'en';
+  showClaimDialog = false;
+
+  get demoExpiryDate(): string {
+    const user = this.authService.currentUser;
+    // JWT doesn't carry demoExpiresAt; show generic "7 days" note instead
+    return '';
+  }
 
   constructor(
     private router: Router,
@@ -758,6 +814,13 @@ export class ShellComponent {
     this.currentLang = newLang;
     this.translate.use(newLang);
     this.userPreferencesService.setLanguage(newLang);
+  }
+
+  onDemoClaimed(payload: { member: any; token: string }): void {
+    this.showClaimDialog = false;
+    this.authService.setAuth(payload.member, payload.token, true);
+    this.notificationService.success(this.translate.instant('demo.claimSuccess'));
+    this.cdr.detectChanges();
   }
 
   onSignOut(): void {

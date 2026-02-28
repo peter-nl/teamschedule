@@ -20,6 +20,7 @@ interface AuthUser {
   organisationId: number | null;
   isOrgAdmin: boolean;
   teamAdminIds: number[];
+  isDemo?: boolean;
 }
 
 interface AuthContext {
@@ -34,6 +35,7 @@ function generateToken(member: AuthUser): string {
       organisationId: member.organisationId,
       isOrgAdmin: member.isOrgAdmin,
       teamAdminIds: member.teamAdminIds,
+      isDemo: member.isDemo ?? false,
     },
     JWT_SECRET,
     { expiresIn: JWT_EXPIRES_IN as any }
@@ -103,7 +105,7 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
-// Test database connection and run migrations
+// Test database connection, run migrations, clean up expired demos
 pool.connect(async (err, _client, release) => {
   if (err) {
     console.error('Error connecting to the database:', err.stack);
@@ -112,6 +114,8 @@ pool.connect(async (err, _client, release) => {
     release();
     try {
       await runMigrations(pool);
+      await pool.query('DELETE FROM organisation WHERE is_demo = true AND demo_expires_at < NOW()');
+      console.log('Expired demo organisations cleaned up');
     } catch (error) {
       console.error('Failed to run migrations:', error);
     }
@@ -184,6 +188,8 @@ const typeDefs = `#graphql
     memberCount: Int!
     teamCount: Int!
     orgAdmins: [Member!]!
+    isDemo: Boolean!
+    demoExpiresAt: String
   }
 
   type Team {
@@ -401,6 +407,9 @@ const typeDefs = `#graphql
     setMemberScheduleDisabled(memberId: String!, disabled: Boolean!): Member!
     # Self
     updateScheduleDisabled(disabled: Boolean!): Member!
+    # Demo (public)
+    requestDemo(email: String!, lang: String): SimpleResult!
+    claimDemo(orgName: String!, newAdminId: String!, newPassword: String!): AuthPayload!
     # Auth (public)
     login(memberId: String!, password: String!): AuthPayload!
     requestPasswordReset(email: String!): SimpleResult!
@@ -540,7 +549,7 @@ const resolvers = {
       const effectiveOrgId = orgId && user.role === 'sysadmin' ? Number(orgId) : user.organisationId;
       if (effectiveOrgId === null) throw new Error('No organisation');
       const result = await pool.query(
-        `SELECT id, name FROM organisation WHERE id = $1`,
+        `SELECT id, name, is_demo AS "isDemo", demo_expires_at AS "demoExpiresAt" FROM organisation WHERE id = $1`,
         [effectiveOrgId]
       );
       if (result.rows.length === 0) throw new Error('Organisation not found');
@@ -1203,6 +1212,224 @@ const resolvers = {
       });
     },
 
+    // Demo mutations
+    requestDemo: async (_: any, { email, lang }: { email: string; lang?: string }) => {
+      try {
+        const appUrl = process.env.APP_URL || 'http://localhost:4200';
+        const isNl = lang === 'nl';
+
+        // Clean up expired demos
+        await pool.query('DELETE FROM organisation WHERE is_demo = true AND demo_expires_at < NOW()');
+
+        // Rate limit: one demo per email per 24h
+        const existing = await pool.query(
+          `SELECT id FROM organisation WHERE is_demo = true AND LOWER(demo_email) = LOWER($1) AND demo_expires_at > NOW()`,
+          [email]
+        );
+        if (existing.rows.length > 0) {
+          const msg = isNl
+            ? 'Er is al een demo gestuurd naar dit adres. Controleer je inbox of probeer het morgen opnieuw.'
+            : 'A demo was already sent to this address. Check your inbox or try again tomorrow.';
+          return { success: false, message: msg };
+        }
+
+        // Generate unique 6-char hex suffix for member IDs
+        const sfx = crypto.randomBytes(3).toString('hex');
+        const adminId   = `da${sfx}`; // e.g. daa3f2b1 (8 chars)
+        const leadId    = `dl${sfx}`;
+        const mem1Id    = `m1${sfx}`;
+        const mem2Id    = `m2${sfx}`;
+        const mem3Id    = `m3${sfx}`;
+
+        // Random 8-char passwords
+        const rndPass = () => crypto.randomBytes(4).toString('hex'); // 8 hex chars
+        const adminPass = rndPass();
+        const leadPass  = rndPass();
+        const mem1Pass  = rndPass();
+
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        const orgName = isNl ? 'Demo Organisatie' : 'Demo Organisation';
+
+        // Create demo organisation
+        const orgResult = await pool.query(
+          `INSERT INTO organisation (name, is_demo, demo_expires_at, demo_email)
+           VALUES ($1, true, $2, $3) RETURNING id`,
+          [orgName, expiresAt, email.toLowerCase()]
+        );
+        const orgId = orgResult.rows[0].id;
+
+        // Hash passwords
+        const [adminHash, leadHash, mem1Hash] = await Promise.all([
+          bcrypt.hash(adminPass, 10),
+          bcrypt.hash(leadPass, 10),
+          bcrypt.hash(mem1Pass, 10),
+        ]);
+
+        // Create members
+        await pool.query(
+          `INSERT INTO member (id, first_name, last_name, password_hash, role, organisation_id) VALUES
+           ($1, 'John',  'Smith',   $6, 'user', $11),
+           ($2, 'Sarah', 'Johnson', $7, 'user', $11),
+           ($3, 'Mike',  'Brown',   $8, 'user', $11),
+           ($4, 'Lisa',  'Chen',    $9, 'user', $11),
+           ($5, 'Tom',   'Wilson',  $10,'user', $11)`,
+          [adminId, leadId, mem1Id, mem2Id, mem3Id,
+           adminHash, leadHash, mem1Hash, mem1Hash, mem1Hash,
+           orgId]
+        );
+
+        // Grant roles
+        await pool.query(
+          `INSERT INTO member_role (member_id, role, organisation_id, team_id) VALUES ($1, 'orgadmin', $2, NULL)`,
+          [adminId, orgId]
+        );
+
+        // Create teams
+        const teamNames = isNl
+          ? ['Planning', 'Operaties', 'Ondersteuning']
+          : ['Planning', 'Operations', 'Support'];
+        const tRes = await pool.query(
+          `INSERT INTO team (name, organisation_id) VALUES ($1,$4),($2,$4),($3,$4) RETURNING id`,
+          [...teamNames, orgId]
+        );
+        const [planId, opsId, supId] = tRes.rows.map((r: any) => r.id);
+
+        // Assign team admin
+        await pool.query(
+          `INSERT INTO member_role (member_id, role, organisation_id, team_id) VALUES ($1, 'teamadmin', $2, $3)`,
+          [leadId, orgId, planId]
+        );
+
+        // Assign members to teams
+        const memberships = [
+          [planId, adminId], [planId, leadId], [planId, mem2Id],
+          [opsId,  adminId], [opsId,  mem1Id],
+          [supId,  mem1Id],  [supId,  mem3Id],
+        ];
+        for (const [tId, mId] of memberships) {
+          await pool.query(
+            'INSERT INTO team_member (team_id, member_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+            [tId, mId]
+          );
+        }
+
+        // Holiday types
+        const htRes = await pool.query(
+          `INSERT INTO holiday_type (name, color_light, color_dark, sort_order, is_system, organisation_id) VALUES
+           ($1, '#a5d6a7', '#2e7d32', 1, false, $3),
+           ($2, '#ffcc80', '#e65100', 2, false, $3) RETURNING id`,
+          [isNl ? 'Jaarlijks verlof' : 'Annual Leave',
+           isNl ? 'Ziekteverlof'     : 'Sick Leave',
+           orgId]
+        );
+        const annualLeaveId = htRes.rows[0].id;
+
+        // Seed a couple of holidays (relative to today)
+        const today = new Date();
+        const nextMon = new Date(today);
+        nextMon.setDate(today.getDate() + ((8 - today.getDay()) % 7 || 7)); // next Monday
+        const twoWeeks = new Date(today);
+        twoWeeks.setDate(today.getDate() + 14);
+
+        await pool.query(
+          `INSERT INTO member_holiday (member_id, start_date, end_date, start_day_part, end_day_part, holiday_type_id) VALUES
+           ($1, $3, $4, 'full', 'full', $6),
+           ($2, $5, $5, 'full', 'full', $6)`,
+          [mem1Id, mem2Id,
+           nextMon.toISOString().split('T')[0],
+           new Date(nextMon.getTime() + 2 * 86400000).toISOString().split('T')[0],
+           twoWeeks.toISOString().split('T')[0],
+           annualLeaveId]
+        );
+
+        // Org settings (Mon–Fri)
+        const settingPairs = [
+          ['working_days', JSON.stringify([false, true, true, true, true, true, false])],
+          ['week_start_day', '1'],
+        ];
+        for (const [k, v] of settingPairs) {
+          await setOrgSetting(orgId, k, v);
+        }
+
+        // Send email
+        const expiryStr = expiresAt.toLocaleDateString(isNl ? 'nl-NL' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+        const subject = isNl ? 'Je TeamSchedule demo is klaar' : 'Your TeamSchedule demo is ready';
+        const html = isNl ? `
+          <p>Je TeamSchedule demo-omgeving is ingesteld en klaar om te verkennen.</p>
+          <p>Log in via: <a href="${appUrl}">${appUrl}</a></p>
+          <table style="border-collapse:collapse;margin:16px 0">
+            <tr style="background:#f5f5f5"><th style="padding:8px 16px;text-align:left;border:1px solid #ddd">Rol</th><th style="padding:8px 16px;text-align:left;border:1px solid #ddd">Login ID</th><th style="padding:8px 16px;text-align:left;border:1px solid #ddd">Wachtwoord</th></tr>
+            <tr><td style="padding:8px 16px;border:1px solid #ddd">Org Admin</td><td style="padding:8px 16px;border:1px solid #ddd">${adminId}</td><td style="padding:8px 16px;border:1px solid #ddd">${adminPass}</td></tr>
+            <tr><td style="padding:8px 16px;border:1px solid #ddd">Teamleider</td><td style="padding:8px 16px;border:1px solid #ddd">${leadId}</td><td style="padding:8px 16px;border:1px solid #ddd">${leadPass}</td></tr>
+            <tr><td style="padding:8px 16px;border:1px solid #ddd">Teamlid</td><td style="padding:8px 16px;border:1px solid #ddd">${mem1Id}</td><td style="padding:8px 16px;border:1px solid #ddd">${mem1Pass}</td></tr>
+          </table>
+          <p>Je demo verloopt op <strong>${expiryStr}</strong>.</p>
+          <p>Wil je je gegevens bewaren? Log in als Org Admin en klik op <strong>Registreren / Opslaan</strong> in de app.</p>
+        ` : `
+          <p>Your TeamSchedule demo environment is set up and ready to explore.</p>
+          <p>Log in at: <a href="${appUrl}">${appUrl}</a></p>
+          <table style="border-collapse:collapse;margin:16px 0">
+            <tr style="background:#f5f5f5"><th style="padding:8px 16px;text-align:left;border:1px solid #ddd">Role</th><th style="padding:8px 16px;text-align:left;border:1px solid #ddd">Login ID</th><th style="padding:8px 16px;text-align:left;border:1px solid #ddd">Password</th></tr>
+            <tr><td style="padding:8px 16px;border:1px solid #ddd">Org Admin</td><td style="padding:8px 16px;border:1px solid #ddd">${adminId}</td><td style="padding:8px 16px;border:1px solid #ddd">${adminPass}</td></tr>
+            <tr><td style="padding:8px 16px;border:1px solid #ddd">Team Leader</td><td style="padding:8px 16px;border:1px solid #ddd">${leadId}</td><td style="padding:8px 16px;border:1px solid #ddd">${leadPass}</td></tr>
+            <tr><td style="padding:8px 16px;border:1px solid #ddd">Member</td><td style="padding:8px 16px;border:1px solid #ddd">${mem1Id}</td><td style="padding:8px 16px;border:1px solid #ddd">${mem1Pass}</td></tr>
+          </table>
+          <p>Your demo expires on <strong>${expiryStr}</strong>.</p>
+          <p>Want to keep your data? Log in as Org Admin and click <strong>Register / Save</strong> inside the app.</p>
+        `;
+        await sendEmail(email, subject, html);
+        return { success: true, message: isNl ? 'Demo ingesteld! Controleer je e-mail.' : 'Demo created! Check your email.' };
+      } catch (error) {
+        console.error('requestDemo error:', error);
+        return { success: false, message: 'Failed to create demo. Please try again.' };
+      }
+    },
+
+    claimDemo: async (_: any, { orgName, newAdminId, newPassword }: { orgName: string; newAdminId: string; newPassword: string }, ctx: AuthContext) => {
+      const user = requireAuth(ctx);
+      if (!user.isDemo) throw new Error('Current organisation is not a demo');
+      if (!user.isOrgAdmin) throw new Error('Only the org admin can register the demo');
+      if (!newAdminId || newAdminId.length > 10) throw new Error('Login ID must be 1–10 characters');
+      if (!/^[a-zA-Z0-9._-]+$/.test(newAdminId)) throw new Error('Login ID may only contain letters, digits, . - _');
+
+      // Check the new ID is not already taken
+      const taken = await pool.query('SELECT id FROM member WHERE id = $1', [newAdminId]);
+      if (taken.rows.length > 0) throw new Error('That login ID is already in use');
+
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      const orgId = user.organisationId!;
+
+      // Create new admin member
+      await pool.query(
+        'INSERT INTO member (id, first_name, last_name, password_hash, role, organisation_id) VALUES ($1, $2, $3, $4, $5, $6)',
+        [newAdminId, 'Admin', '', hashedPassword, 'user', orgId]
+      );
+      await pool.query(
+        'INSERT INTO member_role (member_id, role, organisation_id, team_id) VALUES ($1, $2, $3, NULL)',
+        [newAdminId, 'orgadmin', orgId]
+      );
+
+      // Convert demo org to real
+      await pool.query(
+        'UPDATE organisation SET is_demo = false, demo_expires_at = NULL, demo_email = NULL, name = $2 WHERE id = $1',
+        [orgId, orgName]
+      );
+
+      // Return fresh JWT for new admin
+      const { isOrgAdmin, teamAdminIds } = await fetchMemberRoles(newAdminId);
+      const authUser: AuthUser = {
+        id: newAdminId,
+        role: 'user',
+        organisationId: orgId,
+        isOrgAdmin,
+        teamAdminIds,
+        isDemo: false,
+      };
+      const memberResult = await pool.query('SELECT * FROM member WHERE id = $1', [newAdminId]);
+      const member = { ...mapMemberRow(memberResult.rows[0]), isOrgAdmin, teamAdminIds, isDemo: false };
+      return { success: true, message: 'Account created successfully', member, token: generateToken(authUser) };
+    },
+
     // Auth mutations
     login: async (_: any, { memberId, password }: { memberId: string; password: string }) => {
       try {
@@ -1216,18 +1443,19 @@ const resolvers = {
           return { success: false, message: 'Invalid password', member: null, token: null };
         }
         const { isOrgAdmin, teamAdminIds } = await fetchMemberRoles(row.id);
+        // Fetch org demo status
+        const isDemo = row.organisation_id
+          ? ((await pool.query('SELECT is_demo FROM organisation WHERE id = $1', [row.organisation_id])).rows[0]?.is_demo ?? false)
+          : false;
         const authUser: AuthUser = {
           id: row.id,
           role: row.role,
           organisationId: row.organisation_id,
           isOrgAdmin,
           teamAdminIds,
+          isDemo,
         };
-        const member = {
-          ...mapMemberRow(row),
-          isOrgAdmin,
-          teamAdminIds,
-        };
+        const member = { ...mapMemberRow(row), isOrgAdmin, teamAdminIds, isDemo };
         return { success: true, message: 'Login successful', member, token: generateToken(authUser) };
       } catch {
         return { success: false, message: 'Login failed', member: null, token: null };
@@ -1407,6 +1635,8 @@ const resolvers = {
       );
       return result.rows.map(mapMemberRow);
     },
+    isDemo: (parent: any) => parent.isDemo ?? false,
+    demoExpiresAt: (parent: any) => parent.demoExpiresAt ? new Date(parent.demoExpiresAt).toISOString() : null,
   },
 
   Team: {
@@ -1494,6 +1724,7 @@ const startServer = async () => {
             organisationId?: number | null;
             isOrgAdmin?: boolean;
             teamAdminIds?: number[];
+            isDemo?: boolean;
           };
           return {
             user: {
@@ -1502,6 +1733,7 @@ const startServer = async () => {
               organisationId: decoded.organisationId ?? null,
               isOrgAdmin: decoded.isOrgAdmin ?? false,
               teamAdminIds: decoded.teamAdminIds ?? [],
+              isDemo: decoded.isDemo ?? false,
             },
           };
         } catch {
