@@ -24,7 +24,7 @@ services:
       PORT: 4000
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
-      APP_URL: ${APP_URL}
+      APP_URL: ${APP_URL:-http://teamschedule.appconcepts.net}
     ports:
       - "127.0.0.1:1200:4000"
     depends_on:

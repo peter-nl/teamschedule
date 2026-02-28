@@ -14,6 +14,7 @@ export interface AuthMember {
   isOrgAdmin: boolean;
   teamAdminIds: number[];
   scheduleDisabled: boolean;
+  isDemo?: boolean;
 }
 
 export interface AuthPayload {
@@ -34,6 +35,7 @@ const MEMBER_FIELDS = `
   scheduleDisabled
   isOrgAdmin
   teamAdminIds
+  isDemo
 `;
 
 const LOGIN_MUTATION = gql`
@@ -272,6 +274,10 @@ export class AuthService {
 
   get isAnyAdmin(): boolean {
     return this.isOrgAdmin || this.isTeamAdmin;
+  }
+
+  get isDemo(): boolean {
+    return this.currentUser?.isDemo ?? false;
   }
 
   get teamAdminIds(): number[] {

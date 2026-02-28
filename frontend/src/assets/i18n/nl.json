@@ -499,5 +499,26 @@
     "adminAdded": "Beheerder toegevoegd",
     "adminRemoved": "Beheerder verwijderd",
     "selectPrompt": "Selecteer een organisatie om de instellingen te bekijken"
+  },
+  "demo": {
+    "tryDemo": "Probeer Demo",
+    "cardDesc": "Verken TeamSchedule met vooraf geladen gegevens. We sturen je inloggegevens voor drie verschillende toegangsniveaus.",
+    "emailPlaceholder": "jouw@email.nl",
+    "startButton": "Start gratis demo",
+    "checking": "Instellen...",
+    "successText": "Demo is klaar! We hebben inloggegevens gestuurd naar {{ email }}. Controleer je inbox.",
+    "banner": "Demo-omgeving — log in als Org Admin om te registreren",
+    "registerButton": "Registreren / Opslaan",
+    "claimTitle": "Maak je account aan",
+    "claimDesc": "Converteer deze demo naar een echt account. Kies een organisatienaam en je persoonlijke inloggegevens.",
+    "orgNameLabel": "Organisatienaam",
+    "orgNamePlaceholder": "bijv. Acme BV",
+    "newIdLabel": "Jouw login ID",
+    "newIdPlaceholder": "bijv. jansen",
+    "newIdHint": "Max 10 tekens. Letters, cijfers, . - _ toegestaan.",
+    "newPasswordLabel": "Wachtwoord",
+    "newPasswordPlaceholder": "Kies een sterk wachtwoord",
+    "claimButton": "Account aanmaken",
+    "claimSuccess": "Account aangemaakt! Welkom bij TeamSchedule."
   }
 }

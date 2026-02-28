@@ -499,5 +499,26 @@
     "adminAdded": "Admin added",
     "adminRemoved": "Admin removed",
     "selectPrompt": "Select an organisation to view its settings"
+  },
+  "demo": {
+    "tryDemo": "Try Demo",
+    "cardDesc": "Explore TeamSchedule with pre-loaded data. We'll email you login credentials for three different access levels.",
+    "emailPlaceholder": "your@email.com",
+    "startButton": "Start free demo",
+    "checking": "Setting up...",
+    "successText": "Demo is ready! We've sent login credentials to {{ email }}. Check your inbox.",
+    "banner": "Demo environment — log in as Org Admin to register",
+    "registerButton": "Register / Save",
+    "claimTitle": "Create your account",
+    "claimDesc": "Convert this demo into a real account. Choose an organisation name and your personal login credentials.",
+    "orgNameLabel": "Organisation name",
+    "orgNamePlaceholder": "e.g. Acme Corp",
+    "newIdLabel": "Your login ID",
+    "newIdPlaceholder": "e.g. jsmith",
+    "newIdHint": "Max 10 characters. Letters, digits, . - _ only.",
+    "newPasswordLabel": "Password",
+    "newPasswordPlaceholder": "Choose a strong password",
+    "claimButton": "Create account",
+    "claimSuccess": "Account created! Welcome to TeamSchedule."
   }
 }
