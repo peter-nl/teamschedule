@@ -421,12 +421,17 @@ const UPDATE_TEAM = gql`
                           </mat-icon>
                           <mat-icon class="th-icon drag-icon" *ngIf="memberSortCol !== col">drag_indicator</mat-icon>
                         </th>
+                        <th class="member-th role-col"></th>
                         <th *ngIf="canEditSelectedTeam" class="member-th action-col"></th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr *ngFor="let m of sortedMembers()">
                         <td *ngFor="let col of nameColumns" class="member-td">{{ getNamePart(m, col) }}</td>
+                        <td class="member-td role-td">
+                          <span *ngIf="memberRole(m) === 'orgAdmin'" class="role-badge role-org">{{ 'common.roleOrgAdmin' | translate }}</span>
+                          <span *ngIf="memberRole(m) === 'teamAdmin'" class="role-badge role-team">{{ 'common.roleTeamAdmin' | translate }}</span>
+                        </td>
                         <td *ngIf="canEditSelectedTeam" class="member-td action-td">
                           <button mat-icon-button class="remove-btn"
                                   (click)="removeMemberFromTeam(m)"
@@ -862,6 +867,29 @@ const UPDATE_TEAM = gql`
 
     .member-th .drag-icon { opacity: 0.4; }
 
+    .role-col { width: 1px; white-space: nowrap; }
+
+    .role-td { padding: 4px 8px; white-space: nowrap; }
+
+    .role-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .role-org {
+      background: var(--mat-sys-tertiary-container);
+      color: var(--mat-sys-on-tertiary-container);
+    }
+
+    .role-team {
+      background: var(--mat-sys-secondary-container);
+      color: var(--mat-sys-on-secondary-container);
+    }
+
     .action-col { width: 40px; }
 
     .member-th.cdk-drag-placeholder { display: table-cell; opacity: 0.4; }
@@ -1246,6 +1274,12 @@ export class ManageOrgComponent implements OnInit, OnChanges {
 
   dropNameColumn(event: CdkDragDrop<string[]>): void {
     moveItemInArray(this.nameColumns, event.previousIndex, event.currentIndex);
+  }
+
+  memberRole(m: MemberRef): 'orgAdmin' | 'teamAdmin' | null {
+    if (this.orgAdmins.some(a => a.id === m.id)) return 'orgAdmin';
+    if (this.selectedTeam?.teamAdmins.some(a => a.id === m.id)) return 'teamAdmin';
+    return null;
   }
 
   fullName(m: MemberRef): string {
