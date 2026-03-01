@@ -74,7 +74,9 @@
       "teams": "Teams",
       "members": "Members",
       "importExport": "Import / Export",
-      "settings": "Settings"
+      "settings": "Settings",
+      "demos": "Demos",
+      "eventLog": "Event Log"
     },
     "messages": {
       "loggedOut": "You have been logged out"
@@ -535,5 +537,46 @@
     "newPasswordPlaceholder": "Choose a strong password",
     "claimButton": "Create account",
     "claimSuccess": "Account created! Welcome to TeamSchedule."
+  },
+  "demos": {
+    "title": "Demo Organisations",
+    "description": "Active demo environments. You can force-terminate any demo to clean up all associated data.",
+    "colName": "Organisation",
+    "colEmail": "Requested by",
+    "colCreated": "Created",
+    "colExpires": "Expires",
+    "colMembers": "Members",
+    "terminateBtn": "Terminate",
+    "confirmTerminate": "Confirm – delete all data",
+    "cancelTerminate": "Cancel",
+    "terminated": "Demo \"{{name}}\" terminated and all data deleted.",
+    "noData": "No active demo organisations."
+  },
+  "eventLog": {
+    "title": "Event Log",
+    "description": "Audit trail of key security and business events.",
+    "filterLabel": "Event type",
+    "filterAll": "All events",
+    "colTime": "Time",
+    "colEvent": "Event",
+    "colActor": "Actor",
+    "colIp": "IP address",
+    "colDetails": "Details",
+    "noData": "No events found.",
+    "loadMore": "Load more",
+    "types": {
+      "login_success": "Login success",
+      "login_failed": "Login failed",
+      "demo_requested": "Demo requested",
+      "demo_claimed": "Demo claimed",
+      "demo_terminated": "Demo terminated",
+      "password_reset_requested": "Password reset requested",
+      "password_reset_completed": "Password reset completed",
+      "email_config_saved": "Email config saved",
+      "org_created": "Org created",
+      "org_deleted": "Org deleted",
+      "member_created": "Member created",
+      "member_deleted": "Member deleted"
+    }
   }
 }

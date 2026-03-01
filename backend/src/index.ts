@@ -25,6 +25,7 @@ interface AuthUser {
 
 interface AuthContext {
   user: AuthUser | null;
+  ip: string | null;
 }
 
 function generateToken(member: AuthUser): string {
@@ -98,6 +99,14 @@ function decrypt(data: string): string {
   const decipher = crypto.createDecipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
   decipher.setAuthTag(tag);
   return decipher.update(encrypted) + decipher.final('utf8');
+}
+
+// Event logging helper — fire-and-forget, never throws
+async function logEvent(eventType: string, actorId: string | null, ip: string | null, details?: object): Promise<void> {
+  pool.query(
+    'INSERT INTO event_log (event_type, actor_id, ip_address, details) VALUES ($1, $2, $3, $4)',
+    [eventType, actorId, ip, details ? JSON.stringify(details) : null]
+  ).catch(() => {});
 }
 
 // PostgreSQL connection pool
@@ -193,6 +202,17 @@ const typeDefs = `#graphql
     orgAdmins: [Member!]!
     isDemo: Boolean!
     demoExpiresAt: String
+    demoEmail: String
+    createdAt: String
+  }
+
+  type EventLogEntry {
+    id: ID!
+    createdAt: String!
+    eventType: String!
+    actorId: String
+    ipAddress: String
+    details: String
   }
 
   type Team {
@@ -364,7 +384,9 @@ const typeDefs = `#graphql
     testDatabase: String
     # Sysadmin
     organisations: [Organisation!]!
+    demoOrgs: [Organisation!]!
     emailConfig: EmailConfig
+    eventLog(limit: Int, offset: Int, eventType: String): [EventLogEntry!]!
     # Org-scoped
     teams(orgId: ID): [Team!]!
     team(id: ID!): Team
@@ -391,6 +413,7 @@ const typeDefs = `#graphql
     deleteOrganisation(id: ID!): SimpleResult!
     saveEmailConfig(host: String!, port: Int!, secure: Boolean!, user: String!, password: String!, from: String!, bcc: String): SimpleResult!
     testEmailConfig(testAddress: String!): SimpleResult!
+    terminateDemo(orgId: ID!): SimpleResult!
     # OrgAdmin
     createTeam(name: String!, orgId: ID): Team!
     updateTeam(id: ID!, name: String!): Team
@@ -502,6 +525,32 @@ const resolvers = {
         name: row.name,
         memberCount: parseInt(row.member_count),
         teamCount: parseInt(row.team_count),
+        isDemo: row.is_demo ?? false,
+        demoExpiresAt: row.demo_expires_at ?? null,
+        demoEmail: row.demo_email ?? null,
+        createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
+      }));
+    },
+
+    demoOrgs: async (_: any, __: any, ctx: AuthContext) => {
+      requireSysadmin(ctx);
+      const result = await pool.query(`
+        SELECT o.*,
+          (SELECT COUNT(*) FROM member WHERE organisation_id = o.id) as member_count,
+          (SELECT COUNT(*) FROM team WHERE organisation_id = o.id) as team_count
+        FROM organisation o
+        WHERE o.is_demo = true
+        ORDER BY o.created_at DESC
+      `);
+      return result.rows.map(row => ({
+        id: row.id,
+        name: row.name,
+        memberCount: parseInt(row.member_count),
+        teamCount: parseInt(row.team_count),
+        isDemo: true,
+        demoExpiresAt: row.demo_expires_at ?? null,
+        demoEmail: row.demo_email ?? null,
+        createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
       }));
     },
 
@@ -519,6 +568,25 @@ const resolvers = {
         bcc: settings.smtp_bcc || null,
         configured: !!(settings.smtp_host && settings.smtp_user && settings.smtp_pass),
       };
+    },
+
+    eventLog: async (_: any, { limit, offset, eventType }: { limit?: number; offset?: number; eventType?: string }, ctx: AuthContext) => {
+      requireSysadmin(ctx);
+      const params: any[] = [limit ?? 50, offset ?? 0];
+      let where = '';
+      if (eventType) { params.push(eventType); where = `WHERE event_type = $${params.length}`; }
+      const result = await pool.query(
+        `SELECT id, created_at, event_type, actor_id, ip_address, details FROM event_log ${where} ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+        params
+      );
+      return result.rows.map(row => ({
+        id: row.id,
+        createdAt: new Date(row.created_at).toISOString(),
+        eventType: row.event_type,
+        actorId: row.actor_id ?? null,
+        ipAddress: row.ip_address ?? null,
+        details: row.details ? JSON.stringify(row.details) : null,
+      }));
     },
 
     // Org-scoped queries
@@ -762,6 +830,7 @@ const resolvers = {
         [name]
       );
       const row = result.rows[0];
+      logEvent('org_created', ctx.user?.id ?? null, ctx.ip, { orgId: row.id, orgName: row.name });
       return { id: row.id, name: row.name, memberCount: 0, teamCount: 0 };
     },
 
@@ -794,8 +863,34 @@ const resolvers = {
       if (parseInt(counts.rows[0].mc) > 0 || parseInt(counts.rows[0].tc) > 0) {
         return { success: false, message: 'Cannot delete an organisation that still has members or teams' };
       }
+      const orgRow = await pool.query('SELECT name FROM organisation WHERE id = $1', [id]);
       await pool.query('DELETE FROM organisation WHERE id = $1', [id]);
+      logEvent('org_deleted', ctx.user?.id ?? null, ctx.ip, { orgId: id, orgName: orgRow.rows[0]?.name });
       return { success: true, message: 'Organisation deleted' };
+    },
+
+    terminateDemo: async (_: any, { orgId }: { orgId: string }, ctx: AuthContext) => {
+      const user = requireSysadmin(ctx);
+      const orgResult = await pool.query('SELECT id, name FROM organisation WHERE id = $1 AND is_demo = true', [orgId]);
+      if (orgResult.rows.length === 0) return { success: false, message: 'Demo organisation not found' };
+      const org = orgResult.rows[0];
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query('DELETE FROM member_holiday WHERE member_id IN (SELECT id FROM member WHERE organisation_id = $1)', [org.id]);
+        await client.query('DELETE FROM member WHERE organisation_id = $1', [org.id]);
+        await client.query('DELETE FROM holiday_type WHERE organisation_id = $1', [org.id]);
+        await client.query('DELETE FROM team WHERE organisation_id = $1', [org.id]);
+        await client.query('DELETE FROM organisation WHERE id = $1', [org.id]);
+        await client.query('COMMIT');
+      } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+      } finally {
+        client.release();
+      }
+      logEvent('demo_terminated', user.id, ctx.ip, { orgId: org.id, orgName: org.name });
+      return { success: true, message: 'Demo organisation terminated' };
     },
 
     saveEmailConfig: async (_: any, args: { host: string; port: number; secure: boolean; user: string; password: string; from: string; bcc?: string }, ctx: AuthContext) => {
@@ -817,6 +912,7 @@ const resolvers = {
           [key, value]
         );
       }
+      logEvent('email_config_saved', ctx.user?.id ?? null, ctx.ip);
       return { success: true, message: 'Email configuration saved' };
     },
 
@@ -869,7 +965,9 @@ const resolvers = {
         'INSERT INTO member (id, first_name, last_name, particles, email, password_hash, organisation_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
         [id, firstName, lastName, particles || null, email || null, hashedPassword, effectiveOrgId]
       );
-      return mapMemberRow(result.rows[0]);
+      const member = mapMemberRow(result.rows[0]);
+      logEvent('member_created', ctx.user?.id ?? null, ctx.ip, { memberId: id, orgId: effectiveOrgId });
+      return member;
     },
 
     deleteMember: async (_: any, { id }: { id: number }, ctx: AuthContext) => {
@@ -878,6 +976,7 @@ const resolvers = {
         'DELETE FROM member WHERE id = $1 AND ($2::int IS NULL OR organisation_id = $2)',
         [id, user.organisationId]
       );
+      if ((result.rowCount ?? 0) > 0) logEvent('member_deleted', ctx.user?.id ?? null, ctx.ip, { memberId: id, orgId: user.organisationId });
       return (result.rowCount ?? 0) > 0;
     },
 
@@ -1237,7 +1336,7 @@ const resolvers = {
     },
 
     // Demo mutations
-    requestDemo: async (_: any, { email, lang }: { email: string; lang?: string }) => {
+    requestDemo: async (_: any, { email, lang }: { email: string; lang?: string }, ctx: AuthContext) => {
       try {
         const appUrl = process.env.APP_URL || 'http://localhost:4200';
         const isNl = lang === 'nl';
@@ -1429,6 +1528,7 @@ const resolvers = {
           <p>Want to keep your data? Log in as Org Admin and click <strong>Register / Save</strong> inside the app.</p>
         `;
         await sendEmail(email, subject, html);
+        logEvent('demo_requested', null, ctx.ip, { email, lang: lang ?? 'en' });
         return { success: true, message: isNl ? 'Demo ingesteld! Controleer je e-mail.' : 'Demo created! Check your email.' };
       } catch (error) {
         console.error('requestDemo error:', error);
@@ -1478,19 +1578,22 @@ const resolvers = {
       };
       const memberResult = await pool.query('SELECT * FROM member WHERE id = $1', [newAdminId]);
       const member = { ...mapMemberRow(memberResult.rows[0]), isOrgAdmin, teamAdminIds, isDemo: false };
+      logEvent('demo_claimed', newAdminId, ctx.ip, { orgName, newAdminId });
       return { success: true, message: 'Account created successfully', member, token: generateToken(authUser) };
     },
 
     // Auth mutations
-    login: async (_: any, { memberId, password }: { memberId: string; password: string }) => {
+    login: async (_: any, { memberId, password }: { memberId: string; password: string }, ctx: AuthContext) => {
       try {
         const result = await pool.query('SELECT * FROM member WHERE id = $1', [memberId]);
         if (result.rows.length === 0) {
+          logEvent('login_failed', null, ctx.ip, { attemptedId: memberId });
           return { success: false, message: 'Member not found', member: null, token: null };
         }
         const row = result.rows[0];
         const passwordValid = await bcrypt.compare(password, row.password_hash);
         if (!passwordValid) {
+          logEvent('login_failed', null, ctx.ip, { attemptedId: memberId });
           return { success: false, message: 'Invalid password', member: null, token: null };
         }
         const { isOrgAdmin, teamAdminIds } = await fetchMemberRoles(row.id);
@@ -1507,6 +1610,7 @@ const resolvers = {
           isDemo,
         };
         const member = { ...mapMemberRow(row), isOrgAdmin, teamAdminIds, isDemo };
+        logEvent('login_success', row.id, ctx.ip, { memberId: row.id });
         return { success: true, message: 'Login successful', member, token: generateToken(authUser) };
       } catch {
         return { success: false, message: 'Login failed', member: null, token: null };
@@ -1594,7 +1698,7 @@ const resolvers = {
       return mapHolidayRow(result.rows[0]);
     },
 
-    requestPasswordReset: async (_: any, { email }: { email: string }) => {
+    requestPasswordReset: async (_: any, { email }: { email: string }, ctx: AuthContext) => {
       const genericMessage = 'If an account with that email exists, a password reset link has been sent.';
       try {
         const memberResult = await pool.query('SELECT id, first_name, email FROM member WHERE LOWER(email) = LOWER($1)', [email]);
@@ -1617,6 +1721,7 @@ const resolvers = {
              <p><a href="${resetUrl}">${resetUrl}</a></p>
              <p>This link expires in 1 hour. If you did not request this, you can safely ignore this email.</p>`
           );
+          logEvent('password_reset_requested', null, ctx.ip, { memberId: member.id });
         }
       } catch (error) {
         console.error('Password reset error:', error);
@@ -1624,7 +1729,7 @@ const resolvers = {
       return { success: true, message: genericMessage };
     },
 
-    resetPasswordWithToken: async (_: any, { token, newPassword }: { token: string; newPassword: string }) => {
+    resetPasswordWithToken: async (_: any, { token, newPassword }: { token: string; newPassword: string }, ctx: AuthContext) => {
       const tokenResult = await pool.query(
         'SELECT * FROM password_reset_token WHERE token = $1 AND used = FALSE AND expires_at > NOW()',
         [token]
@@ -1647,6 +1752,7 @@ const resolvers = {
         teamAdminIds,
       };
       const member = { ...mapMemberRow(row), isOrgAdmin, teamAdminIds };
+      logEvent('password_reset_completed', row.id, ctx.ip, { memberId: row.id });
       return { success: true, message: 'Password reset successfully', member, token: generateToken(authUser) };
     },
 
@@ -1773,6 +1879,8 @@ const startServer = async () => {
   const { url } = await startStandaloneServer(server, {
     listen: { port: Number(process.env.PORT) || 4000 },
     context: async ({ req }): Promise<AuthContext> => {
+      const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
+               ?? req.socket?.remoteAddress ?? null;
       const auth = req.headers.authorization || '';
       if (auth.startsWith('Bearer ')) {
         try {
@@ -1793,12 +1901,13 @@ const startServer = async () => {
               teamAdminIds: decoded.teamAdminIds ?? [],
               isDemo: decoded.isDemo ?? false,
             },
+            ip,
           };
         } catch {
-          return { user: null };
+          return { user: null, ip };
         }
       }
-      return { user: null };
+      return { user: null, ip };
     },
   });
 

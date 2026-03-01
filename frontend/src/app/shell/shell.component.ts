@@ -18,12 +18,14 @@ import { ManageOrgComponent } from '../features/manage/manage-org.component';
 import { ManageMembersComponent } from '../features/manage/manage-members.component';
 import { ManageOrganisationsComponent } from '../features/manage/manage-organisations.component';
 import { ManageSystemSettingsComponent } from '../features/manage/manage-system-settings.component';
+import { ManageDemosComponent } from '../features/manage/manage-demos.component';
+import { ManageEventLogComponent } from '../features/manage/manage-event-log.component';
 import { ClaimDemoDialogComponent } from '../shared/components/claim-demo-dialog.component';
 
 type NavBarType = 'management';
 type PanelType = 'login' | 'profile' | 'password'
               | 'manage-org' | 'manage-org-teams' | 'manage-my-teams' | 'manage-members'
-              | 'manage-organisations' | 'manage-settings';
+              | 'manage-organisations' | 'manage-settings' | 'manage-demos' | 'manage-event-log';
 
 interface NavItem {
   path: string;
@@ -54,6 +56,8 @@ interface ManagementItem {
     ManageMembersComponent,
     ManageOrganisationsComponent,
     ManageSystemSettingsComponent,
+    ManageDemosComponent,
+    ManageEventLogComponent,
     ClaimDemoDialogComponent
   ],
   template: `
@@ -178,6 +182,8 @@ interface ManagementItem {
         <app-manage-org *ngIf="activePanel === 'manage-my-teams'" [view]="'teams'" [myTeamsOnly]="true"></app-manage-org>
         <app-manage-members *ngIf="activePanel === 'manage-members'"></app-manage-members>
         <app-manage-system-settings *ngIf="activePanel === 'manage-settings'"></app-manage-system-settings>
+        <app-manage-demos *ngIf="activePanel === 'manage-demos'"></app-manage-demos>
+        <app-manage-event-log *ngIf="activePanel === 'manage-event-log'"></app-manage-event-log>
         <!-- Account views replace the main content area -->
         <div class="account-view" *ngIf="isAccountPanel">
           <app-account-login *ngIf="activePanel === 'login'" (loginSuccess)="onLoginSuccess()"></app-account-login>
@@ -698,6 +704,8 @@ export class ShellComponent {
       items.push({ panel: 'manage-org-teams', icon: 'group_work', label: 'shell.management.teams' });
       items.push({ panel: 'manage-members', icon: 'manage_accounts', label: 'shell.management.members' });
       items.push({ panel: 'manage-settings', icon: 'settings', label: 'shell.management.settings' });
+      items.push({ panel: 'manage-demos', icon: 'science', label: 'shell.management.demos' });
+      items.push({ panel: 'manage-event-log', icon: 'history', label: 'shell.management.eventLog' });
       return items;
     }
     if (this.authService.isOrgAdmin) {
@@ -716,7 +724,9 @@ export class ShellComponent {
         || this.activePanel === 'manage-org-teams'
         || this.activePanel === 'manage-my-teams'
         || this.activePanel === 'manage-members'
-        || this.activePanel === 'manage-settings';
+        || this.activePanel === 'manage-settings'
+        || this.activePanel === 'manage-demos'
+        || this.activePanel === 'manage-event-log';
   }
 
   get isAccountPanel(): boolean {

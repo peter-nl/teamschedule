@@ -74,7 +74,9 @@
       "teams": "Teams",
       "members": "Leden",
       "importExport": "Import / Export",
-      "settings": "Instellingen"
+      "settings": "Instellingen",
+      "demos": "Demo's",
+      "eventLog": "Gebeurtenissenlog"
     },
     "messages": {
       "loggedOut": "U bent uitgelogd"
@@ -535,5 +537,46 @@
     "newPasswordPlaceholder": "Kies een sterk wachtwoord",
     "claimButton": "Account aanmaken",
     "claimSuccess": "Account aangemaakt! Welkom bij TeamSchedule."
+  },
+  "demos": {
+    "title": "Demo-organisaties",
+    "description": "Actieve demo-omgevingen. U kunt een demo geforceerd beëindigen om alle bijbehorende gegevens te verwijderen.",
+    "colName": "Organisatie",
+    "colEmail": "Aangevraagd door",
+    "colCreated": "Aangemaakt",
+    "colExpires": "Verloopt",
+    "colMembers": "Leden",
+    "terminateBtn": "Beëindigen",
+    "confirmTerminate": "Bevestigen – alle data verwijderen",
+    "cancelTerminate": "Annuleren",
+    "terminated": "Demo \"{{name}}\" beëindigd en alle data verwijderd.",
+    "noData": "Geen actieve demo-organisaties."
+  },
+  "eventLog": {
+    "title": "Gebeurtenissenlog",
+    "description": "Audittrail van sleutel-beveiligings- en bedrijfsgebeurtenissen.",
+    "filterLabel": "Gebeurtenistype",
+    "filterAll": "Alle gebeurtenissen",
+    "colTime": "Tijd",
+    "colEvent": "Gebeurtenis",
+    "colActor": "Gebruiker",
+    "colIp": "IP-adres",
+    "colDetails": "Details",
+    "noData": "Geen gebeurtenissen gevonden.",
+    "loadMore": "Meer laden",
+    "types": {
+      "login_success": "Inloggen geslaagd",
+      "login_failed": "Inloggen mislukt",
+      "demo_requested": "Demo aangevraagd",
+      "demo_claimed": "Demo omgezet",
+      "demo_terminated": "Demo beëindigd",
+      "password_reset_requested": "Wachtwoord reset aangevraagd",
+      "password_reset_completed": "Wachtwoord reset voltooid",
+      "email_config_saved": "E-mailconfiguratie opgeslagen",
+      "org_created": "Organisatie aangemaakt",
+      "org_deleted": "Organisatie verwijderd",
+      "member_created": "Lid aangemaakt",
+      "member_deleted": "Lid verwijderd"
+    }
   }
 }
