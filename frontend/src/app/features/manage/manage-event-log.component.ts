@@ -36,6 +36,7 @@ interface EventLogEntry {
 const PAGE_SIZE = 50;
 
 const ALL_EVENT_TYPES = [
+  'session_start',
   'login_success',
   'login_failed',
   'demo_requested',

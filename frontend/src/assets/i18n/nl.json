@@ -565,6 +565,7 @@
     "noData": "Geen gebeurtenissen gevonden.",
     "loadMore": "Meer laden",
     "types": {
+      "session_start": "Sessie gestart",
       "login_success": "Inloggen geslaagd",
       "login_failed": "Inloggen mislukt",
       "demo_requested": "Demo aangevraagd",

@@ -565,6 +565,7 @@
     "noData": "No events found.",
     "loadMore": "Load more",
     "types": {
+      "session_start": "Session start",
       "login_success": "Login success",
       "login_failed": "Login failed",
       "demo_requested": "Demo requested",

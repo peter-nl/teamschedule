@@ -109,6 +109,19 @@ async function logEvent(eventType: string, actorId: string | null, ip: string | 
   ).catch(() => {});
 }
 
+// Session-start throttle: track last logged time per user (in-memory, resets on restart)
+const sessionLastSeen = new Map<string, number>();
+const SESSION_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
+
+function maybeLogSession(userId: string, ip: string | null): void {
+  const now = Date.now();
+  const last = sessionLastSeen.get(userId) ?? 0;
+  if (now - last > SESSION_WINDOW_MS) {
+    sessionLastSeen.set(userId, now);
+    logEvent('session_start', userId, ip);
+  }
+}
+
 // PostgreSQL connection pool
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -1892,6 +1905,7 @@ const startServer = async () => {
             teamAdminIds?: number[];
             isDemo?: boolean;
           };
+          maybeLogSession(decoded.id, ip);
           return {
             user: {
               id: decoded.id,

@@ -703,9 +703,9 @@ export class ShellComponent {
       items.push({ panel: 'manage-organisations', icon: 'business', label: 'shell.management.organisations' });
       items.push({ panel: 'manage-org-teams', icon: 'group_work', label: 'shell.management.teams' });
       items.push({ panel: 'manage-members', icon: 'manage_accounts', label: 'shell.management.members' });
-      items.push({ panel: 'manage-settings', icon: 'settings', label: 'shell.management.settings' });
       items.push({ panel: 'manage-demos', icon: 'science', label: 'shell.management.demos' });
       items.push({ panel: 'manage-event-log', icon: 'history', label: 'shell.management.eventLog' });
+      items.push({ panel: 'manage-settings', icon: 'settings', label: 'shell.management.settings' });
       return items;
     }
     if (this.authService.isOrgAdmin) {
