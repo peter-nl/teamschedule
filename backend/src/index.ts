@@ -1284,7 +1284,7 @@ const resolvers = {
         let randomUsers: any[] = [];
         try {
           const apiResp = await fetch('https://randomuser.me/api/?results=5&nat=nl');
-          const apiData = await apiResp.json();
+          const apiData = await apiResp.json() as any;
           randomUsers = apiData.results || [];
         } catch {
           console.warn('randomuser.me unavailable, using fallback names');
