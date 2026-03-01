@@ -805,10 +805,11 @@ const resolvers = {
         ['smtp_port', String(args.port)],
         ['smtp_secure', String(args.secure)],
         ['smtp_user', args.user],
-        ['smtp_pass', encrypt(args.password)],
         ['smtp_from', args.from],
         ['smtp_bcc', args.bcc || ''],
       ];
+      // Only update the stored password when a new one is explicitly provided
+      if (args.password) pairs.push(['smtp_pass', encrypt(args.password)]);
       for (const [key, value] of pairs) {
         await pool.query(
           `INSERT INTO app_setting (key, value, updated_at) VALUES ($1, $2, NOW())
