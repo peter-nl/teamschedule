@@ -158,8 +158,15 @@ interface ManagementItem {
         <!-- Demo banner -->
         <div class="demo-banner" *ngIf="authService.isDemo">
           <mat-icon>science</mat-icon>
-          <span>{{ 'demo.banner' | translate: { date: demoExpiryDate } }}</span>
-          <button class="demo-banner-btn" (click)="showClaimDialog = true">{{ 'demo.registerButton' | translate }}</button>
+          <div class="demo-banner-text">
+            <span class="demo-banner-main">{{ 'demo.bannerTitle' | translate: { role: demoRoleLabel } }}</span>
+            <span class="demo-banner-sub">
+              {{ (authService.isOrgAdmin ? 'demo.bannerIsAdmin' : 'demo.bannerNotAdmin') | translate }}
+            </span>
+          </div>
+          <button *ngIf="authService.isOrgAdmin" class="demo-banner-btn" (click)="showClaimDialog = true">
+            {{ 'demo.registerButton' | translate }}
+          </button>
         </div>
 
         <!-- Management views fill the main content area -->
@@ -438,33 +445,49 @@ interface ManagementItem {
     .demo-banner {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
       padding: 8px 16px;
       background: var(--mat-sys-tertiary-container);
       color: var(--mat-sys-on-tertiary-container);
-      font-size: 13px;
       flex-shrink: 0;
     }
 
     .demo-banner mat-icon {
-      font-size: 18px;
-      width: 18px;
-      height: 18px;
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
     }
 
-    .demo-banner span { flex: 1; }
+    .demo-banner-text {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .demo-banner-main {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .demo-banner-sub {
+      font-size: 12px;
+      opacity: 0.8;
+    }
 
     .demo-banner-btn {
       background: var(--mat-sys-tertiary);
       color: var(--mat-sys-on-tertiary);
       border: none;
       border-radius: 6px;
-      padding: 4px 12px;
+      padding: 6px 14px;
       font-size: 12px;
       font-weight: 500;
       font-family: inherit;
       cursor: pointer;
       white-space: nowrap;
+      flex-shrink: 0;
     }
 
     /* Main Content */
@@ -605,10 +628,10 @@ export class ShellComponent {
   currentLang = 'en';
   showClaimDialog = false;
 
-  get demoExpiryDate(): string {
-    const user = this.authService.currentUser;
-    // JWT doesn't carry demoExpiresAt; show generic "7 days" note instead
-    return '';
+  get demoRoleLabel(): string {
+    if (this.authService.isOrgAdmin) return this.translate.instant('demo.roleOrgAdmin');
+    if (this.authService.isTeamAdmin) return this.translate.instant('demo.roleTeamLeader');
+    return this.translate.instant('demo.roleMember');
   }
 
   constructor(
