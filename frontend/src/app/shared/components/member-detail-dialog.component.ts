@@ -28,6 +28,9 @@ interface MemberFull {
   email: string | null;
   role: string;
   teams: { id: string; name: string }[];
+  phone: string | null;
+  dateOfBirth: string | null;
+  avatarUrl: string | null;
 }
 
 export interface MemberDetailDialogData {
@@ -49,6 +52,9 @@ const GET_MEMBERS_QUERY = gql`
       email
       role
       teams { id, name }
+      phone
+      dateOfBirth
+      avatarUrl
     }
   }
 `;

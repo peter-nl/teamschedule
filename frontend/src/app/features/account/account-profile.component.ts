@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Output } from '@angular/core';
+import { Component, EventEmitter, OnInit, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -12,6 +12,30 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AuthService } from '../../shared/services/auth.service';
 import { UiEventService } from '../../shared/services/ui-event.service';
+import { gql } from '@apollo/client';
+import { apolloClient } from '../../app.config';
+
+const GET_MEMBER_PROFILE = gql`
+  query MemberProfile($id: String!) {
+    memberProfile(id: $id) {
+      id
+      phone
+      dateOfBirth
+      avatarUrl
+    }
+  }
+`;
+
+const UPDATE_PROFILE_EXTENDED = gql`
+  mutation UpdateMemberProfileExtended(
+    $id: String!, $firstName: String!, $lastName: String!, $particles: String, $email: String,
+    $phone: String, $dateOfBirth: String
+  ) {
+    updateMemberProfile(id: $id, firstName: $firstName, lastName: $lastName, particles: $particles, email: $email, phone: $phone, dateOfBirth: $dateOfBirth) {
+      id firstName lastName particles email phone dateOfBirth
+    }
+  }
+`;
 
 @Component({
   selector: 'app-account-profile',
@@ -31,7 +55,8 @@ import { UiEventService } from '../../shared/services/ui-event.service';
   template: `
     <mat-card class="profile-card">
       <mat-card-header>
-        <mat-icon mat-card-avatar>account_circle</mat-icon>
+        <img *ngIf="avatarUrl" [src]="avatarUrl" mat-card-avatar class="avatar-img" alt="">
+        <mat-icon *ngIf="!avatarUrl" mat-card-avatar>account_circle</mat-icon>
         <mat-card-title>{{ 'profile.title' | translate }}</mat-card-title>
         <mat-card-subtitle>{{ 'profile.subtitle' | translate:{ id: authService.currentUser?.id } }}</mat-card-subtitle>
       </mat-card-header>
@@ -88,6 +113,29 @@ import { UiEventService } from '../../shared/services/ui-event.service';
 
         <mat-divider class="section-divider"></mat-divider>
 
+        <h3 class="section-title">{{ 'profile.contact' | translate }}</h3>
+        <div class="profile-form">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>{{ 'profile.phone' | translate }}</mat-label>
+            <input matInput
+                   [(ngModel)]="extendedForm.phone"
+                   name="phone"
+                   type="tel"
+                   (blur)="onExtendedFieldBlur()">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>{{ 'profile.dateOfBirth' | translate }}</mat-label>
+            <input matInput
+                   [(ngModel)]="extendedForm.dateOfBirth"
+                   name="dateOfBirth"
+                   type="date"
+                   (blur)="onExtendedFieldBlur()">
+          </mat-form-field>
+        </div>
+
+        <mat-divider class="section-divider"></mat-divider>
+
         <ng-container *ngIf="!authService.isSysadmin">
           <h3 class="section-title">{{ 'account.scheduleTitle' | translate }}</h3>
           <div class="schedule-row">
@@ -126,6 +174,13 @@ import { UiEventService } from '../../shared/services/ui-event.service';
       width: 40px;
       height: 40px;
       color: var(--mat-sys-primary);
+    }
+
+    .avatar-img {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      object-fit: cover;
     }
 
     .profile-form {
@@ -209,11 +264,14 @@ import { UiEventService } from '../../shared/services/ui-event.service';
     }
   `]
 })
-export class AccountProfileComponent {
+export class AccountProfileComponent implements OnInit {
   @Output() openChangePassword = new EventEmitter<void>();
 
   profileForm = { firstName: '', lastName: '', particles: '', email: '' };
   private savedProfile = { firstName: '', lastName: '', particles: '', email: '' };
+  extendedForm = { phone: '', dateOfBirth: '' };
+  private savedExtended = { phone: '', dateOfBirth: '' };
+  avatarUrl: string | null = null;
   scheduleDisabledLoading = false;
 
   get roleIcon(): string {
@@ -247,6 +305,51 @@ export class AccountProfileComponent {
         this.profileForm = { ...snapshot };
         this.savedProfile = { ...snapshot };
       }
+    });
+  }
+
+  ngOnInit(): void {
+    const user = this.authService.currentUser;
+    if (!user) return;
+    apolloClient.query({
+      query: GET_MEMBER_PROFILE,
+      variables: { id: user.id },
+      fetchPolicy: 'network-only'
+    }).then((result: any) => {
+      const p = result.data?.memberProfile;
+      if (p) {
+        this.avatarUrl = p.avatarUrl ?? null;
+        const snap = { phone: p.phone ?? '', dateOfBirth: p.dateOfBirth ?? '' };
+        this.extendedForm = { ...snap };
+        this.savedExtended = { ...snap };
+      }
+    }).catch(() => {});
+  }
+
+  onExtendedFieldBlur(): void {
+    const f = this.extendedForm;
+    const s = this.savedExtended;
+    if (f.phone === s.phone && f.dateOfBirth === s.dateOfBirth) return;
+
+    const user = this.authService.currentUser;
+    if (!user) return;
+
+    apolloClient.mutate({
+      mutation: UPDATE_PROFILE_EXTENDED,
+      variables: {
+        id: user.id,
+        firstName: this.profileForm.firstName || this.savedProfile.firstName,
+        lastName: this.profileForm.lastName || this.savedProfile.lastName,
+        particles: this.profileForm.particles || null,
+        email: this.profileForm.email || null,
+        phone: f.phone || null,
+        dateOfBirth: f.dateOfBirth || null
+      }
+    }).then(() => {
+      this.savedExtended = { ...f };
+    }).catch(() => {
+      this.extendedForm = { ...this.savedExtended };
+      this.notificationService.error(this.translate.instant('profile.messages.updateFailed'));
     });
   }
 

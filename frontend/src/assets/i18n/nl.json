@@ -84,7 +84,7 @@
     "guestIntro": "Welkom bij de TeamRooster app. De app die uw teams en hun leden helpt bij het organiseren van hun vakanties.",
     "loginWord": "Log in",
     "guestCta": " om te beginnen.",
-    "loggedIn": "Welkom bij de TeamRooster app. U bent al ingelogd. Kies een van de opties aan de linkerkant om aan uw rooster te werken."
+    "loggedIn": "Welkom bij de TeamRooster app. U bent al ingelogd. Kies een van de opties in het menu om aan uw rooster te werken."
   },
   "login": {
     "title": "Inloggen",
@@ -131,6 +131,9 @@
     "emailPlaceholder": "bijv. jan@voorbeeld.nl",
     "role": "Rol",
     "details": "Persoonsgegevens",
+    "contact": "Contact",
+    "phone": "Telefoonnummer",
+    "dateOfBirth": "Geboortedatum",
     "holidays": {
       "title": "Mijn persoonlijke vrije dagen",
       "addHoliday": "Vrije dag toevoegen",
@@ -268,6 +271,9 @@
       "passwordPlaceholder": "Invoeren om in te stellen/wijzigen",
       "fromAddress": "Afzenderadres",
       "fromPlaceholder": "noreply@voorbeeld.nl",
+      "bcc": "BCC-adres",
+      "bccPlaceholder": "archief@voorbeeld.nl",
+      "bccHint": "Optioneel. Alle uitgaande e-mails worden ook als BCC naar dit adres verstuurd.",
       "saveConfig": "Configuratie opslaan",
       "sendTest": "Test e-mail versturen",
       "testPrompt": "Voer e-mailadres in om test naar te sturen:"
@@ -303,6 +309,8 @@
     "role": "Rol",
     "teamsColumn": "Teams",
     "scheduleDisabled": "Uitgesloten van rooster",
+    "phone": "Telefoonnummer",
+    "dateOfBirth": "Geboortedatum",
     "noMembersFound": "Geen leden gevonden",
     "selectPrompt": "Selecteer een lid om details te bekijken",
     "messages": {
@@ -407,6 +415,8 @@
     "email": "E-mail",
     "emailPlaceholder": "bijv. jan@voorbeeld.nl",
     "role": "Rol",
+    "phone": "Telefoonnummer",
+    "dateOfBirth": "Geboortedatum",
     "teamsLabel": "Teams",
     "resetPassword": "Wachtwoord herstellen",
     "newPassword": "Nieuw wachtwoord",
