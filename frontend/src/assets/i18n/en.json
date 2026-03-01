@@ -86,7 +86,7 @@
     "guestIntro": "Welcome to the TeamSchedule app. The app that helps your teams and their members organize their holidays.",
     "loginWord": "Log in",
     "guestCta": " to get started.",
-    "loggedIn": "Welcome to the TeamSchedule app. You are already signed in. Choose one of the options in the menu to start working on your schedule."
+    "loggedIn": "Select in the menu what you want to work on."
   },
   "login": {
     "title": "Login",

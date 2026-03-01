@@ -1,8 +1,9 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { MatIconModule } from '@angular/material/icon';
+import { Router } from '@angular/router';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
 import { AuthService } from '../../shared/services/auth.service';
@@ -201,7 +202,7 @@ const REQUEST_DEMO = gql`
     }
   `]
 })
-export class HomeComponent {
+export class HomeComponent implements OnInit {
   demoEmail = '';
   demoLoading = false;
   demoSent = false;
@@ -210,8 +211,16 @@ export class HomeComponent {
   constructor(
     public authService: AuthService,
     private uiEventService: UiEventService,
-    private translate: TranslateService
+    private translate: TranslateService,
+    private router: Router
   ) {}
+
+  ngOnInit(): void {
+    const user = this.authService.currentUser;
+    if (user && !this.authService.isSysadmin && !user.scheduleDisabled) {
+      this.router.navigate(['/schedule']);
+    }
+  }
 
   onLoginClick(): void {
     this.uiEventService.openLogin$.next();
