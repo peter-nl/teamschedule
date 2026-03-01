@@ -973,6 +973,17 @@ const resolvers = {
       const user = requireOrgAdmin(ctx);
       const effectiveOrgId = orgId && user.role === 'sysadmin' ? Number(orgId) : user.organisationId;
       if (effectiveOrgId === null) throw new Error('No organisation context');
+      // Member ID must be unique across all organisations
+      const idCheck = await pool.query('SELECT id FROM member WHERE id = $1', [id]);
+      if (idCheck.rows.length > 0) throw new Error(`Login ID "${id}" is already in use`);
+      // Email must be unique within this organisation
+      if (email) {
+        const emailCheck = await pool.query(
+          'SELECT id FROM member WHERE LOWER(email) = LOWER($1) AND organisation_id = $2',
+          [email, effectiveOrgId]
+        );
+        if (emailCheck.rows.length > 0) throw new Error(`Email address "${email}" is already used by another member in this organisation`);
+      }
       const hashedPassword = await bcrypt.hash(password, 10);
       const result = await pool.query(
         'INSERT INTO member (id, first_name, last_name, particles, email, password_hash, organisation_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
@@ -1634,6 +1645,18 @@ const resolvers = {
       const user = requireAuth(ctx);
       if (user.id !== args.id && !isElevatedRole(user)) {
         throw new Error('You can only update your own profile');
+      }
+      // Email must be unique within this organisation (excluding this member)
+      if (args.email) {
+        const memberRow = await pool.query('SELECT organisation_id FROM member WHERE id = $1', [args.id]);
+        const orgId = memberRow.rows[0]?.organisation_id;
+        if (orgId) {
+          const emailCheck = await pool.query(
+            'SELECT id FROM member WHERE LOWER(email) = LOWER($1) AND organisation_id = $2 AND id <> $3',
+            [args.email, orgId, args.id]
+          );
+          if (emailCheck.rows.length > 0) throw new Error(`Email address "${args.email}" is already used by another member in this organisation`);
+        }
       }
       // Always update name/email fields; only update extended fields when explicitly provided
       const sets = ['first_name = $2', 'last_name = $3', 'particles = $4', 'email = $5'];

@@ -229,6 +229,7 @@ interface CellRenderData {
             <div class="name-col-resize-handle"
                  (mousedown)="onResizeStart($event)"
                  (touchstart)="onResizeTouchStart($event)">
+              <mat-icon class="resize-hint-icon">swap_horiz</mat-icon>
             </div>
             <!-- Scrollable date area -->
             <div class="body-dates-scroll"
@@ -418,6 +419,26 @@ interface CellRenderData {
     .name-col-resize-handle:hover,
     .name-col-resize-handle:active {
       background: var(--mat-sys-primary);
+    }
+
+    .resize-hint-icon {
+      position: absolute;
+      top: 4px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      color: var(--mat-sys-on-surface-variant);
+      opacity: 0.5;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .name-col-resize-handle:hover .resize-hint-icon,
+    .name-col-resize-handle:active .resize-hint-icon {
+      opacity: 1;
+      color: var(--mat-sys-primary);
     }
 
     .date-header-scroll {
