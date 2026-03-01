@@ -130,9 +130,6 @@ interface HolidayYearGroup { year: number; holidays: HolidayInfo[]; }
             <h3 class="section-title">{{ 'settings.workingDays.title' | translate }}</h3>
             <p class="section-desc">{{ 'settings.workingDays.description' | translate }}</p>
           </div>
-          <button mat-icon-button (click)="resetWorkingDays()" [matTooltip]="'common.reset' | translate">
-            <mat-icon>restart_alt</mat-icon>
-          </button>
         </div>
         <div class="days-grid">
           <mat-checkbox
@@ -160,9 +157,6 @@ interface HolidayYearGroup { year: number; holidays: HolidayInfo[]; }
             <h3 class="section-title">{{ 'settings.colors.title' | translate }}</h3>
             <p class="section-desc">{{ 'settings.colors.description' | translate }}</p>
           </div>
-          <button mat-icon-button (click)="resetColors()" [matTooltip]="'common.reset' | translate">
-            <mat-icon>restart_alt</mat-icon>
-          </button>
         </div>
         <div class="color-theme-sections">
           <div class="color-theme-section">
