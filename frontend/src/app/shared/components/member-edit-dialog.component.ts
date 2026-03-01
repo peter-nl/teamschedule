@@ -30,6 +30,9 @@ export interface MemberEditDialogData {
     email: string | null;
     role: string;
     teams: { id: string; name: string }[];
+    phone: string | null;
+    dateOfBirth: string | null;
+    avatarUrl: string | null;
   };
   allTeams: { id: string; name: string }[];
   isSelf: boolean;
@@ -37,9 +40,9 @@ export interface MemberEditDialogData {
 }
 
 const UPDATE_MEMBER_MUTATION = gql`
-  mutation UpdateMemberProfile($id: String!, $firstName: String!, $lastName: String!, $particles: String, $email: String) {
-    updateMemberProfile(id: $id, firstName: $firstName, lastName: $lastName, particles: $particles, email: $email) {
-      id firstName lastName particles email role
+  mutation UpdateMemberProfile($id: String!, $firstName: String!, $lastName: String!, $particles: String, $email: String, $phone: String, $dateOfBirth: String, $avatarUrl: String) {
+    updateMemberProfile(id: $id, firstName: $firstName, lastName: $lastName, particles: $particles, email: $email, phone: $phone, dateOfBirth: $dateOfBirth, avatarUrl: $avatarUrl) {
+      id firstName lastName particles email role phone dateOfBirth avatarUrl
     }
   }
 `;
@@ -122,6 +125,16 @@ const RESET_PASSWORD_MUTATION = gql`
             <mat-label>{{ 'editMember.email' | translate }}</mat-label>
             <input matInput [(ngModel)]="editForm.email" name="email" type="email"
                    [placeholder]="'editMember.emailPlaceholder' | translate">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>{{ 'editMember.phone' | translate }}</mat-label>
+            <input matInput [(ngModel)]="editForm.phone" name="phone" type="tel">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>{{ 'editMember.dateOfBirth' | translate }}</mat-label>
+            <input matInput [(ngModel)]="editForm.dateOfBirth" name="dateOfBirth" type="date">
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
@@ -426,6 +439,8 @@ export class MemberEditDialogComponent {
     email: string;
     role: string;
     teamIds: string[];
+    phone: string;
+    dateOfBirth: string;
   };
 
   resetPasswordForm = {
@@ -472,7 +487,9 @@ export class MemberEditDialogComponent {
       particles: data.member.particles || '',
       email: data.member.email || '',
       role: data.member.role,
-      teamIds: data.member.teams.map(t => t.id)
+      teamIds: data.member.teams.map(t => t.id),
+      phone: data.member.phone || '',
+      dateOfBirth: data.member.dateOfBirth || ''
     };
 
     this.userPrefsService.isDarkTheme$.subscribe(dark => { this.isDark = dark; });
@@ -520,7 +537,10 @@ export class MemberEditDialogComponent {
           firstName: this.editForm.firstName,
           lastName: this.editForm.lastName,
           particles: this.editForm.particles || null,
-          email: this.editForm.email || null
+          email: this.editForm.email || null,
+          phone: this.editForm.phone || null,
+          dateOfBirth: this.editForm.dateOfBirth || null,
+          avatarUrl: this.data.member.avatarUrl || null
         }
       });
 

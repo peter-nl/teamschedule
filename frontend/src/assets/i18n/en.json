@@ -84,7 +84,7 @@
     "guestIntro": "Welcome to the TeamSchedule app. The app that helps your teams and their members organize their holidays.",
     "loginWord": "Log in",
     "guestCta": " to get started.",
-    "loggedIn": "Welcome to the TeamSchedule app. You are already signed in. Choose one of the options on the left to start working on your schedule."
+    "loggedIn": "Welcome to the TeamSchedule app. You are already signed in. Choose one of the options in the menu to start working on your schedule."
   },
   "login": {
     "title": "Login",
@@ -131,6 +131,9 @@
     "emailPlaceholder": "e.g., john@example.com",
     "role": "Role",
     "details": "Personal details",
+    "contact": "Contact",
+    "phone": "Phone",
+    "dateOfBirth": "Date of birth",
     "holidays": {
       "title": "My Personal Holidays",
       "addHoliday": "Add Holiday",
@@ -268,6 +271,9 @@
       "passwordPlaceholder": "Enter to set/change",
       "fromAddress": "From Address",
       "fromPlaceholder": "noreply@example.com",
+      "bcc": "BCC Address",
+      "bccPlaceholder": "audit@example.com",
+      "bccHint": "Optional. All outgoing emails are BCC'd to this address.",
       "saveConfig": "Save Configuration",
       "sendTest": "Send Test Email",
       "testPrompt": "Enter email address to send test to:"
@@ -303,6 +309,8 @@
     "role": "Role",
     "teamsColumn": "Teams",
     "scheduleDisabled": "Excluded from schedule",
+    "phone": "Phone",
+    "dateOfBirth": "Date of birth",
     "noMembersFound": "No members found",
     "selectPrompt": "Select a member to view details",
     "messages": {
@@ -407,6 +415,8 @@
     "email": "Email",
     "emailPlaceholder": "e.g., john@example.com",
     "role": "Role",
+    "phone": "Phone",
+    "dateOfBirth": "Date of birth",
     "teamsLabel": "Teams",
     "resetPassword": "Reset Password",
     "newPassword": "New Password",

@@ -35,6 +35,9 @@ interface Member {
   isOrgAdmin: boolean;
   adminOfTeams: { id: string; name: string }[];
   teams: Team[];
+  phone: string | null;
+  dateOfBirth: string | null;
+  avatarUrl: string | null;
 }
 
 const GET_MEMBERS_QUERY = gql`
@@ -50,6 +53,9 @@ const GET_MEMBERS_QUERY = gql`
       isOrgAdmin
       adminOfTeams { id name }
       teams { id name }
+      phone
+      dateOfBirth
+      avatarUrl
     }
   }
 `;
@@ -153,6 +159,7 @@ const GET_ORG_LIST = gql`
                   </mat-icon>
                   <mat-icon class="sort-icon drag-icon" *ngIf="sortColumn !== col">drag_indicator</mat-icon>
                 </th>
+                <th class="name-col-header role-col-header"></th>
               </tr>
             </thead>
             <tbody>
@@ -162,6 +169,10 @@ const GET_ORG_LIST = gql`
                   (click)="selectMember(member)">
                 <td *ngFor="let col of nameColumns" class="name-col">
                   {{ getNamePart(member, col) }}
+                </td>
+                <td class="name-col role-col">
+                  <mat-icon *ngIf="member.isOrgAdmin" class="role-icon role-icon-orgadmin" [matTooltip]="'common.role.orgadmin' | translate">admin_panel_settings</mat-icon>
+                  <mat-icon *ngIf="!member.isOrgAdmin && member.adminOfTeams.length > 0" class="role-icon role-icon-teamadmin" [matTooltip]="'common.role.teamadmin' | translate">manage_accounts</mat-icon>
                 </td>
               </tr>
               <tr *ngIf="filteredMembers.length === 0">
@@ -189,6 +200,7 @@ const GET_ORG_LIST = gql`
         <!-- Member detail -->
         <div *ngIf="selectedMember" class="detail-content">
           <div class="detail-header">
+            <img *ngIf="selectedMember.avatarUrl" [src]="selectedMember.avatarUrl" class="detail-avatar" alt="">
             <div class="detail-name">{{ displayName(selectedMember) }}</div>
             <button mat-icon-button
                     (click)="openEdit(selectedMember)"
@@ -223,6 +235,18 @@ const GET_ORG_LIST = gql`
               <span class="attr-label">{{ 'members.email' | translate }}</span>
               <span class="attr-value" [class.attr-muted]="!selectedMember.email">
                 {{ selectedMember.email || '—' }}
+              </span>
+            </div>
+            <div class="attr-row">
+              <span class="attr-label">{{ 'members.phone' | translate }}</span>
+              <span class="attr-value" [class.attr-muted]="!selectedMember.phone">
+                {{ selectedMember.phone || '—' }}
+              </span>
+            </div>
+            <div class="attr-row">
+              <span class="attr-label">{{ 'members.dateOfBirth' | translate }}</span>
+              <span class="attr-value" [class.attr-muted]="!selectedMember.dateOfBirth">
+                {{ selectedMember.dateOfBirth || '—' }}
               </span>
             </div>
             <div class="attr-row">
@@ -513,12 +537,48 @@ const GET_ORG_LIST = gql`
       align-items: center;
       justify-content: space-between;
       padding: 12px 16px 12px 20px;
+      gap: 12px;
+    }
+
+    .detail-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      object-fit: cover;
+      flex-shrink: 0;
     }
 
     .detail-name {
       font-size: 18px;
       font-weight: 500;
       color: var(--mat-sys-on-surface);
+      flex: 1;
+    }
+
+    .role-col-header {
+      width: 28px;
+      padding: 5px 8px 5px 4px;
+      cursor: default !important;
+    }
+
+    .role-col {
+      padding: 4px 8px 4px 4px;
+      text-align: center;
+    }
+
+    .role-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      display: block;
+    }
+
+    .role-icon-orgadmin {
+      color: var(--mat-sys-primary);
+    }
+
+    .role-icon-teamadmin {
+      color: var(--mat-sys-secondary);
     }
 
     /* ── Attributes ── */
@@ -829,7 +889,7 @@ export class ManageMembersComponent implements OnInit {
       MemberEditDialogComponent,
       {
         data: {
-          member: { ...member, teams: [...member.teams] },
+          member: { ...member, teams: [...member.teams], phone: member.phone, dateOfBirth: member.dateOfBirth, avatarUrl: member.avatarUrl },
           allTeams: this.allTeams,
           isSelf: member.id === this.authService.currentUser?.id,
           isManager: this.authService.isOrgAdmin

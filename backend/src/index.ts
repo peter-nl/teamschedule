@@ -123,7 +123,7 @@ pool.connect(async (err, _client, release) => {
 });
 
 // Email helpers
-async function getSmtpConfig(): Promise<{ host: string; port: number; secure: boolean; user: string; pass: string; from: string } | null> {
+async function getSmtpConfig(): Promise<{ host: string; port: number; secure: boolean; user: string; pass: string; from: string; bcc: string | null } | null> {
   const result = await pool.query("SELECT key, value FROM app_setting WHERE key LIKE 'smtp_%'");
   const settings: Record<string, string> = {};
   for (const row of result.rows) settings[row.key] = row.value;
@@ -135,6 +135,7 @@ async function getSmtpConfig(): Promise<{ host: string; port: number; secure: bo
     user: settings.smtp_user,
     pass: decrypt(settings.smtp_pass),
     from: settings.smtp_from || settings.smtp_user,
+    bcc: settings.smtp_bcc || null,
   };
 }
 
@@ -147,7 +148,9 @@ async function sendEmail(to: string, subject: string, html: string): Promise<voi
     secure: config.secure,
     auth: { user: config.user, pass: config.pass },
   });
-  await transporter.sendMail({ from: config.from, to, subject, html });
+  const mailOptions: any = { from: config.from, to, subject, html };
+  if (config.bcc) mailOptions.bcc = config.bcc;
+  await transporter.sendMail(mailOptions);
 }
 
 // Org setting helpers
@@ -213,6 +216,9 @@ const typeDefs = `#graphql
     teamAdminIds: [Int!]!
     adminOfTeams: [Team!]!
     teams: [Team!]!
+    phone: String
+    dateOfBirth: String
+    avatarUrl: String
   }
 
   type HolidayType {
@@ -257,6 +263,7 @@ const typeDefs = `#graphql
     secure: Boolean!
     user: String!
     from: String!
+    bcc: String
     configured: Boolean!
   }
 
@@ -363,6 +370,7 @@ const typeDefs = `#graphql
     team(id: ID!): Team
     members(orgId: ID): [Member!]!
     member(id: ID!): Member
+    memberProfile(id: String!): Member
     organisation(orgId: ID): Organisation!
     orgAdmins(orgId: ID): [Member!]!
     holidayTypes: [HolidayType!]!
@@ -381,7 +389,7 @@ const typeDefs = `#graphql
     createOrganisation(name: String!): Organisation!
     updateOrganisation(id: ID!, name: String!): Organisation!
     deleteOrganisation(id: ID!): SimpleResult!
-    saveEmailConfig(host: String!, port: Int!, secure: Boolean!, user: String!, password: String!, from: String!): SimpleResult!
+    saveEmailConfig(host: String!, port: Int!, secure: Boolean!, user: String!, password: String!, from: String!, bcc: String): SimpleResult!
     testEmailConfig(testAddress: String!): SimpleResult!
     # OrgAdmin
     createTeam(name: String!, orgId: ID): Team!
@@ -416,7 +424,7 @@ const typeDefs = `#graphql
     requestPasswordReset(email: String!): SimpleResult!
     resetPasswordWithToken(token: String!, newPassword: String!): AuthPayload!
     # Auth (self or elevated)
-    updateMemberProfile(id: String!, firstName: String!, lastName: String!, particles: String, email: String): Member
+    updateMemberProfile(id: String!, firstName: String!, lastName: String!, particles: String, email: String, phone: String, dateOfBirth: String, avatarUrl: String): Member
     changePassword(memberId: String!, currentPassword: String!, newPassword: String!): AuthPayload!
     resetPassword(memberId: String!, newPassword: String!): AuthPayload!
     addMemberHoliday(memberId: String!, holiday: MemberHolidayInput!): MemberHoliday!
@@ -437,6 +445,9 @@ function mapMemberRow(row: any) {
     role: row.role,
     organisationId: row.organisation_id,
     scheduleDisabled: row.schedule_disabled ?? false,
+    phone: row.phone ?? null,
+    dateOfBirth: row.date_of_birth ? new Date(row.date_of_birth).toISOString().split('T')[0] : null,
+    avatarUrl: row.avatar_url ?? null,
   };
 }
 
@@ -505,6 +516,7 @@ const resolvers = {
         secure: settings.smtp_secure === 'true',
         user: settings.smtp_user || '',
         from: settings.smtp_from || '',
+        bcc: settings.smtp_bcc || null,
         configured: !!(settings.smtp_host && settings.smtp_user && settings.smtp_pass),
       };
     },
@@ -538,6 +550,15 @@ const resolvers = {
 
     member: async (_: any, { id }: { id: string }, ctx: AuthContext) => {
       const user = requireAuth(ctx);
+      const result = user.organisationId === null
+        ? await pool.query('SELECT * FROM member WHERE id = $1', [id])
+        : await pool.query('SELECT * FROM member WHERE id = $1 AND organisation_id = $2', [id, user.organisationId]);
+      return result.rows[0] ? mapMemberRow(result.rows[0]) : null;
+    },
+
+    memberProfile: async (_: any, { id }: { id: string }, ctx: AuthContext) => {
+      const user = requireAuth(ctx);
+      if (user.id !== id && !isElevatedRole(user)) throw new Error('Access denied');
       const result = user.organisationId === null
         ? await pool.query('SELECT * FROM member WHERE id = $1', [id])
         : await pool.query('SELECT * FROM member WHERE id = $1 AND organisation_id = $2', [id, user.organisationId]);
@@ -777,7 +798,7 @@ const resolvers = {
       return { success: true, message: 'Organisation deleted' };
     },
 
-    saveEmailConfig: async (_: any, args: { host: string; port: number; secure: boolean; user: string; password: string; from: string }, ctx: AuthContext) => {
+    saveEmailConfig: async (_: any, args: { host: string; port: number; secure: boolean; user: string; password: string; from: string; bcc?: string }, ctx: AuthContext) => {
       requireSysadmin(ctx);
       const pairs: [string, string][] = [
         ['smtp_host', args.host],
@@ -786,6 +807,7 @@ const resolvers = {
         ['smtp_user', args.user],
         ['smtp_pass', encrypt(args.password)],
         ['smtp_from', args.from],
+        ['smtp_bcc', args.bcc || ''],
       ];
       for (const [key, value] of pairs) {
         await pool.query(
@@ -1251,6 +1273,34 @@ const resolvers = {
         const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
         const orgName = isNl ? 'Demo Organisatie' : 'Demo Organisation';
 
+        // Fetch realistic member data from randomuser.me (NL nationals)
+        const fallbacks = [
+          { firstName: 'John',  lastName: 'Smith'   },
+          { firstName: 'Sarah', lastName: 'Johnson' },
+          { firstName: 'Mike',  lastName: 'Brown'   },
+          { firstName: 'Lisa',  lastName: 'Chen'    },
+          { firstName: 'Tom',   lastName: 'Wilson'  },
+        ];
+        let randomUsers: any[] = [];
+        try {
+          const apiResp = await fetch('https://randomuser.me/api/?results=5&nat=nl');
+          const apiData = await apiResp.json();
+          randomUsers = apiData.results || [];
+        } catch {
+          console.warn('randomuser.me unavailable, using fallback names');
+        }
+        function demoUserData(i: number) {
+          const u = randomUsers[i];
+          if (!u) return { firstName: fallbacks[i].firstName, lastName: fallbacks[i].lastName, phone: null, dateOfBirth: null, avatarUrl: null };
+          return {
+            firstName: u.name.first as string,
+            lastName: u.name.last as string,
+            phone: (u.phone as string) || null,
+            dateOfBirth: u.dob?.date ? (u.dob.date as string).split('T')[0] : null,
+            avatarUrl: (u.picture?.medium as string) || null,
+          };
+        }
+
         // Create demo organisation
         const orgResult = await pool.query(
           `INSERT INTO organisation (name, is_demo, demo_expires_at, demo_email)
@@ -1266,18 +1316,17 @@ const resolvers = {
           bcrypt.hash(mem1Pass, 10),
         ]);
 
-        // Create members
-        await pool.query(
-          `INSERT INTO member (id, first_name, last_name, password_hash, role, organisation_id) VALUES
-           ($1, 'John',  'Smith',   $6, 'user', $11),
-           ($2, 'Sarah', 'Johnson', $7, 'user', $11),
-           ($3, 'Mike',  'Brown',   $8, 'user', $11),
-           ($4, 'Lisa',  'Chen',    $9, 'user', $11),
-           ($5, 'Tom',   'Wilson',  $10,'user', $11)`,
-          [adminId, leadId, mem1Id, mem2Id, mem3Id,
-           adminHash, leadHash, mem1Hash, mem1Hash, mem1Hash,
-           orgId]
-        );
+        // Create members with realistic profile data
+        const hashes = [adminHash, leadHash, mem1Hash, mem1Hash, mem1Hash];
+        const memberIds = [adminId, leadId, mem1Id, mem2Id, mem3Id];
+        for (let i = 0; i < 5; i++) {
+          const d = demoUserData(i);
+          await pool.query(
+            `INSERT INTO member (id, first_name, last_name, password_hash, role, organisation_id, phone, date_of_birth, avatar_url)
+             VALUES ($1, $2, $3, $4, 'user', $5, $6, $7, $8)`,
+            [memberIds[i], d.firstName, d.lastName, hashes[i], orgId, d.phone, d.dateOfBirth, d.avatarUrl]
+          );
+        }
 
         // Grant roles
         await pool.query(
@@ -1463,14 +1512,20 @@ const resolvers = {
       }
     },
 
-    updateMemberProfile: async (_: any, { id, firstName, lastName, particles, email }: { id: string; firstName: string; lastName: string; particles?: string; email?: string }, ctx: AuthContext) => {
+    updateMemberProfile: async (_: any, args: { id: string; firstName: string; lastName: string; particles?: string; email?: string; phone?: string; dateOfBirth?: string; avatarUrl?: string }, ctx: AuthContext) => {
       const user = requireAuth(ctx);
-      if (user.id !== id && !isElevatedRole(user)) {
+      if (user.id !== args.id && !isElevatedRole(user)) {
         throw new Error('You can only update your own profile');
       }
+      // Always update name/email fields; only update extended fields when explicitly provided
+      const sets = ['first_name = $2', 'last_name = $3', 'particles = $4', 'email = $5'];
+      const params: any[] = [args.id, args.firstName, args.lastName, args.particles || null, args.email || null];
+      if (args.phone !== undefined) { sets.push(`phone = $${params.length + 1}`); params.push(args.phone || null); }
+      if (args.dateOfBirth !== undefined) { sets.push(`date_of_birth = $${params.length + 1}`); params.push(args.dateOfBirth || null); }
+      if (args.avatarUrl !== undefined) { sets.push(`avatar_url = $${params.length + 1}`); params.push(args.avatarUrl || null); }
       const result = await pool.query(
-        'UPDATE member SET first_name = $2, last_name = $3, particles = $4, email = $5 WHERE id = $1 RETURNING *',
-        [id, firstName, lastName, particles || null, email || null]
+        `UPDATE member SET ${sets.join(', ')} WHERE id = $1 RETURNING *`,
+        params
       );
       return result.rows[0] ? mapMemberRow(result.rows[0]) : null;
     },

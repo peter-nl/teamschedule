@@ -17,12 +17,13 @@ import { AccountPasswordComponent } from '../features/account/account-password.c
 import { ManageOrgComponent } from '../features/manage/manage-org.component';
 import { ManageMembersComponent } from '../features/manage/manage-members.component';
 import { ManageOrganisationsComponent } from '../features/manage/manage-organisations.component';
+import { ManageSystemSettingsComponent } from '../features/manage/manage-system-settings.component';
 import { ClaimDemoDialogComponent } from '../shared/components/claim-demo-dialog.component';
 
 type NavBarType = 'management';
 type PanelType = 'login' | 'profile' | 'password'
               | 'manage-org' | 'manage-org-teams' | 'manage-my-teams' | 'manage-members'
-              | 'manage-organisations';
+              | 'manage-organisations' | 'manage-settings';
 
 interface NavItem {
   path: string;
@@ -52,6 +53,7 @@ interface ManagementItem {
     ManageOrgComponent,
     ManageMembersComponent,
     ManageOrganisationsComponent,
+    ManageSystemSettingsComponent,
     ClaimDemoDialogComponent
   ],
   template: `
@@ -175,6 +177,7 @@ interface ManagementItem {
         <app-manage-org *ngIf="activePanel === 'manage-org-teams'" [view]="'teams'" [myTeamsOnly]="false"></app-manage-org>
         <app-manage-org *ngIf="activePanel === 'manage-my-teams'" [view]="'teams'" [myTeamsOnly]="true"></app-manage-org>
         <app-manage-members *ngIf="activePanel === 'manage-members'"></app-manage-members>
+        <app-manage-system-settings *ngIf="activePanel === 'manage-settings'"></app-manage-system-settings>
         <!-- Account views replace the main content area -->
         <div class="account-view" *ngIf="isAccountPanel">
           <app-account-login *ngIf="activePanel === 'login'" (loginSuccess)="onLoginSuccess()"></app-account-login>
@@ -694,6 +697,7 @@ export class ShellComponent {
       items.push({ panel: 'manage-organisations', icon: 'business', label: 'shell.management.organisations' });
       items.push({ panel: 'manage-org-teams', icon: 'group_work', label: 'shell.management.teams' });
       items.push({ panel: 'manage-members', icon: 'manage_accounts', label: 'shell.management.members' });
+      items.push({ panel: 'manage-settings', icon: 'settings', label: 'shell.management.settings' });
       return items;
     }
     if (this.authService.isOrgAdmin) {
@@ -711,7 +715,8 @@ export class ShellComponent {
         || this.activePanel === 'manage-org'
         || this.activePanel === 'manage-org-teams'
         || this.activePanel === 'manage-my-teams'
-        || this.activePanel === 'manage-members';
+        || this.activePanel === 'manage-members'
+        || this.activePanel === 'manage-settings';
   }
 
   get isAccountPanel(): boolean {
