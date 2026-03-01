@@ -208,6 +208,7 @@ const typeDefs = `#graphql
     role: String!
     organisationId: Int
     scheduleDisabled: Boolean!
+    isDemo: Boolean!
     isOrgAdmin: Boolean!
     teamAdminIds: [Int!]!
     adminOfTeams: [Team!]!
@@ -1701,6 +1702,7 @@ const resolvers = {
       );
       return result.rows;
     },
+    isDemo: (parent: any) => parent.isDemo ?? false,
   },
 };
 
