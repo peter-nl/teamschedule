@@ -1,6 +1,7 @@
 import { Component, EventEmitter, OnInit, Output, ChangeDetectorRef, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -73,18 +74,22 @@ const UPDATE_AVATAR_MUTATION = gql`
   template: `
     <mat-card class="profile-card">
       <mat-card-header>
-        <div mat-card-avatar class="avatar-wrapper" (click)="triggerAvatarUpload()" [matTooltip]="'profile.uploadAvatar' | translate">
-          <img *ngIf="avatarUrl" [src]="avatarUrl" class="avatar-img" alt="">
-          <mat-icon *ngIf="!avatarUrl" class="avatar-icon">account_circle</mat-icon>
-          <div class="avatar-overlay">
-            <mat-icon class="camera-icon">photo_camera</mat-icon>
+        <div class="profile-header">
+          <div class="avatar-wrapper" (click)="triggerAvatarUpload()" [matTooltip]="'profile.uploadAvatar' | translate">
+            <img *ngIf="safeAvatarUrl" [src]="safeAvatarUrl" class="avatar-img" alt="">
+            <mat-icon *ngIf="!safeAvatarUrl" class="avatar-icon">account_circle</mat-icon>
+            <div class="avatar-overlay">
+              <mat-icon class="camera-icon">photo_camera</mat-icon>
+            </div>
+          </div>
+          <div class="profile-title-group">
+            <div class="profile-title">{{ 'profile.title' | translate }}</div>
+            <div class="profile-subtitle">
+              <span class="member-no-badge" *ngIf="memberNo">#{{ memberNo }}</span>
+              <span *ngIf="username" class="profile-username">{{ username }}</span>
+            </div>
           </div>
         </div>
-        <mat-card-title>{{ 'profile.title' | translate }}</mat-card-title>
-        <mat-card-subtitle>
-          <span class="member-no-badge" *ngIf="memberNo">#{{ memberNo }}</span>
-          {{ 'profile.subtitle' | translate:{ id: authService.currentUser?.id } }}
-        </mat-card-subtitle>
       </mat-card-header>
 
       <input #avatarFileInput type="file" accept="image/*" style="display:none"
@@ -205,12 +210,45 @@ const UPDATE_AVATAR_MUTATION = gql`
 
     mat-card-header {
       margin-bottom: 24px;
+      padding: 0;
+    }
+
+    .profile-header {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      width: 100%;
+      padding: 16px 16px 0;
+    }
+
+    .profile-title-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .profile-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--mat-sys-on-surface);
+      line-height: 1.2;
+    }
+
+    .profile-subtitle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .profile-username {
+      font-size: 13px;
+      color: var(--mat-sys-on-surface-variant);
     }
 
     .avatar-wrapper {
       position: relative;
-      width: 40px;
-      height: 40px;
+      width: 80px;
+      height: 80px;
       border-radius: 50%;
       overflow: hidden;
       cursor: pointer;
@@ -218,17 +256,17 @@ const UPDATE_AVATAR_MUTATION = gql`
     }
 
     .avatar-img {
-      width: 40px;
-      height: 40px;
+      width: 80px;
+      height: 80px;
       border-radius: 50%;
       object-fit: cover;
       display: block;
     }
 
     .avatar-icon {
-      font-size: 40px;
-      width: 40px;
-      height: 40px;
+      font-size: 80px;
+      width: 80px;
+      height: 80px;
       color: var(--mat-sys-primary);
     }
 
@@ -249,9 +287,9 @@ const UPDATE_AVATAR_MUTATION = gql`
     }
 
     .camera-icon {
-      font-size: 20px;
-      width: 20px;
-      height: 20px;
+      font-size: 28px;
+      width: 28px;
+      height: 28px;
       color: #fff;
     }
 
@@ -263,7 +301,6 @@ const UPDATE_AVATAR_MUTATION = gql`
       background: var(--mat-sys-surface-container);
       border-radius: 10px;
       padding: 1px 7px;
-      margin-right: 6px;
       letter-spacing: 0.03em;
     }
 
@@ -360,6 +397,13 @@ export class AccountProfileComponent implements OnInit {
   memberNo = 0;
   username = '';
   private savedUsername = '';
+
+  get safeAvatarUrl(): SafeUrl | null {
+    if (!this.avatarUrl) return null;
+    return this.avatarUrl.startsWith('data:')
+      ? this.sanitizer.bypassSecurityTrustUrl(this.avatarUrl)
+      : this.avatarUrl;
+  }
   scheduleDisabledLoading = false;
 
   get roleIcon(): string {
@@ -381,7 +425,8 @@ export class AccountProfileComponent implements OnInit {
     private uiEventService: UiEventService,
     private notificationService: NotificationService,
     private translate: TranslateService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private sanitizer: DomSanitizer
   ) {
     this.authService.currentUser$.subscribe(user => {
       if (user) {
