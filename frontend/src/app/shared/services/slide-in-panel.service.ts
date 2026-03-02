@@ -147,6 +147,10 @@ export class SlideInPanelService {
     panelRef.componentInstance = componentRef.instance;
   }
 
+  get panelCount(): number {
+    return this.panelStack.length;
+  }
+
   closeAll(): void {
     [...this.panelStack].forEach(ref => ref.close());
   }

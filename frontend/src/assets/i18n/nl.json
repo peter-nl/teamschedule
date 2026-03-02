@@ -290,6 +290,7 @@
     "id": "ID",
     "name": "Naam",
     "members": "Leden",
+    "teamAdmins": "Teambeheerders",
     "assignMembers": "Leden toewijzen",
     "addMember": "Lid toevoegen",
     "removeMember": "Lid verwijderen",

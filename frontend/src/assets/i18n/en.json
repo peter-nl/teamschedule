@@ -290,6 +290,7 @@
     "id": "ID",
     "name": "Name",
     "members": "Members",
+    "teamAdmins": "Team admins",
     "assignMembers": "Assign Members",
     "addMember": "Add member",
     "removeMember": "Remove member",

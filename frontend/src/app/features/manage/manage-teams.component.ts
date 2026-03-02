@@ -29,10 +29,18 @@ interface Member {
   avatarUrl: string | null;
 }
 
+interface TeamAdmin {
+  id: string;
+  firstName: string;
+  lastName: string;
+  particles: string | null;
+}
+
 interface Team {
   id: string;
   name: string;
   members: Member[];
+  teamAdmins: TeamAdmin[];
 }
 
 const GET_TEAMS_QUERY = gql`
@@ -50,6 +58,12 @@ const GET_TEAMS_QUERY = gql`
         username
         role
         avatarUrl
+      }
+      teamAdmins {
+        id
+        firstName
+        lastName
+        particles
       }
     }
   }
@@ -110,8 +124,15 @@ const GET_MEMBERS_QUERY = gql`
             <mat-cell *matCellDef="let team">{{ team.name }}</mat-cell>
           </ng-container>
 
+          <ng-container matColumnDef="admins">
+            <mat-header-cell *matHeaderCellDef>{{ 'teams.teamAdmins' | translate }}</mat-header-cell>
+            <mat-cell *matCellDef="let team" class="admins-cell">
+              {{ formatAdmins(team.teamAdmins) }}
+            </mat-cell>
+          </ng-container>
+
           <ng-container matColumnDef="count">
-            <mat-header-cell *matHeaderCellDef>{{ 'teams.members' | translate }}</mat-header-cell>
+            <mat-header-cell *matHeaderCellDef class="count-header">{{ 'teams.members' | translate }}</mat-header-cell>
             <mat-cell *matCellDef="let team" class="count-cell">
               {{ team.members.length }}
             </mat-cell>
@@ -223,8 +244,20 @@ const GET_MEMBERS_QUERY = gql`
       margin-left: 4px;
     }
 
+    .admins-cell {
+      color: var(--mat-sys-on-surface-variant);
+      font-size: 13px;
+    }
+
+    .count-header {
+      justify-content: flex-end !important;
+      text-align: right;
+    }
+
     .count-cell {
       max-width: 100px;
+      justify-content: flex-end !important;
+      text-align: right;
       color: var(--mat-sys-on-surface-variant);
       font-size: 13px;
     }
@@ -257,7 +290,7 @@ export class ManageTeamsComponent implements OnInit {
   loading = true;
   searchText = '';
   sortDirection: 'asc' | 'desc' = 'asc';
-  tableColumns = ['name', 'count'];
+  tableColumns = ['name', 'admins', 'count'];
 
   constructor(
     private notificationService: NotificationService,
@@ -300,6 +333,13 @@ export class ManageTeamsComponent implements OnInit {
     }
     const dir = this.sortDirection === 'asc' ? 1 : -1;
     this.filteredTeams = [...filtered].sort((a, b) => a.name.localeCompare(b.name) * dir);
+  }
+
+  formatAdmins(admins: TeamAdmin[]): string {
+    if (!admins?.length) return '';
+    return admins.map(a =>
+      `${a.firstName}${a.particles ? ' ' + a.particles : ''} ${a.lastName}`
+    ).join(', ');
   }
 
   toggleSort(): void {
