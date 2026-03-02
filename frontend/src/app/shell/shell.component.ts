@@ -143,13 +143,15 @@ interface ManagementItem {
       </nav>
 
       <!-- Management Nav Bar -->
-      <nav class="nav-bar" *ngIf="activeNavBar === 'management'">
+      <nav class="nav-bar" [class.expanded]="isExpanded" *ngIf="activeNavBar === 'management'">
         <div class="nav-bar-spacer"></div>
         <div class="nav-bar-items">
           <button *ngFor="let item of managementItems"
                   class="nav-bar-item"
                   [class.active]="activePanel === item.panel"
-                  (click)="openPanel(item.panel)">
+                  (click)="openPanel(item.panel)"
+                  [matTooltip]="isExpanded ? '' : (item.label | translate)"
+                  matTooltipPosition="right">
             <mat-icon>{{ item.icon }}</mat-icon>
             <span>{{ item.label | translate }}</span>
           </button>
@@ -373,8 +375,8 @@ interface ManagementItem {
 
     /* Secondary Nav Bar */
     .nav-bar {
-      width: 200px;
-      min-width: 200px;
+      width: 72px;
+      min-width: 72px;
       height: 100vh;
       background: var(--mat-sys-surface-container);
       border-right: 1px solid var(--mat-sys-outline-variant);
@@ -382,6 +384,13 @@ interface ManagementItem {
       flex-direction: column;
       position: sticky;
       top: 0;
+      transition: width 0.2s ease, min-width 0.2s ease;
+      overflow: hidden;
+    }
+
+    .nav-bar.expanded {
+      width: 200px;
+      min-width: 200px;
     }
 
     .nav-bar-spacer {
@@ -398,8 +407,9 @@ interface ManagementItem {
     .nav-bar-item {
       display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 10px 16px;
+      justify-content: center;
+      gap: 0;
+      padding: 12px;
       border-radius: 12px;
       border: none;
       background: transparent;
@@ -412,6 +422,21 @@ interface ManagementItem {
       text-align: left;
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
+    }
+
+    .nav-bar.expanded .nav-bar-item {
+      justify-content: flex-start;
+      gap: 12px;
+      padding: 10px 16px;
+    }
+
+    .nav-bar-item span {
+      display: none;
+      white-space: nowrap;
+    }
+
+    .nav-bar.expanded .nav-bar-item span {
+      display: inline;
     }
 
     .nav-bar-item:hover {
@@ -427,6 +452,7 @@ interface ManagementItem {
       font-size: 20px;
       width: 20px;
       height: 20px;
+      flex-shrink: 0;
     }
 
     /* Account View (shown in main content area) */
