@@ -10,6 +10,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { SlideInPanelRef, SlideInPanelService, SLIDE_IN_PANEL_DATA } from '../services/slide-in-panel.service';
 import { UserPreferencesService } from '../services/user-preferences.service';
 import { TeamEditDialogComponent, TeamEditDialogData } from './team-edit-dialog.component';
+import { MemberDetailDialogComponent, MemberDetailDialogData } from './member-detail-dialog.component';
 
 export interface TeamMembersPanelData {
   teamId: string;
@@ -102,7 +103,7 @@ interface Member {
           </ng-container>
 
           <mat-header-row *matHeaderRowDef="tableColumns; sticky: true"></mat-header-row>
-          <mat-row *matRowDef="let row; columns: tableColumns;"></mat-row>
+          <mat-row *matRowDef="let row; columns: tableColumns;" (dblclick)="openMemberDetail(row)" class="member-row"></mat-row>
         </mat-table>
 
         <div *ngIf="data.members.length === 0" class="empty-state">
@@ -184,6 +185,10 @@ interface Member {
 
     .members-table .mat-mdc-row {
       min-height: 44px;
+    }
+
+    .member-row {
+      cursor: pointer;
     }
 
     .avatar-col {
@@ -273,6 +278,18 @@ export class TeamMembersPanelComponent implements AfterViewInit {
         default:     return (item as any)[property] ?? '';
       }
     };
+  }
+
+  openMemberDetail(member: Member): void {
+    const isNarrow = window.innerWidth < 768;
+    const navExpanded = this.userPreferencesService.preferences.navigationExpanded;
+    const railWidth = isNarrow ? 0 : (navExpanded ? 220 : 80);
+    const leftOffset = railWidth > 0 ? `${railWidth}px` : undefined;
+
+    this.panelService.open<MemberDetailDialogComponent, MemberDetailDialogData>(
+      MemberDetailDialogComponent,
+      { leftOffset, data: { memberId: member.id, leftOffset } }
+    );
   }
 
   openEdit(): void {

@@ -142,6 +142,7 @@ const DELETE_MEMBER_MUTATION = gql`
 
           <div class="detail-row" *ngIf="memberSchedule">
             <span class="detail-label">{{ 'memberSchedule.title' | translate }}</span>
+            <div style="flex:1">
             <div *ngFor="let weekLabel of ['weekA', 'weekB']; let wi = index" class="schedule-week-display">
               <div class="week-label-display">{{ 'memberSchedule.' + weekLabel | translate }}</div>
               <div class="schedule-grid-display">
@@ -150,6 +151,7 @@ const DELETE_MEMBER_MUTATION = gql`
                      [class.off]="d.morning === 0 && d.afternoon === 0"
                      [class.half-day]="(d.morning === 0) !== (d.afternoon === 0)">{{ dayToString(d) }}</div>
               </div>
+            </div>
             </div>
           </div>
 
@@ -204,16 +206,21 @@ const DELETE_MEMBER_MUTATION = gql`
     .detail-content {
       display: flex;
       flex-direction: column;
-      gap: 20px;
+      gap: 4px;
       width: 100%;
-      max-width: 480px;
-      margin: 0 auto;
     }
 
     .detail-row {
       display: flex;
-      flex-direction: column;
-      gap: 4px;
+      flex-direction: row;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--mat-sys-outline-variant);
+    }
+
+    .detail-row:last-child {
+      border-bottom: none;
     }
 
     .detail-label {
@@ -222,11 +229,16 @@ const DELETE_MEMBER_MUTATION = gql`
       color: var(--mat-sys-on-surface-variant);
       text-transform: uppercase;
       letter-spacing: 0.5px;
+      width: 130px;
+      min-width: 130px;
+      flex-shrink: 0;
+      padding-top: 2px;
     }
 
     .detail-value {
-      font-size: 16px;
+      font-size: 14px;
       color: var(--mat-sys-on-surface);
+      flex: 1;
     }
 
     .detail-value.muted {
@@ -255,6 +267,7 @@ const DELETE_MEMBER_MUTATION = gql`
       display: flex;
       flex-wrap: wrap;
       gap: 4px;
+      flex: 1;
     }
 
     .delete-button {
@@ -269,7 +282,8 @@ const DELETE_MEMBER_MUTATION = gql`
     }
 
     .schedule-week-display {
-      margin: 8px 0;
+      margin: 4px 0;
+      flex: 1;
     }
 
     .week-label-display {
@@ -333,6 +347,7 @@ const DELETE_MEMBER_MUTATION = gql`
       display: flex;
       flex-direction: column;
       gap: 4px;
+      flex: 1;
     }
 
     .holiday-item-ro {
