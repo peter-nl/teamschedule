@@ -19,10 +19,13 @@ import { TeamMembersPanelComponent, TeamMembersPanelData } from '../../shared/co
 
 interface Member {
   id: string;
+  memberNo: number;
   firstName: string;
   lastName: string;
   particles: string | null;
   email: string | null;
+  username: string;
+  role: string;
 }
 
 interface Team {
@@ -38,10 +41,13 @@ const GET_TEAMS_QUERY = gql`
       name
       members {
         id
+        memberNo
         firstName
         lastName
         particles
         email
+        username
+        role
       }
     }
   }

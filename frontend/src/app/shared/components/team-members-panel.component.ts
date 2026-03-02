@@ -19,10 +19,13 @@ export interface TeamMembersPanelData {
 
 interface Member {
   id: string;
+  memberNo: number;
   firstName: string;
   lastName: string;
   particles: string | null;
   email: string | null;
+  username: string;
+  role: string;
 }
 
 @Component({
@@ -38,7 +41,7 @@ interface Member {
     TranslateModule
   ],
   template: `
-    <div class="panel-container">
+    <div class="slide-in-panel">
       <div class="panel-header">
         <div class="header-title-group">
           <span class="panel-title">{{ data.teamName }}</span>
@@ -56,6 +59,7 @@ interface Member {
 
       <div class="table-scroll">
         <mat-table [dataSource]="sortedMembers" class="members-table" *ngIf="data.members.length > 0">
+
           <ng-container matColumnDef="name">
             <mat-header-cell *matHeaderCellDef>{{ 'members.name' | translate }}</mat-header-cell>
             <mat-cell *matCellDef="let m">
@@ -63,8 +67,26 @@ interface Member {
             </mat-cell>
           </ng-container>
 
-          <mat-header-row *matHeaderRowDef="['name']; sticky: true"></mat-header-row>
-          <mat-row *matRowDef="let row; columns: ['name'];"></mat-row>
+          <ng-container matColumnDef="username">
+            <mat-header-cell *matHeaderCellDef>{{ 'members.username' | translate }}</mat-header-cell>
+            <mat-cell *matCellDef="let m" class="secondary-cell">{{ m.username }}</mat-cell>
+          </ng-container>
+
+          <ng-container matColumnDef="email">
+            <mat-header-cell *matHeaderCellDef>{{ 'members.email' | translate }}</mat-header-cell>
+            <mat-cell *matCellDef="let m" class="secondary-cell">{{ m.email }}</mat-cell>
+          </ng-container>
+
+          <ng-container matColumnDef="role">
+            <mat-header-cell *matHeaderCellDef>{{ 'members.role' | translate }}</mat-header-cell>
+            <mat-cell *matCellDef="let m" class="role-cell">
+              <mat-icon *ngIf="m.role === 'orgadmin'" [matTooltip]="'members.roles.orgAdmin' | translate" class="role-icon">shield</mat-icon>
+              <mat-icon *ngIf="m.role === 'teamadmin'" [matTooltip]="'members.roles.teamAdmin' | translate" class="role-icon">manage_accounts</mat-icon>
+            </mat-cell>
+          </ng-container>
+
+          <mat-header-row *matHeaderRowDef="tableColumns; sticky: true"></mat-header-row>
+          <mat-row *matRowDef="let row; columns: tableColumns;"></mat-row>
         </mat-table>
 
         <div *ngIf="data.members.length === 0" class="empty-state">
@@ -81,7 +103,7 @@ interface Member {
       height: 100%;
     }
 
-    .panel-container {
+    .slide-in-panel {
       display: flex;
       flex-direction: column;
       height: 100%;
@@ -131,17 +153,33 @@ interface Member {
       letter-spacing: 0.04em;
       color: var(--mat-sys-on-surface-variant);
       background: var(--mat-sys-surface-container);
-      padding: 0 20px;
+      padding: 0 12px;
     }
 
     .members-table .mat-mdc-cell {
       font-size: 14px;
       color: var(--mat-sys-on-surface);
-      padding: 0 20px;
+      padding: 0 12px;
     }
 
     .members-table .mat-mdc-row {
       min-height: 44px;
+    }
+
+    .secondary-cell {
+      color: var(--mat-sys-on-surface-variant) !important;
+      font-size: 13px !important;
+    }
+
+    .role-cell {
+      max-width: 72px;
+    }
+
+    .role-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+      color: var(--mat-sys-primary);
     }
 
     .empty-state {
@@ -162,6 +200,8 @@ interface Member {
   `]
 })
 export class TeamMembersPanelComponent {
+  tableColumns = ['name', 'username', 'email', 'role'];
+
   constructor(
     @Inject(SLIDE_IN_PANEL_DATA) public data: TeamMembersPanelData,
     public panelRef: SlideInPanelRef<boolean>,
