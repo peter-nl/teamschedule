@@ -408,7 +408,7 @@ const typeDefs = `#graphql
     memberProfile(id: String!): Member
     organisation(orgId: ID): Organisation!
     orgAdmins(orgId: ID): [Member!]!
-    holidayTypes: [HolidayType!]!
+    holidayTypes(orgId: ID): [HolidayType!]!
     memberHolidays(memberId: String!): [MemberHoliday!]!
     allMemberHolidays(startDate: String!, endDate: String!): [MemberHoliday!]!
     scheduleDateRange: ScheduleDateRange!
@@ -438,9 +438,9 @@ const typeDefs = `#graphql
     removeOrgAdmin(memberId: String!, orgId: ID): Boolean!
     assignTeamAdmin(memberId: String!, teamId: Int!, orgId: ID): Boolean!
     removeTeamAdmin(memberId: String!, teamId: Int!): Boolean!
-    createHolidayType(name: String!, colorLight: String!, colorDark: String!): HolidayType!
-    updateHolidayType(id: ID!, name: String, colorLight: String, colorDark: String, sortOrder: Int): HolidayType!
-    deleteHolidayType(id: ID!): Boolean!
+    createHolidayType(name: String!, colorLight: String!, colorDark: String!, orgId: ID): HolidayType!
+    updateHolidayType(id: ID!, name: String, colorLight: String, colorDark: String, sortOrder: Int, orgId: ID): HolidayType!
+    deleteHolidayType(id: ID!, orgId: ID): Boolean!
     saveScheduleDateRange(startDate: String!, endDate: String!): DeletedHolidaysResult!
     saveOrgSettings(settings: OrgSettingsInput!, orgId: ID): OrgSettings!
     importMemberHolidays(holidays: [MemberHolidayImportInput!]!): ImportResult!
@@ -674,11 +674,12 @@ const resolvers = {
       return result.rows.map(mapMemberRow);
     },
 
-    holidayTypes: async (_: any, __: any, ctx: AuthContext) => {
+    holidayTypes: async (_: any, { orgId }: { orgId?: string }, ctx: AuthContext) => {
       const user = requireAuth(ctx);
-      const result = user.organisationId === null
+      const effectiveOrgId = orgId && user.role === 'sysadmin' ? Number(orgId) : user.organisationId;
+      const result = effectiveOrgId === null
         ? await pool.query('SELECT * FROM holiday_type ORDER BY sort_order, name')
-        : await pool.query('SELECT * FROM holiday_type WHERE organisation_id = $1 ORDER BY sort_order, name', [user.organisationId]);
+        : await pool.query('SELECT * FROM holiday_type WHERE organisation_id = $1 ORDER BY sort_order, name', [effectiveOrgId]);
       return result.rows.map(row => ({
         id: row.id,
         name: row.name,
@@ -1114,27 +1115,29 @@ const resolvers = {
       return result.rows[0] ? mapMemberRow(result.rows[0]) : null;
     },
 
-    createHolidayType: async (_: any, { name, colorLight, colorDark }: { name: string; colorLight: string; colorDark: string }, ctx: AuthContext) => {
+    createHolidayType: async (_: any, { name, colorLight, colorDark, orgId }: { name: string; colorLight: string; colorDark: string; orgId?: string }, ctx: AuthContext) => {
       const user = requireOrgAdmin(ctx);
-      if (user.organisationId === null) throw new Error('No organisation context');
+      const effectiveOrgId = orgId && user.role === 'sysadmin' ? Number(orgId) : user.organisationId;
+      if (effectiveOrgId === null) throw new Error('No organisation context');
       const maxOrder = await pool.query(
         'SELECT COALESCE(MAX(sort_order), -1) + 1 as next_order FROM holiday_type WHERE organisation_id = $1 AND is_system = false',
-        [user.organisationId]
+        [effectiveOrgId]
       );
       const sortOrder = maxOrder.rows[0].next_order;
       const result = await pool.query(
         'INSERT INTO holiday_type (name, color_light, color_dark, sort_order, organisation_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-        [name, colorLight, colorDark, sortOrder, user.organisationId]
+        [name, colorLight, colorDark, sortOrder, effectiveOrgId]
       );
       const row = result.rows[0];
       return { id: row.id, name: row.name, colorLight: row.color_light, colorDark: row.color_dark, sortOrder: row.sort_order, isSystem: row.is_system };
     },
 
-    updateHolidayType: async (_: any, { id, name, colorLight, colorDark, sortOrder }: { id: number; name?: string; colorLight?: string; colorDark?: string; sortOrder?: number }, ctx: AuthContext) => {
+    updateHolidayType: async (_: any, { id, name, colorLight, colorDark, sortOrder, orgId }: { id: number; name?: string; colorLight?: string; colorDark?: string; sortOrder?: number; orgId?: string }, ctx: AuthContext) => {
       const user = requireOrgAdmin(ctx);
+      const effectiveOrgId = orgId && user.role === 'sysadmin' ? Number(orgId) : user.organisationId;
       const current = await pool.query(
         'SELECT * FROM holiday_type WHERE id = $1 AND organisation_id = $2',
-        [id, user.organisationId]
+        [id, effectiveOrgId]
       );
       if (current.rows.length === 0) throw new Error('Holiday type not found');
       const cur = current.rows[0];
@@ -1147,11 +1150,12 @@ const resolvers = {
       return { id: row.id, name: row.name, colorLight: row.color_light, colorDark: row.color_dark, sortOrder: row.sort_order, isSystem: row.is_system };
     },
 
-    deleteHolidayType: async (_: any, { id }: { id: number }, ctx: AuthContext) => {
+    deleteHolidayType: async (_: any, { id, orgId }: { id: number; orgId?: string }, ctx: AuthContext) => {
       const user = requireOrgAdmin(ctx);
+      const effectiveOrgId = orgId && user.role === 'sysadmin' ? Number(orgId) : user.organisationId;
       const check = await pool.query(
         'SELECT is_system FROM holiday_type WHERE id = $1 AND organisation_id = $2',
-        [id, user.organisationId]
+        [id, effectiveOrgId]
       );
       if (check.rows.length === 0) return false;
       if (check.rows[0].is_system) throw new Error('Cannot delete a system holiday type');

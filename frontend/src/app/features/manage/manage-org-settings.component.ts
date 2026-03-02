@@ -13,10 +13,34 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { provideNativeDateAdapter } from '@angular/material/core';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { gql } from '@apollo/client';
+import { apolloClient } from '../../app.config';
 import { AppSettingsService } from '../../core/services/app-settings.service';
 import { HolidayService, HolidayInfo } from '../../core/services/holiday.service';
 import { HolidayTypeService, HolidayType } from '../../core/services/holiday-type.service';
 import { NotificationService } from '../../shared/services/notification.service';
+
+// GQL with orgId for sysadmin cross-org management
+const HOLIDAY_TYPES_FOR_ORG = gql`
+  query HolidayTypesForOrg($orgId: ID) {
+    holidayTypes(orgId: $orgId) { id name colorLight colorDark sortOrder isSystem }
+  }
+`;
+const CREATE_HOLIDAY_TYPE_FOR_ORG = gql`
+  mutation CreateHolidayTypeForOrg($name: String!, $colorLight: String!, $colorDark: String!, $orgId: ID) {
+    createHolidayType(name: $name, colorLight: $colorLight, colorDark: $colorDark, orgId: $orgId) { id name colorLight colorDark sortOrder isSystem }
+  }
+`;
+const UPDATE_HOLIDAY_TYPE_FOR_ORG = gql`
+  mutation UpdateHolidayTypeForOrg($id: ID!, $name: String, $colorLight: String, $colorDark: String, $orgId: ID) {
+    updateHolidayType(id: $id, name: $name, colorLight: $colorLight, colorDark: $colorDark, orgId: $orgId) { id name colorLight colorDark sortOrder isSystem }
+  }
+`;
+const DELETE_HOLIDAY_TYPE_FOR_ORG = gql`
+  mutation DeleteHolidayTypeForOrg($id: ID!, $orgId: ID) {
+    deleteHolidayType(id: $id, orgId: $orgId)
+  }
+`;
 
 interface DayConfig { label: string; jsIndex: number; }
 interface HolidayYearGroup { year: number; holidays: HolidayInfo[]; }
@@ -228,10 +252,10 @@ interface HolidayYearGroup { year: number; holidays: HolidayInfo[]; }
         </div>
       </div>
 
-      <mat-divider *ngIf="!orgId"></mat-divider>
+      <mat-divider></mat-divider>
 
-      <!-- Holiday Types (Days Off, own org only) -->
-      <div class="settings-section" *ngIf="!orgId">
+      <!-- Holiday Types (Days Off) -->
+      <div class="settings-section">
         <div class="section-header">
           <div>
             <h3 class="section-title">{{ 'settings.holidayTypes.title' | translate }}</h3>
@@ -719,7 +743,10 @@ export class ManageOrgSettingsComponent implements OnInit, OnChanges {
   ngOnInit(): void {
     this.loadSettings();
 
-    if (!this.orgId) {
+    if (this.orgId) {
+      // Sysadmin viewing another org — load holiday types directly
+      this.loadHolidayTypesForOrg();
+    } else {
       // Load date range and holidays only for own org
       this.appSettingsService.loadDateRange().subscribe(range => {
         this.scheduleStartDateObj = new Date(range.startDate + 'T00:00:00');
@@ -929,24 +956,53 @@ export class ManageOrgSettingsComponent implements OnInit, OnChanges {
     );
   }
 
+  private loadHolidayTypesForOrg(): void {
+    apolloClient.query({
+      query: HOLIDAY_TYPES_FOR_ORG,
+      variables: { orgId: this.orgId },
+      fetchPolicy: 'network-only'
+    }).then((result: any) => {
+      this.holidayTypes = (result.data.holidayTypes as HolidayType[]).filter(t => !t.isSystem);
+    }).catch(() => {
+      this.notificationService.error(this.translate.instant('common.error'));
+    });
+  }
+
   addHolidayType(): void {
     const name = this.newTypeName.trim();
     if (!name) return;
-    this.holidayTypeService.createType(name, this.newTypeColorLight, this.newTypeColorDark).subscribe({
-      next: () => {
+    if (this.orgId) {
+      apolloClient.mutate({
+        mutation: CREATE_HOLIDAY_TYPE_FOR_ORG,
+        variables: { name, colorLight: this.newTypeColorLight, colorDark: this.newTypeColorDark, orgId: this.orgId }
+      }).then(() => {
         this.newTypeName = '';
         this.newTypeColorLight = '#c8e6c9';
         this.newTypeColorDark = '#2e7d32';
-      },
-      error: () => this.notificationService.error(this.translate.instant('common.error'))
-    });
+        this.loadHolidayTypesForOrg();
+      }).catch(() => this.notificationService.error(this.translate.instant('common.error')));
+    } else {
+      this.holidayTypeService.createType(name, this.newTypeColorLight, this.newTypeColorDark).subscribe({
+        next: () => {
+          this.newTypeName = '';
+          this.newTypeColorLight = '#c8e6c9';
+          this.newTypeColorDark = '#2e7d32';
+        },
+        error: () => this.notificationService.error(this.translate.instant('common.error'))
+      });
+    }
   }
 
   onTypeNameChange(type: HolidayType, event: Event): void {
     const input = event.target as HTMLInputElement;
     const newName = input.value.trim();
     if (newName && newName !== type.name) {
-      this.holidayTypeService.updateType(type.id, newName).subscribe();
+      if (this.orgId) {
+        apolloClient.mutate({ mutation: UPDATE_HOLIDAY_TYPE_FOR_ORG, variables: { id: type.id, name: newName, orgId: this.orgId } })
+          .then(() => this.loadHolidayTypesForOrg()).catch(() => {});
+      } else {
+        this.holidayTypeService.updateType(type.id, newName).subscribe();
+      }
     } else {
       input.value = type.name;
     }
@@ -954,15 +1010,30 @@ export class ManageOrgSettingsComponent implements OnInit, OnChanges {
 
   onTypeColorLightChange(type: HolidayType, event: Event): void {
     const value = (event.target as HTMLInputElement).value;
-    this.holidayTypeService.updateType(type.id, undefined, value).subscribe();
+    if (this.orgId) {
+      apolloClient.mutate({ mutation: UPDATE_HOLIDAY_TYPE_FOR_ORG, variables: { id: type.id, colorLight: value, orgId: this.orgId } })
+        .then(() => this.loadHolidayTypesForOrg()).catch(() => {});
+    } else {
+      this.holidayTypeService.updateType(type.id, undefined, value).subscribe();
+    }
   }
 
   onTypeColorDarkChange(type: HolidayType, event: Event): void {
     const value = (event.target as HTMLInputElement).value;
-    this.holidayTypeService.updateType(type.id, undefined, undefined, value).subscribe();
+    if (this.orgId) {
+      apolloClient.mutate({ mutation: UPDATE_HOLIDAY_TYPE_FOR_ORG, variables: { id: type.id, colorDark: value, orgId: this.orgId } })
+        .then(() => this.loadHolidayTypesForOrg()).catch(() => {});
+    } else {
+      this.holidayTypeService.updateType(type.id, undefined, undefined, value).subscribe();
+    }
   }
 
   deleteHolidayType(type: HolidayType): void {
-    this.holidayTypeService.deleteType(type.id).subscribe();
+    if (this.orgId) {
+      apolloClient.mutate({ mutation: DELETE_HOLIDAY_TYPE_FOR_ORG, variables: { id: type.id, orgId: this.orgId } })
+        .then(() => this.loadHolidayTypesForOrg()).catch(() => {});
+    } else {
+      this.holidayTypeService.deleteType(type.id).subscribe();
+    }
   }
 }
