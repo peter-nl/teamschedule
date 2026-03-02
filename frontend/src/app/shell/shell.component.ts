@@ -385,7 +385,6 @@ interface ManagementItem {
       position: sticky;
       top: 0;
       transition: width 0.2s ease, min-width 0.2s ease;
-      overflow: hidden;
     }
 
     .nav-bar.expanded {
@@ -407,9 +406,9 @@ interface ManagementItem {
     .nav-bar-item {
       display: flex;
       align-items: center;
-      justify-content: center;
-      gap: 0;
-      padding: 12px;
+      justify-content: flex-start;
+      gap: 12px;
+      padding: 10px 12px;
       border-radius: 12px;
       border: none;
       background: transparent;
@@ -422,21 +421,20 @@ interface ManagementItem {
       text-align: left;
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
-    }
-
-    .nav-bar.expanded .nav-bar-item {
-      justify-content: flex-start;
-      gap: 12px;
-      padding: 10px 16px;
+      overflow: hidden;
     }
 
     .nav-bar-item span {
-      display: none;
       white-space: nowrap;
+      max-width: 0;
+      overflow: hidden;
+      opacity: 0;
+      transition: max-width 0.2s ease, opacity 0.15s ease;
     }
 
     .nav-bar.expanded .nav-bar-item span {
-      display: inline;
+      max-width: 160px;
+      opacity: 1;
     }
 
     .nav-bar-item:hover {
