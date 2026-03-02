@@ -26,6 +26,7 @@ interface Member {
   email: string | null;
   username: string;
   role: string;
+  avatarUrl: string | null;
 }
 
 interface Team {
@@ -48,6 +49,7 @@ const GET_TEAMS_QUERY = gql`
         email
         username
         role
+        avatarUrl
       }
     }
   }

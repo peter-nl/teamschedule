@@ -1,8 +1,9 @@
-import { Component, Inject } from '@angular/core';
+import { Component, Inject, ViewChild, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatTableModule } from '@angular/material/table';
+import { MatTableModule, MatTableDataSource } from '@angular/material/table';
+import { MatSortModule, MatSort } from '@angular/material/sort';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
@@ -26,6 +27,7 @@ interface Member {
   email: string | null;
   username: string;
   role: string;
+  avatarUrl: string | null;
 }
 
 @Component({
@@ -36,6 +38,7 @@ interface Member {
     MatButtonModule,
     MatIconModule,
     MatTableModule,
+    MatSortModule,
     MatTooltipModule,
     MatDividerModule,
     TranslateModule
@@ -58,28 +61,41 @@ interface Member {
       <mat-divider></mat-divider>
 
       <div class="table-scroll">
-        <mat-table [dataSource]="sortedMembers" class="members-table" *ngIf="data.members.length > 0">
+        <mat-table [dataSource]="dataSource" matSort class="members-table" *ngIf="data.members.length > 0">
+
+          <ng-container matColumnDef="avatar">
+            <mat-header-cell *matHeaderCellDef class="avatar-col"></mat-header-cell>
+            <mat-cell *matCellDef="let m" class="avatar-col">
+              <img *ngIf="m.avatarUrl" [src]="m.avatarUrl" class="list-avatar" alt="">
+              <mat-icon *ngIf="!m.avatarUrl" class="list-avatar-icon">account_circle</mat-icon>
+            </mat-cell>
+          </ng-container>
+
+          <ng-container matColumnDef="no">
+            <mat-header-cell *matHeaderCellDef mat-sort-header class="no-col">{{ 'members.memberNo' | translate }}</mat-header-cell>
+            <mat-cell *matCellDef="let m" class="no-col secondary-cell">#{{ m.memberNo }}</mat-cell>
+          </ng-container>
 
           <ng-container matColumnDef="name">
-            <mat-header-cell *matHeaderCellDef>{{ 'members.name' | translate }}</mat-header-cell>
+            <mat-header-cell *matHeaderCellDef mat-sort-header>{{ 'members.name' | translate }}</mat-header-cell>
             <mat-cell *matCellDef="let m">
               {{ m.firstName }} {{ m.particles ? m.particles + ' ' : '' }}{{ m.lastName }}
             </mat-cell>
           </ng-container>
 
           <ng-container matColumnDef="username">
-            <mat-header-cell *matHeaderCellDef>{{ 'members.username' | translate }}</mat-header-cell>
+            <mat-header-cell *matHeaderCellDef mat-sort-header>{{ 'members.username' | translate }}</mat-header-cell>
             <mat-cell *matCellDef="let m" class="secondary-cell">{{ m.username }}</mat-cell>
           </ng-container>
 
           <ng-container matColumnDef="email">
-            <mat-header-cell *matHeaderCellDef>{{ 'members.email' | translate }}</mat-header-cell>
+            <mat-header-cell *matHeaderCellDef mat-sort-header>{{ 'members.email' | translate }}</mat-header-cell>
             <mat-cell *matCellDef="let m" class="secondary-cell">{{ m.email }}</mat-cell>
           </ng-container>
 
           <ng-container matColumnDef="role">
-            <mat-header-cell *matHeaderCellDef>{{ 'members.role' | translate }}</mat-header-cell>
-            <mat-cell *matCellDef="let m" class="role-cell">
+            <mat-header-cell *matHeaderCellDef class="role-col">{{ 'members.role' | translate }}</mat-header-cell>
+            <mat-cell *matCellDef="let m" class="role-col">
               <mat-icon *ngIf="m.role === 'orgadmin'" [matTooltip]="'members.roles.orgAdmin' | translate" class="role-icon">shield</mat-icon>
               <mat-icon *ngIf="m.role === 'teamadmin'" [matTooltip]="'members.roles.teamAdmin' | translate" class="role-icon">manage_accounts</mat-icon>
             </mat-cell>
@@ -153,7 +169,7 @@ interface Member {
       letter-spacing: 0.04em;
       color: var(--mat-sys-on-surface-variant);
       background: var(--mat-sys-surface-container);
-      padding: 0 12px;
+      padding: 0 8px;
       text-align: left;
       justify-content: flex-start;
     }
@@ -161,7 +177,7 @@ interface Member {
     .members-table .mat-mdc-cell {
       font-size: 14px;
       color: var(--mat-sys-on-surface);
-      padding: 0 12px;
+      padding: 0 8px;
       text-align: left;
       justify-content: flex-start;
     }
@@ -170,14 +186,28 @@ interface Member {
       min-height: 44px;
     }
 
+    .avatar-col {
+      width: 44px;
+      min-width: 44px;
+      max-width: 44px;
+      padding: 0 4px 0 12px !important;
+    }
+
+    .no-col {
+      width: 60px;
+      min-width: 60px;
+      max-width: 60px;
+    }
+
+    .role-col {
+      width: 56px;
+      min-width: 56px;
+      max-width: 56px;
+    }
+
     .secondary-cell {
       color: var(--mat-sys-on-surface-variant) !important;
       font-size: 13px !important;
-    }
-
-    .role-cell {
-      max-width: 72px;
-      justify-content: flex-start !important;
     }
 
     .role-icon {
@@ -185,6 +215,20 @@ interface Member {
       width: 18px;
       height: 18px;
       color: var(--mat-sys-primary);
+    }
+
+    .list-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    .list-avatar-icon {
+      font-size: 28px;
+      width: 28px;
+      height: 28px;
+      color: var(--mat-sys-on-surface-variant);
     }
 
     .empty-state {
@@ -204,8 +248,11 @@ interface Member {
     }
   `]
 })
-export class TeamMembersPanelComponent {
-  tableColumns = ['name', 'username', 'email', 'role'];
+export class TeamMembersPanelComponent implements AfterViewInit {
+  @ViewChild(MatSort) sort!: MatSort;
+
+  tableColumns = ['avatar', 'no', 'name', 'username', 'email', 'role'];
+  dataSource = new MatTableDataSource<Member>([]);
 
   constructor(
     @Inject(SLIDE_IN_PANEL_DATA) public data: TeamMembersPanelData,
@@ -213,12 +260,19 @@ export class TeamMembersPanelComponent {
     private panelService: SlideInPanelService,
     private userPreferencesService: UserPreferencesService,
     private translate: TranslateService
-  ) {}
+  ) {
+    this.dataSource.data = [...data.members];
+  }
 
-  get sortedMembers(): Member[] {
-    return [...this.data.members].sort((a, b) =>
-      a.lastName.localeCompare(b.lastName)
-    );
+  ngAfterViewInit(): void {
+    this.dataSource.sort = this.sort;
+    this.dataSource.sortingDataAccessor = (item, property) => {
+      switch (property) {
+        case 'name': return item.lastName + ' ' + (item.particles ?? '') + ' ' + item.firstName;
+        case 'no':   return item.memberNo;
+        default:     return (item as any)[property] ?? '';
+      }
+    };
   }
 
   openEdit(): void {
