@@ -1,22 +1,20 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatTableModule } from '@angular/material/table';
+import { MatTableModule, MatTableDataSource } from '@angular/material/table';
+import { MatSortModule, MatSort } from '@angular/material/sort';
 import { NotificationService } from '../../shared/services/notification.service';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
 import { SlideInPanelService } from '../../shared/services/slide-in-panel.service';
 import { AuthService } from '../../shared/services/auth.service';
 import { UserPreferencesService, TeamFilterMode } from '../../shared/services/user-preferences.service';
-import { MemberEditDialogComponent, MemberEditDialogData } from '../../shared/components/member-edit-dialog.component';
+import { MemberDetailDialogComponent, MemberDetailDialogData } from '../../shared/components/member-detail-dialog.component';
 import { ScheduleFilterPanelComponent, ScheduleFilterPanelData, ScheduleFilterPanelResult } from '../schedule/schedule-filter/schedule-filter-panel.component';
 import { AddMemberDialogComponent } from '../../shell/add-member-dialog.component';
 
@@ -65,15 +63,6 @@ const GET_MEMBERS_QUERY = gql`
   }
 `;
 
-const SET_SCHEDULE_DISABLED = gql`
-  mutation SetMemberScheduleDisabled($memberId: String!, $disabled: Boolean!) {
-    setMemberScheduleDisabled(memberId: $memberId, disabled: $disabled) {
-      id
-      scheduleDisabled
-    }
-  }
-`;
-
 const GET_TEAMS_QUERY = gql`
   query GetTeams($orgId: ID) {
     teams(orgId: $orgId) {
@@ -95,14 +84,12 @@ const GET_ORG_LIST = gql`
   imports: [
     CommonModule,
     FormsModule,
-    DragDropModule,
     MatButtonModule,
     MatIconModule,
     MatTooltipModule,
-    MatDividerModule,
     MatProgressSpinnerModule,
-    MatSlideToggleModule,
     MatTableModule,
+    MatSortModule,
     TranslateModule,
   ],
   template: `
@@ -122,11 +109,9 @@ const GET_ORG_LIST = gql`
     </div>
 
     <ng-container *ngIf="!authService.isSysadmin || selectedOrgId">
-    <div class="members-layout">
+      <div class="members-view" *ngIf="!loading; else loadingTpl">
 
-      <!-- List Pane -->
-      <div class="list-pane">
-        <div class="list-header">
+        <div class="view-header">
           <button mat-icon-button
                   (click)="openAddMember()"
                   [matTooltip]="'members.addMember' | translate">
@@ -144,58 +129,51 @@ const GET_ORG_LIST = gql`
           </button>
         </div>
 
-        <div class="list-scroll">
-          <div *ngIf="loading" class="list-loading">
-            <mat-progress-spinner mode="indeterminate" diameter="32"></mat-progress-spinner>
-          </div>
+        <div class="table-scroll">
+          <mat-table [dataSource]="dataSource" matSort class="members-table">
 
-          <mat-table *ngIf="!loading" [dataSource]="filteredMembers" class="members-mat-table">
-
-            <!-- Avatar column -->
             <ng-container matColumnDef="avatar">
-              <mat-header-cell *matHeaderCellDef></mat-header-cell>
-              <mat-cell *matCellDef="let m">
+              <mat-header-cell *matHeaderCellDef class="avatar-col"></mat-header-cell>
+              <mat-cell *matCellDef="let m" class="avatar-col">
                 <img *ngIf="m.avatarUrl" [src]="m.avatarUrl" class="list-avatar" alt="">
                 <mat-icon *ngIf="!m.avatarUrl" class="list-avatar-icon">account_circle</mat-icon>
               </mat-cell>
             </ng-container>
 
-            <!-- Name column -->
+            <ng-container matColumnDef="no">
+              <mat-header-cell *matHeaderCellDef mat-sort-header class="no-col">{{ 'members.memberNo' | translate }}</mat-header-cell>
+              <mat-cell *matCellDef="let m" class="no-col secondary-cell">#{{ m.memberNo }}</mat-cell>
+            </ng-container>
+
             <ng-container matColumnDef="name">
-              <mat-header-cell *matHeaderCellDef (click)="setSortColumn('lastName')" class="sortable-header">
-                {{ 'members.lastName' | translate }}
-                <mat-icon class="sort-icon" *ngIf="sortColumn === 'lastName'">{{ sortDirection === 'asc' ? 'arrow_upward' : 'arrow_downward' }}</mat-icon>
-              </mat-header-cell>
+              <mat-header-cell *matHeaderCellDef mat-sort-header>{{ 'members.name' | translate }}</mat-header-cell>
               <mat-cell *matCellDef="let m">{{ displayName(m) }}</mat-cell>
             </ng-container>
 
-            <!-- Username column -->
             <ng-container matColumnDef="username">
-              <mat-header-cell *matHeaderCellDef (click)="setSortColumn('username')" class="sortable-header">
-                {{ 'members.username' | translate }}
-                <mat-icon class="sort-icon" *ngIf="sortColumn === 'username'">{{ sortDirection === 'asc' ? 'arrow_upward' : 'arrow_downward' }}</mat-icon>
-              </mat-header-cell>
-              <mat-cell *matCellDef="let m" class="username-cell">{{ m.username }}</mat-cell>
+              <mat-header-cell *matHeaderCellDef mat-sort-header>{{ 'members.username' | translate }}</mat-header-cell>
+              <mat-cell *matCellDef="let m" class="secondary-cell">{{ m.username }}</mat-cell>
             </ng-container>
 
-            <!-- Role column -->
+            <ng-container matColumnDef="email">
+              <mat-header-cell *matHeaderCellDef mat-sort-header>{{ 'members.email' | translate }}</mat-header-cell>
+              <mat-cell *matCellDef="let m" class="secondary-cell">{{ m.email }}</mat-cell>
+            </ng-container>
+
             <ng-container matColumnDef="role">
-              <mat-header-cell *matHeaderCellDef></mat-header-cell>
-              <mat-cell *matCellDef="let m">
-                <mat-icon *ngIf="m.isOrgAdmin" class="role-icon role-icon-orgadmin" [matTooltip]="'common.role.orgadmin' | translate">admin_panel_settings</mat-icon>
-                <mat-icon *ngIf="!m.isOrgAdmin && m.adminOfTeams.length > 0" class="role-icon role-icon-teamadmin" [matTooltip]="'common.role.teamadmin' | translate">manage_accounts</mat-icon>
+              <mat-header-cell *matHeaderCellDef class="role-col">{{ 'members.role' | translate }}</mat-header-cell>
+              <mat-cell *matCellDef="let m" class="role-col">
+                <mat-icon *ngIf="m.isOrgAdmin" class="role-icon role-orgadmin" [matTooltip]="'common.role.orgadmin' | translate">shield</mat-icon>
+                <mat-icon *ngIf="!m.isOrgAdmin && m.adminOfTeams.length > 0" class="role-icon role-teamadmin" [matTooltip]="'common.role.teamadmin' | translate">manage_accounts</mat-icon>
               </mat-cell>
             </ng-container>
 
-            <mat-header-row *matHeaderRowDef="memberTableColumns; sticky: true"></mat-header-row>
-            <mat-row *matRowDef="let row; columns: memberTableColumns;"
-                     [class.selected]="selectedMember?.id === row.id"
-                     (click)="selectMember(row)">
-            </mat-row>
+            <mat-header-row *matHeaderRowDef="tableColumns; sticky: true"></mat-header-row>
+            <mat-row *matRowDef="let row; columns: tableColumns;" (dblclick)="openMemberDetail(row)" class="member-row"></mat-row>
 
             <tr class="mat-row" *matNoDataRow>
-              <td class="mat-cell" [attr.colspan]="memberTableColumns.length">
-                <div class="list-empty">
+              <td class="mat-cell" [attr.colspan]="tableColumns.length">
+                <div class="empty-state">
                   <mat-icon>person_off</mat-icon>
                   <span>{{ 'members.noMembersFound' | translate }}</span>
                 </div>
@@ -204,117 +182,13 @@ const GET_ORG_LIST = gql`
           </mat-table>
         </div>
       </div>
-
-      <!-- Detail Pane -->
-      <div class="detail-pane">
-
-        <!-- Empty state -->
-        <div *ngIf="!selectedMember" class="detail-empty">
-          <mat-icon>person</mat-icon>
-          <p>{{ 'members.selectPrompt' | translate }}</p>
-        </div>
-
-        <!-- Member detail -->
-        <div *ngIf="selectedMember" class="detail-content">
-          <div class="detail-header">
-            <img *ngIf="selectedMember.avatarUrl" [src]="selectedMember.avatarUrl" class="detail-avatar" alt="">
-            <div class="detail-name">{{ displayName(selectedMember) }}</div>
-            <button mat-icon-button
-                    (click)="openEdit(selectedMember)"
-                    [matTooltip]="'common.edit' | translate">
-              <mat-icon>edit</mat-icon>
-            </button>
-          </div>
-
-          <mat-divider></mat-divider>
-
-          <!-- Attributes -->
-          <div class="attr-section">
-            <div class="attr-row">
-              <span class="attr-label">{{ 'members.memberNo' | translate }}</span>
-              <span class="attr-value attr-mono">#{{ selectedMember.memberNo }}</span>
-            </div>
-            <div class="attr-row">
-              <span class="attr-label">{{ 'members.username' | translate }}</span>
-              <span class="attr-value attr-mono">{{ selectedMember.username }}</span>
-            </div>
-            <div class="attr-row">
-              <span class="attr-label">{{ 'members.firstName' | translate }}</span>
-              <span class="attr-value">{{ selectedMember.firstName }}</span>
-            </div>
-            <div class="attr-row">
-              <span class="attr-label">{{ 'members.particles' | translate }}</span>
-              <span class="attr-value" [class.attr-muted]="!selectedMember.particles">
-                {{ selectedMember.particles || '—' }}
-              </span>
-            </div>
-            <div class="attr-row">
-              <span class="attr-label">{{ 'members.lastName' | translate }}</span>
-              <span class="attr-value">{{ selectedMember.lastName }}</span>
-            </div>
-            <div class="attr-row">
-              <span class="attr-label">{{ 'members.email' | translate }}</span>
-              <span class="attr-value" [class.attr-muted]="!selectedMember.email">
-                {{ selectedMember.email || '—' }}
-              </span>
-            </div>
-            <div class="attr-row">
-              <span class="attr-label">{{ 'members.phone' | translate }}</span>
-              <span class="attr-value" [class.attr-muted]="!selectedMember.phone">
-                {{ selectedMember.phone || '—' }}
-              </span>
-            </div>
-            <div class="attr-row">
-              <span class="attr-label">{{ 'members.dateOfBirth' | translate }}</span>
-              <span class="attr-value" [class.attr-muted]="!selectedMember.dateOfBirth">
-                {{ selectedMember.dateOfBirth || '—' }}
-              </span>
-            </div>
-            <div class="attr-row">
-              <span class="attr-label">{{ 'members.role' | translate }}</span>
-              <span class="attr-value role-display">
-                <span *ngIf="selectedMember.role === 'sysadmin'" class="role-badge role-sysadmin">
-                  <mat-icon>security</mat-icon>{{ 'common.role.sysadmin' | translate }}
-                </span>
-                <ng-container *ngIf="selectedMember.role !== 'sysadmin'">
-                  <span *ngIf="selectedMember.isOrgAdmin" class="role-badge role-orgadmin">
-                    <mat-icon>admin_panel_settings</mat-icon>{{ 'common.role.orgadmin' | translate }}
-                  </span>
-                  <span *ngFor="let t of selectedMember.adminOfTeams" class="role-badge role-teamadmin">
-                    <mat-icon>manage_accounts</mat-icon>{{ t.name }}
-                  </span>
-                  <span *ngIf="!selectedMember.isOrgAdmin && selectedMember.adminOfTeams.length === 0" class="role-badge">
-                    <mat-icon>person</mat-icon>{{ 'common.role.user' | translate }}
-                  </span>
-                </ng-container>
-              </span>
-            </div>
-            <div class="attr-row" *ngIf="canToggleScheduleDisabled(selectedMember)">
-              <span class="attr-label">{{ 'members.scheduleDisabled' | translate }}</span>
-              <span class="attr-value">
-                <mat-slide-toggle
-                  [checked]="selectedMember.scheduleDisabled"
-                  (change)="toggleScheduleDisabled(selectedMember, $event.checked)">
-                </mat-slide-toggle>
-              </span>
-            </div>
-          </div>
-
-          <mat-divider></mat-divider>
-
-          <!-- Teams -->
-          <div class="teams-section">
-            <div class="section-label">{{ 'members.teamsColumn' | translate }}</div>
-            <div *ngIf="selectedMember.teams.length === 0" class="attr-muted teams-empty">—</div>
-            <div *ngFor="let team of selectedMember.teams" class="team-item">
-              <mat-icon class="team-icon">group_work</mat-icon>
-              <span>{{ team.name }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
     </ng-container>
+
+    <ng-template #loadingTpl>
+      <div class="loading">
+        <mat-progress-spinner mode="indeterminate" diameter="40"></mat-progress-spinner>
+      </div>
+    </ng-template>
   `,
   styles: [`
     :host {
@@ -370,111 +244,105 @@ const GET_ORG_LIST = gql`
       height: 48px;
     }
 
-    .members-layout {
-      display: flex;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-    }
-
-    /* ── List Pane ── */
-    .list-pane {
-      flex: 0 0 auto;
-      min-width: 180px;
+    .members-view {
       display: flex;
       flex-direction: column;
-      border-right: 1px solid var(--mat-sys-outline-variant);
-      background: var(--mat-sys-surface-container-low);
+      width: 100%;
+      height: 100%;
     }
 
-    .list-header {
+    .view-header {
       display: flex;
       align-items: center;
       gap: 4px;
-      padding: 8px 8px 8px 4px;
+      padding: 8px 8px 4px 8px;
+      flex-shrink: 0;
       border-bottom: 1px solid var(--mat-sys-outline-variant);
     }
 
     .search-input {
       flex: 1;
-      height: 32px;
-      padding: 0 8px;
-      border: 1px solid var(--mat-sys-outline-variant);
-      border-radius: 16px;
-      background: var(--mat-sys-surface);
-      color: var(--mat-sys-on-surface);
-      font-size: 13px;
-      font-family: inherit;
+      border: none;
       outline: none;
-      min-width: 0;
+      background: transparent;
+      color: var(--mat-sys-on-surface);
+      font-size: 14px;
+      padding: 4px;
     }
 
-    .search-input:focus {
-      border-color: var(--mat-sys-primary);
+    .search-input::placeholder {
+      color: var(--mat-sys-on-surface-variant);
     }
 
     .filter-active {
       color: var(--mat-sys-primary) !important;
     }
 
-    /* ── List table ── */
-    .list-scroll {
+    .table-scroll {
       flex: 1;
       overflow-y: auto;
     }
 
-    .members-mat-table {
+    .members-table {
       width: 100%;
       background: transparent;
     }
 
-    .members-mat-table .mat-mdc-header-cell {
+    .members-table .mat-mdc-header-cell {
       font-size: 11px;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.04em;
       color: var(--mat-sys-on-surface-variant);
-      background: var(--mat-sys-surface-container-low);
-      padding: 0 8px 0 8px;
+      background: var(--mat-sys-surface-container);
+      padding: 0 8px;
+      text-align: left;
+      justify-content: flex-start;
     }
 
-    .members-mat-table .mat-mdc-cell {
-      font-size: 13px;
+    .members-table .mat-mdc-cell {
+      font-size: 14px;
       color: var(--mat-sys-on-surface);
-      padding: 0 8px 0 8px;
+      padding: 0 8px;
+      text-align: left;
+      justify-content: flex-start;
     }
 
-    .members-mat-table .mat-mdc-row {
+    .members-table .mat-mdc-row {
+      min-height: 44px;
+    }
+
+    .member-row {
       cursor: pointer;
-      min-height: 40px;
     }
 
-    .members-mat-table .mat-mdc-row:hover .mat-mdc-cell {
+    .member-row:hover .mat-mdc-cell {
       background: var(--mat-sys-surface-container);
     }
 
-    .members-mat-table .mat-mdc-row.selected .mat-mdc-cell {
-      background: var(--mat-sys-secondary-container);
-      color: var(--mat-sys-on-secondary-container);
+    .avatar-col {
+      width: 44px;
+      min-width: 44px;
+      max-width: 44px;
+      padding: 0 4px 0 12px !important;
     }
 
-    .sortable-header {
-      cursor: pointer;
-      user-select: none;
+    .no-col {
+      width: 60px;
+      min-width: 60px;
+      max-width: 60px;
     }
 
-    .sort-icon {
-      font-size: 12px;
-      width: 12px;
-      height: 12px;
-      vertical-align: middle;
-      margin-left: 2px;
+    .role-col {
+      width: 56px;
+      min-width: 56px;
+      max-width: 56px;
+      justify-content: flex-start !important;
     }
 
-    .list-loading {
-      display: flex;
-      justify-content: center;
-      padding: 24px;
+    .secondary-cell {
+      color: var(--mat-sys-on-surface-variant) !important;
+      font-size: 13px !important;
     }
 
     .list-avatar {
@@ -489,230 +357,55 @@ const GET_ORG_LIST = gql`
       width: 28px;
       height: 28px;
       color: var(--mat-sys-on-surface-variant);
-      opacity: 0.5;
-    }
-
-    .username-cell {
-      font-size: 12px;
-      color: var(--mat-sys-on-surface-variant);
-    }
-
-    .list-empty {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-      padding: 32px 16px;
-      color: var(--mat-sys-on-surface-variant);
-      font-size: 13px;
-    }
-
-    .list-empty mat-icon {
-      font-size: 32px;
-      width: 32px;
-      height: 32px;
-    }
-
-    /* ── Detail Pane ── */
-    .detail-pane {
-      flex: 1;
-      overflow-y: auto;
-      min-width: 0;
-    }
-
-    .detail-empty {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100%;
-      gap: 12px;
-      color: var(--mat-sys-on-surface-variant);
-    }
-
-    .detail-empty mat-icon {
-      font-size: 48px;
-      width: 48px;
-      height: 48px;
-      opacity: 0.4;
-    }
-
-    .detail-empty p {
-      font-size: 14px;
-      margin: 0;
-      opacity: 0.7;
-    }
-
-    .detail-content {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .detail-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 16px 12px 20px;
-      gap: 12px;
-    }
-
-    .detail-avatar {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      object-fit: cover;
-      flex-shrink: 0;
-    }
-
-    .detail-name {
-      font-size: 18px;
-      font-weight: 500;
-      color: var(--mat-sys-on-surface);
-      flex: 1;
-    }
-
-    .role-col-header {
-      width: 28px;
-      padding: 5px 8px 5px 4px;
-      cursor: default !important;
-    }
-
-    .role-col {
-      padding: 4px 8px 4px 4px;
-      text-align: center;
     }
 
     .role-icon {
-      font-size: 16px;
-      width: 16px;
-      height: 16px;
-      display: block;
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
     }
 
-    .role-icon-orgadmin {
+    .role-orgadmin {
       color: var(--mat-sys-primary);
     }
 
-    .role-icon-teamadmin {
+    .role-teamadmin {
       color: var(--mat-sys-secondary);
     }
 
-    /* ── Attributes ── */
-    .attr-section {
-      padding: 12px 20px;
+    .empty-state {
       display: flex;
       flex-direction: column;
-      gap: 8px;
-    }
-
-    .attr-row {
-      display: flex;
-      align-items: baseline;
-      gap: 8px;
-      min-height: 24px;
-    }
-
-    .attr-label {
-      font-size: 12px;
+      align-items: center;
+      padding: 48px 16px;
       color: var(--mat-sys-on-surface-variant);
-      width: 80px;
-      min-width: 80px;
-      text-align: right;
+      gap: 12px;
+      font-size: 14px;
     }
 
-    .attr-value {
-      font-size: 14px;
-      color: var(--mat-sys-on-surface);
+    .loading {
+      display: flex;
+      justify-content: center;
+      align-items: center;
       flex: 1;
-    }
-
-    .attr-mono {
-      font-family: monospace;
-      font-size: 13px;
-    }
-
-    .attr-muted {
-      color: var(--mat-sys-on-surface-variant);
-    }
-
-    .role-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 14px;
-    }
-
-    .role-badge mat-icon {
-      font-size: 16px;
-      width: 16px;
-      height: 16px;
-      color: var(--mat-sys-on-surface-variant);
-    }
-
-    .role-badge.role-orgadmin mat-icon,
-    .role-badge.role-sysadmin mat-icon {
-      color: var(--mat-sys-primary);
-    }
-
-    .role-badge.role-teamadmin mat-icon {
-      color: var(--mat-sys-secondary);
-    }
-
-    /* ── Teams ── */
-    .teams-section {
-      padding: 12px 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .section-label {
-      font-size: 12px;
-      color: var(--mat-sys-on-surface-variant);
-      margin-bottom: 4px;
-    }
-
-    .teams-empty {
-      font-size: 14px;
-      padding-left: 4px;
-    }
-
-    .team-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 14px;
-      color: var(--mat-sys-on-surface);
-      padding: 4px 0;
-    }
-
-    .team-icon {
-      font-size: 16px;
-      width: 16px;
-      height: 16px;
-      color: var(--mat-sys-on-surface-variant);
+      padding: 48px;
     }
   `]
 })
-export class ManageMembersComponent implements OnInit {
+export class ManageMembersComponent implements OnInit, AfterViewInit {
+  @ViewChild(MatSort) sort!: MatSort;
+
   members: Member[] = [];
-  filteredMembers: Member[] = [];
   allTeams: Team[] = [];
   loading = true;
-  selectedMember: Member | null = null;
+  dataSource = new MatTableDataSource<Member>([]);
+  tableColumns = ['avatar', 'no', 'name', 'username', 'email', 'role'];
 
-  // Sysadmin org picker
   orgList: { id: string; name: string }[] = [];
-  selectedOrgId: string = '';
-
+  selectedOrgId = '';
   searchText = '';
   selectedTeamIds = new Set<string>();
   teamFilterMode: TeamFilterMode = 'and';
-
-  nameColumns = ['firstName', 'particles', 'lastName'];
-  memberTableColumns = ['avatar', 'name', 'username', 'role'];
-  sortColumn = 'lastName';
-  sortDirection: 'asc' | 'desc' = 'asc';
 
   constructor(
     public authService: AuthService,
@@ -730,6 +423,17 @@ export class ManageMembersComponent implements OnInit {
     } else {
       this.loadData();
     }
+  }
+
+  ngAfterViewInit(): void {
+    this.dataSource.sort = this.sort;
+    this.dataSource.sortingDataAccessor = (item, property) => {
+      switch (property) {
+        case 'name': return item.lastName + ' ' + (item.particles ?? '') + ' ' + item.firstName;
+        case 'no':   return item.memberNo;
+        default:     return (item as any)[property] ?? '';
+      }
+    };
   }
 
   async loadOrgList(): Promise<void> {
@@ -757,10 +461,6 @@ export class ManageMembersComponent implements OnInit {
       ]);
       this.members = membersResult.data.members;
       this.allTeams = teamsResult.data.teams;
-      // Re-sync selected member if present
-      if (this.selectedMember) {
-        this.selectedMember = this.members.find(m => m.id === this.selectedMember!.id) ?? null;
-      }
       this.filterMembers();
     } catch (error) {
       this.notificationService.error(this.translate.instant('members.messages.loadFailed'));
@@ -775,11 +475,11 @@ export class ManageMembersComponent implements OnInit {
     if (this.searchText) {
       const term = this.searchText.toLowerCase();
       filtered = filtered.filter(m =>
-        m.id.toLowerCase().includes(term) ||
         m.firstName.toLowerCase().includes(term) ||
         m.lastName.toLowerCase().includes(term) ||
         (m.particles || '').toLowerCase().includes(term) ||
-        (m.email || '').toLowerCase().includes(term)
+        (m.email || '').toLowerCase().includes(term) ||
+        (m.username || '').toLowerCase().includes(term)
       );
     }
 
@@ -795,72 +495,11 @@ export class ManageMembersComponent implements OnInit {
       });
     }
 
-    const dir = this.sortDirection === 'asc' ? 1 : -1;
-    filtered = [...filtered].sort((a, b) =>
-      this.getNamePart(a, this.sortColumn).localeCompare(this.getNamePart(b, this.sortColumn)) * dir
-    );
-
-    this.filteredMembers = filtered;
-  }
-
-  setSortColumn(col: string): void {
-    if (this.sortColumn === col) {
-      this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
-    } else {
-      this.sortColumn = col;
-      this.sortDirection = 'asc';
-    }
-    this.filterMembers();
-  }
-
-  dropNameColumn(event: CdkDragDrop<string[]>): void {
-    moveItemInArray(this.nameColumns, event.previousIndex, event.currentIndex);
-  }
-
-  getNamePart(member: Member, col: string): string {
-    if (col === 'firstName') return member.firstName;
-    if (col === 'particles') return member.particles || '';
-    if (col === 'lastName') return member.lastName;
-    if (col === 'username') return member.username || '';
-    return '';
-  }
-
-  columnLabel(col: string): string {
-    if (col === 'firstName') return this.translate.instant('schedule.columns.first');
-    if (col === 'particles') return this.translate.instant('schedule.columns.particles');
-    if (col === 'lastName') return this.translate.instant('schedule.columns.last');
-    return col;
-  }
-
-  selectMember(member: Member): void {
-    this.selectedMember = member;
+    this.dataSource.data = filtered;
   }
 
   displayName(member: Member): string {
     return [member.firstName, member.particles, member.lastName].filter(Boolean).join(' ');
-  }
-
-  canToggleScheduleDisabled(member: Member): boolean {
-    if (this.authService.isOrgAdmin) return true;
-    if (this.authService.teamAdminIds.length > 0) {
-      return member.teams.some(t => this.authService.teamAdminIds.includes(Number(t.id)));
-    }
-    return false;
-  }
-
-  async toggleScheduleDisabled(member: Member, disabled: boolean): Promise<void> {
-    try {
-      await apolloClient.mutate({
-        mutation: SET_SCHEDULE_DISABLED,
-        variables: { memberId: member.id, disabled }
-      });
-      member.scheduleDisabled = disabled;
-      if (this.selectedMember?.id === member.id) {
-        this.selectedMember = { ...this.selectedMember, scheduleDisabled: disabled };
-      }
-    } catch (e) {
-      this.notificationService.error(this.translate.instant('common.error'));
-    }
   }
 
   getMemberCountForTeam(teamId: string): number {
@@ -869,6 +508,22 @@ export class ManageMembersComponent implements OnInit {
 
   getMemberCountWithoutTeam(): number {
     return this.members.filter(m => m.teams.length === 0).length;
+  }
+
+  openMemberDetail(member: Member): void {
+    const isNarrow = window.innerWidth < 768;
+    const navExpanded = this.userPreferencesService.preferences.navigationExpanded;
+    const railWidth = isNarrow ? 0 : (navExpanded ? 220 : 80);
+    const leftOffset = railWidth > 0 ? `${railWidth}px` : undefined;
+
+    const ref = this.panelService.open<MemberDetailDialogComponent, MemberDetailDialogData>(
+      MemberDetailDialogComponent,
+      { leftOffset, data: { memberId: member.id, leftOffset } }
+    );
+
+    ref.afterClosed().subscribe(result => {
+      if (result) this.loadData();
+    });
   }
 
   openFilterPanel(): void {
@@ -899,23 +554,6 @@ export class ManageMembersComponent implements OnInit {
         this.selectedTeamIds = new Set(result.selectedTeamIds);
         this.filterMembers();
       }
-    });
-  }
-
-  openEdit(member: Member): void {
-    const editRef = this.panelService.open<MemberEditDialogComponent, MemberEditDialogData, boolean>(
-      MemberEditDialogComponent,
-      {
-        data: {
-          member: { ...member, teams: [...member.teams], phone: member.phone, dateOfBirth: member.dateOfBirth, avatarUrl: member.avatarUrl },
-          allTeams: this.allTeams,
-          isSelf: member.id === this.authService.currentUser?.id,
-          isManager: this.authService.isOrgAdmin
-        }
-      }
-    );
-    editRef.afterClosed().subscribe(saved => {
-      if (saved) this.loadData();
     });
   }
 
