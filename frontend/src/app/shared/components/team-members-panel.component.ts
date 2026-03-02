@@ -154,12 +154,16 @@ interface Member {
       color: var(--mat-sys-on-surface-variant);
       background: var(--mat-sys-surface-container);
       padding: 0 12px;
+      text-align: left;
+      justify-content: flex-start;
     }
 
     .members-table .mat-mdc-cell {
       font-size: 14px;
       color: var(--mat-sys-on-surface);
       padding: 0 12px;
+      text-align: left;
+      justify-content: flex-start;
     }
 
     .members-table .mat-mdc-row {
@@ -173,6 +177,7 @@ interface Member {
 
     .role-cell {
       max-width: 72px;
+      justify-content: flex-start !important;
     }
 
     .role-icon {
