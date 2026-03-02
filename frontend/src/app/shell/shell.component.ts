@@ -20,6 +20,7 @@ import { ManageOrganisationsComponent } from '../features/manage/manage-organisa
 import { ManageSystemSettingsComponent } from '../features/manage/manage-system-settings.component';
 import { ManageDemosComponent } from '../features/manage/manage-demos.component';
 import { ManageEventLogComponent } from '../features/manage/manage-event-log.component';
+import { ManageTeamsComponent } from '../features/manage/manage-teams.component';
 import { ClaimDemoDialogComponent } from '../shared/components/claim-demo-dialog.component';
 
 type NavBarType = 'management';
@@ -58,6 +59,7 @@ interface ManagementItem {
     ManageSystemSettingsComponent,
     ManageDemosComponent,
     ManageEventLogComponent,
+    ManageTeamsComponent,
     ClaimDemoDialogComponent
   ],
   template: `
@@ -178,8 +180,8 @@ interface ManagementItem {
         <!-- Management views fill the main content area -->
         <app-manage-organisations *ngIf="activePanel === 'manage-organisations'"></app-manage-organisations>
         <app-manage-org *ngIf="activePanel === 'manage-org'" [view]="'org'"></app-manage-org>
-        <app-manage-org *ngIf="activePanel === 'manage-org-teams'" [view]="'teams'" [myTeamsOnly]="false"></app-manage-org>
-        <app-manage-org *ngIf="activePanel === 'manage-my-teams'" [view]="'teams'" [myTeamsOnly]="true"></app-manage-org>
+        <app-manage-teams *ngIf="activePanel === 'manage-org-teams'"></app-manage-teams>
+        <app-manage-teams *ngIf="activePanel === 'manage-my-teams'" [myTeamsOnly]="true"></app-manage-teams>
         <app-manage-members *ngIf="activePanel === 'manage-members'"></app-manage-members>
         <app-manage-system-settings *ngIf="activePanel === 'manage-settings'"></app-manage-system-settings>
         <app-manage-demos *ngIf="activePanel === 'manage-demos'"></app-manage-demos>

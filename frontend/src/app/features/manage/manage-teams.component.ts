@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, Input, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -11,6 +11,7 @@ import { NotificationService } from '../../shared/services/notification.service'
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
+import { AuthService } from '../../shared/services/auth.service';
 import { SlideInPanelService } from '../../shared/services/slide-in-panel.service';
 import { UserPreferencesService } from '../../shared/services/user-preferences.service';
 import { AddTeamDialogComponent } from '../../shell/add-team-dialog.component';
@@ -240,6 +241,8 @@ const GET_MEMBERS_QUERY = gql`
   `]
 })
 export class ManageTeamsComponent implements OnInit {
+  @Input() myTeamsOnly = false;
+
   teams: Team[] = [];
   filteredTeams: Team[] = [];
   allMembers: Member[] = [];
@@ -252,6 +255,7 @@ export class ManageTeamsComponent implements OnInit {
     private notificationService: NotificationService,
     private panelService: SlideInPanelService,
     private userPreferencesService: UserPreferencesService,
+    private authService: AuthService,
     private translate: TranslateService
   ) {}
 
@@ -278,6 +282,10 @@ export class ManageTeamsComponent implements OnInit {
 
   filterTeams(): void {
     let filtered = this.teams;
+    if (this.myTeamsOnly) {
+      const adminIds = this.authService.currentUser?.teamAdminIds ?? [];
+      filtered = filtered.filter(t => adminIds.includes(Number(t.id)));
+    }
     if (this.searchText) {
       const term = this.searchText.toLowerCase();
       filtered = filtered.filter(t => t.name.toLowerCase().includes(term));
