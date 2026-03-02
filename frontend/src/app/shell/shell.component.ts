@@ -149,9 +149,7 @@ interface ManagementItem {
           <button *ngFor="let item of managementItems"
                   class="nav-bar-item"
                   [class.active]="activePanel === item.panel"
-                  (click)="openPanel(item.panel)"
-                  [matTooltip]="isExpanded ? '' : (item.label | translate)"
-                  matTooltipPosition="right">
+                  (click)="openPanel(item.panel)">
             <mat-icon>{{ item.icon }}</mat-icon>
             <span>{{ item.label | translate }}</span>
           </button>
@@ -375,8 +373,8 @@ interface ManagementItem {
 
     /* Secondary Nav Bar */
     .nav-bar {
-      width: 72px;
-      min-width: 72px;
+      width: 80px;
+      min-width: 80px;
       height: 100vh;
       background: var(--mat-sys-surface-container);
       border-right: 1px solid var(--mat-sys-outline-variant);
@@ -399,42 +397,46 @@ interface ManagementItem {
     .nav-bar-items {
       display: flex;
       flex-direction: column;
-      gap: 2px;
-      padding: 12px;
+      gap: 4px;
+      padding: 0 12px 12px;
     }
 
     .nav-bar-item {
       display: flex;
+      flex-direction: column;
       align-items: center;
-      justify-content: flex-start;
-      gap: 12px;
-      padding: 10px 12px;
-      border-radius: 12px;
+      justify-content: center;
+      gap: 4px;
+      padding: 14px 4px 12px;
+      border-radius: 16px;
       border: none;
       background: transparent;
       color: var(--mat-sys-on-surface-variant);
-      text-decoration: none;
       cursor: pointer;
-      font-size: 14px;
       font-family: inherit;
       transition: background 0.15s;
-      text-align: left;
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
-      overflow: hidden;
+      width: 100%;
+    }
+
+    .nav-bar.expanded .nav-bar-item {
+      flex-direction: row;
+      justify-content: flex-start;
+      gap: 12px;
+      padding: 12px 16px;
     }
 
     .nav-bar-item span {
-      white-space: nowrap;
-      max-width: 0;
-      overflow: hidden;
-      opacity: 0;
-      transition: max-width 0.2s ease, opacity 0.15s ease;
+      font-size: 11px;
+      font-weight: 500;
+      text-align: center;
+      line-height: 1.2;
     }
 
     .nav-bar.expanded .nav-bar-item span {
-      max-width: 160px;
-      opacity: 1;
+      font-size: 14px;
+      text-align: left;
     }
 
     .nav-bar-item:hover {
