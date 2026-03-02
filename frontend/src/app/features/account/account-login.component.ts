@@ -46,12 +46,12 @@ const REQUEST_PASSWORD_RESET = gql`
       <mat-card-content>
         <form (ngSubmit)="onLogin()" class="login-form">
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>{{ 'login.memberId' | translate }}</mat-label>
+            <mat-label>{{ 'login.username' | translate }}</mat-label>
             <input matInput
                    [(ngModel)]="loginForm.memberId"
                    name="memberId"
                    required
-                   [placeholder]="'login.memberIdPlaceholder' | translate">
+                   [placeholder]="'login.usernamePlaceholder' | translate">
             <mat-icon matSuffix>badge</mat-icon>
           </mat-form-field>
 

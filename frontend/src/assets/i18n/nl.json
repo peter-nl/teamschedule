@@ -90,7 +90,9 @@
   },
   "login": {
     "title": "Inloggen",
-    "subtitle": "Log in met uw Lid ID",
+    "subtitle": "Log in met uw gebruikersnaam",
+    "username": "Gebruikersnaam",
+    "usernamePlaceholder": "Voer uw gebruikersnaam in",
     "memberId": "Lid ID",
     "memberIdPlaceholder": "Voer uw Lid ID in",
     "password": "Wachtwoord",
@@ -136,6 +138,7 @@
     "contact": "Contact",
     "phone": "Telefoonnummer",
     "dateOfBirth": "Geboortedatum",
+    "uploadAvatar": "Foto uploaden",
     "holidays": {
       "title": "Mijn persoonlijke vrije dagen",
       "addHoliday": "Vrije dag toevoegen",
@@ -313,6 +316,9 @@
     "scheduleDisabled": "Uitgesloten van rooster",
     "phone": "Telefoonnummer",
     "dateOfBirth": "Geboortedatum",
+    "memberNo": "Lid #",
+    "username": "Gebruikersnaam",
+    "usernameHint": "Gebruikt om in te loggen. Kan worden gewijzigd.",
     "noMembersFound": "Geen leden gevonden",
     "selectPrompt": "Selecteer een lid om details te bekijken",
     "messages": {
@@ -577,7 +583,8 @@
       "org_created": "Organisatie aangemaakt",
       "org_deleted": "Organisatie verwijderd",
       "member_created": "Lid aangemaakt",
-      "member_deleted": "Lid verwijderd"
+      "member_deleted": "Lid verwijderd",
+      "username_changed": "Gebruikersnaam gewijzigd"
     }
   }
 }

@@ -90,7 +90,9 @@
   },
   "login": {
     "title": "Login",
-    "subtitle": "Log in with your member ID",
+    "subtitle": "Log in with your username",
+    "username": "Username",
+    "usernamePlaceholder": "Enter your username",
     "memberId": "Member ID",
     "memberIdPlaceholder": "Enter your member ID",
     "password": "Password",
@@ -136,6 +138,7 @@
     "contact": "Contact",
     "phone": "Phone",
     "dateOfBirth": "Date of birth",
+    "uploadAvatar": "Upload photo",
     "holidays": {
       "title": "My Personal Holidays",
       "addHoliday": "Add Holiday",
@@ -313,6 +316,9 @@
     "scheduleDisabled": "Excluded from schedule",
     "phone": "Phone",
     "dateOfBirth": "Date of birth",
+    "memberNo": "Member #",
+    "username": "Username",
+    "usernameHint": "Used to log in. Can be changed.",
     "noMembersFound": "No members found",
     "selectPrompt": "Select a member to view details",
     "messages": {
@@ -577,7 +583,8 @@
       "org_created": "Org created",
       "org_deleted": "Org deleted",
       "member_created": "Member created",
-      "member_deleted": "Member deleted"
+      "member_deleted": "Member deleted",
+      "username_changed": "Username changed"
     }
   }
 }

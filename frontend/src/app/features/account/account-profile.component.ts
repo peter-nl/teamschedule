@@ -1,4 +1,4 @@
-import { Component, EventEmitter, OnInit, Output } from '@angular/core';
+import { Component, EventEmitter, OnInit, Output, ChangeDetectorRef, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -6,6 +6,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { NotificationService } from '../../shared/services/notification.service';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
@@ -19,6 +20,8 @@ const GET_MEMBER_PROFILE = gql`
   query MemberProfile($id: String!) {
     memberProfile(id: $id) {
       id
+      memberNo
+      username
       phone
       dateOfBirth
       avatarUrl
@@ -37,6 +40,20 @@ const UPDATE_PROFILE_EXTENDED = gql`
   }
 `;
 
+const UPDATE_USERNAME_MUTATION = gql`
+  mutation UpdateUsername($id: String!, $username: String!) {
+    updateUsername(id: $id, username: $username) { id username }
+  }
+`;
+
+const UPDATE_AVATAR_MUTATION = gql`
+  mutation UpdateAvatar($id: String!, $firstName: String!, $lastName: String!, $avatarUrl: String) {
+    updateMemberProfile(id: $id, firstName: $firstName, lastName: $lastName, avatarUrl: $avatarUrl) {
+      id avatarUrl
+    }
+  }
+`;
+
 @Component({
   selector: 'app-account-profile',
   standalone: true,
@@ -48,6 +65,7 @@ const UPDATE_PROFILE_EXTENDED = gql`
     MatInputModule,
     MatButtonModule,
     MatIconModule,
+    MatTooltipModule,
     MatDividerModule,
     MatSlideToggleModule,
     TranslateModule
@@ -55,11 +73,22 @@ const UPDATE_PROFILE_EXTENDED = gql`
   template: `
     <mat-card class="profile-card">
       <mat-card-header>
-        <img *ngIf="avatarUrl" [src]="avatarUrl" mat-card-avatar class="avatar-img" alt="">
-        <mat-icon *ngIf="!avatarUrl" mat-card-avatar>account_circle</mat-icon>
+        <div mat-card-avatar class="avatar-wrapper" (click)="triggerAvatarUpload()" [matTooltip]="'profile.uploadAvatar' | translate">
+          <img *ngIf="avatarUrl" [src]="avatarUrl" class="avatar-img" alt="">
+          <mat-icon *ngIf="!avatarUrl" class="avatar-icon">account_circle</mat-icon>
+          <div class="avatar-overlay">
+            <mat-icon class="camera-icon">photo_camera</mat-icon>
+          </div>
+        </div>
         <mat-card-title>{{ 'profile.title' | translate }}</mat-card-title>
-        <mat-card-subtitle>{{ 'profile.subtitle' | translate:{ id: authService.currentUser?.id } }}</mat-card-subtitle>
+        <mat-card-subtitle>
+          <span class="member-no-badge" *ngIf="memberNo">#{{ memberNo }}</span>
+          {{ 'profile.subtitle' | translate:{ id: authService.currentUser?.id } }}
+        </mat-card-subtitle>
       </mat-card-header>
+
+      <input #avatarFileInput type="file" accept="image/*" style="display:none"
+             (change)="onAvatarFileSelected($event)">
 
       <mat-card-content>
 
@@ -75,6 +104,15 @@ const UPDATE_PROFILE_EXTENDED = gql`
 
         <h3 class="section-title">{{ 'profile.details' | translate }}</h3>
         <div class="profile-form">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>{{ 'members.username' | translate }}</mat-label>
+            <input matInput
+                   [(ngModel)]="username"
+                   name="username"
+                   (blur)="onUsernameBlur()">
+            <mat-hint>{{ 'members.usernameHint' | translate }}</mat-hint>
+          </mat-form-field>
+
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>{{ 'profile.firstName' | translate }}</mat-label>
             <input matInput
@@ -169,11 +207,14 @@ const UPDATE_PROFILE_EXTENDED = gql`
       margin-bottom: 24px;
     }
 
-    mat-card-header mat-icon[mat-card-avatar] {
-      font-size: 40px;
+    .avatar-wrapper {
+      position: relative;
       width: 40px;
       height: 40px;
-      color: var(--mat-sys-primary);
+      border-radius: 50%;
+      overflow: hidden;
+      cursor: pointer;
+      flex-shrink: 0;
     }
 
     .avatar-img {
@@ -181,6 +222,49 @@ const UPDATE_PROFILE_EXTENDED = gql`
       height: 40px;
       border-radius: 50%;
       object-fit: cover;
+      display: block;
+    }
+
+    .avatar-icon {
+      font-size: 40px;
+      width: 40px;
+      height: 40px;
+      color: var(--mat-sys-primary);
+    }
+
+    .avatar-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+
+    .avatar-wrapper:hover .avatar-overlay {
+      opacity: 1;
+    }
+
+    .camera-icon {
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+      color: #fff;
+    }
+
+    .member-no-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--mat-sys-on-surface-variant);
+      background: var(--mat-sys-surface-container);
+      border-radius: 10px;
+      padding: 1px 7px;
+      margin-right: 6px;
+      letter-spacing: 0.03em;
     }
 
     .profile-form {
@@ -266,12 +350,16 @@ const UPDATE_PROFILE_EXTENDED = gql`
 })
 export class AccountProfileComponent implements OnInit {
   @Output() openChangePassword = new EventEmitter<void>();
+  @ViewChild('avatarFileInput') avatarFileInput!: ElementRef<HTMLInputElement>;
 
   profileForm = { firstName: '', lastName: '', particles: '', email: '' };
   private savedProfile = { firstName: '', lastName: '', particles: '', email: '' };
   extendedForm = { phone: '', dateOfBirth: '' };
   private savedExtended = { phone: '', dateOfBirth: '' };
   avatarUrl: string | null = null;
+  memberNo = 0;
+  username = '';
+  private savedUsername = '';
   scheduleDisabledLoading = false;
 
   get roleIcon(): string {
@@ -292,7 +380,8 @@ export class AccountProfileComponent implements OnInit {
     public authService: AuthService,
     private uiEventService: UiEventService,
     private notificationService: NotificationService,
-    private translate: TranslateService
+    private translate: TranslateService,
+    private cdr: ChangeDetectorRef
   ) {
     this.authService.currentUser$.subscribe(user => {
       if (user) {
@@ -319,11 +408,67 @@ export class AccountProfileComponent implements OnInit {
       const p = result.data?.memberProfile;
       if (p) {
         this.avatarUrl = p.avatarUrl ?? null;
+        this.memberNo = p.memberNo ?? 0;
+        this.username = p.username ?? '';
+        this.savedUsername = this.username;
         const snap = { phone: p.phone ?? '', dateOfBirth: p.dateOfBirth ?? '' };
         this.extendedForm = { ...snap };
         this.savedExtended = { ...snap };
+        this.cdr.markForCheck();
       }
     }).catch(() => {});
+  }
+
+  onUsernameBlur(): void {
+    const trimmed = this.username.trim();
+    if (!trimmed || trimmed === this.savedUsername) return;
+    const user = this.authService.currentUser;
+    if (!user) return;
+    apolloClient.mutate({
+      mutation: UPDATE_USERNAME_MUTATION,
+      variables: { id: user.id, username: trimmed }
+    }).then(() => {
+      this.savedUsername = trimmed;
+      this.username = trimmed;
+      this.notificationService.success(this.translate.instant('profile.messages.updateSaved'));
+    }).catch((err: any) => {
+      this.username = this.savedUsername;
+      const msg = err?.graphQLErrors?.[0]?.message || this.translate.instant('profile.messages.updateFailed');
+      this.notificationService.error(msg);
+      this.cdr.markForCheck();
+    });
+  }
+
+  triggerAvatarUpload(): void {
+    this.avatarFileInput?.nativeElement.click();
+  }
+
+  onAvatarFileSelected(event: Event): void {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    const user = this.authService.currentUser;
+    if (!user) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      apolloClient.mutate({
+        mutation: UPDATE_AVATAR_MUTATION,
+        variables: {
+          id: user.id,
+          firstName: this.profileForm.firstName || this.savedProfile.firstName,
+          lastName: this.profileForm.lastName || this.savedProfile.lastName,
+          avatarUrl: dataUrl
+        }
+      }).then(() => {
+        this.avatarUrl = dataUrl;
+        this.cdr.markForCheck();
+      }).catch(() => {
+        this.notificationService.error(this.translate.instant('profile.messages.updateFailed'));
+      });
+    };
+    reader.readAsDataURL(file);
+    // Reset so same file can be selected again
+    (event.target as HTMLInputElement).value = '';
   }
 
   onExtendedFieldBlur(): void {

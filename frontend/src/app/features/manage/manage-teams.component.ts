@@ -8,6 +8,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatInputModule } from '@angular/material/input';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTableModule } from '@angular/material/table';
 import { NotificationService } from '../../shared/services/notification.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
@@ -72,6 +73,7 @@ const GET_MEMBERS_QUERY = gql`
     MatInputModule,
     MatDividerModule,
     MatProgressSpinnerModule,
+    MatTableModule,
     TranslateModule
   ],
   template: `
@@ -103,16 +105,36 @@ const GET_MEMBERS_QUERY = gql`
         </div>
 
         <div class="list-scroll">
-          <div *ngFor="let team of filteredTeams"
-               class="list-item"
-               [class.selected]="selectedTeam?.id === team.id"
-               (click)="selectTeam(team)">
-            <span>{{ team.name }}</span>
-          </div>
-          <div *ngIf="filteredTeams.length === 0" class="list-empty">
-            <mat-icon>group_off</mat-icon>
-            <span>{{ 'teams.noTeamsFound' | translate }}</span>
-          </div>
+          <mat-table [dataSource]="filteredTeams" class="teams-mat-table">
+
+            <ng-container matColumnDef="name">
+              <mat-header-cell *matHeaderCellDef (click)="toggleTeamSort()" class="sortable-header">
+                {{ 'teams.name' | translate }}
+                <mat-icon class="sort-icon">{{ teamSortDirection === 'asc' ? 'arrow_upward' : 'arrow_downward' }}</mat-icon>
+              </mat-header-cell>
+              <mat-cell *matCellDef="let team">{{ team.name }}</mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="count">
+              <mat-header-cell *matHeaderCellDef>{{ 'teams.members' | translate }}</mat-header-cell>
+              <mat-cell *matCellDef="let team" class="count-cell">{{ team.members.length }}</mat-cell>
+            </ng-container>
+
+            <mat-header-row *matHeaderRowDef="teamTableColumns; sticky: true"></mat-header-row>
+            <mat-row *matRowDef="let row; columns: teamTableColumns;"
+                     [class.selected]="selectedTeam?.id === row.id"
+                     (click)="selectTeam(row)">
+            </mat-row>
+
+            <tr class="mat-row" *matNoDataRow>
+              <td class="mat-cell" colspan="2">
+                <div class="list-empty">
+                  <mat-icon>group_off</mat-icon>
+                  <span>{{ 'teams.noTeamsFound' | translate }}</span>
+                </div>
+              </td>
+            </tr>
+          </mat-table>
         </div>
       </div>
 
@@ -158,32 +180,24 @@ const GET_MEMBERS_QUERY = gql`
             </span>
 
             <div class="member-scroll">
-              <table class="member-table" *ngIf="selectedTeam.members.length > 0">
-                <thead>
-                  <tr cdkDropList
-                      cdkDropListOrientation="horizontal"
-                      (cdkDropListDropped)="dropNameColumn($event)">
-                    <th *ngFor="let col of nameColumns"
-                        cdkDrag
-                        class="member-th"
-                        [class.sort-active]="memberSortColumn === col"
-                        (click)="setMemberSortColumn(col)">
-                      <span>{{ columnLabel(col) | translate }}</span>
-                      <mat-icon class="th-icon" *ngIf="memberSortColumn === col">
-                        {{ memberSortDirection === 'asc' ? 'arrow_upward' : 'arrow_downward' }}
-                      </mat-icon>
-                      <mat-icon class="th-icon drag-icon" *ngIf="memberSortColumn !== col">drag_indicator</mat-icon>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr *ngFor="let member of sortedMembers()">
-                    <td *ngFor="let col of nameColumns" class="member-td">
-                      {{ getNamePart(member, col) }}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+              <mat-table [dataSource]="sortedMembers()" class="team-members-mat-table" *ngIf="selectedTeam.members.length > 0">
+
+                <ng-container matColumnDef="name">
+                  <mat-header-cell *matHeaderCellDef (click)="setMemberSortColumn('lastName')" class="sortable-header">
+                    {{ 'members.lastName' | translate }}
+                    <mat-icon class="th-icon" *ngIf="memberSortColumn === 'lastName'">
+                      {{ memberSortDirection === 'asc' ? 'arrow_upward' : 'arrow_downward' }}
+                    </mat-icon>
+                  </mat-header-cell>
+                  <mat-cell *matCellDef="let m">
+                    {{ m.firstName }} {{ m.particles ? m.particles + ' ' : '' }}{{ m.lastName }}
+                  </mat-cell>
+                </ng-container>
+
+                <mat-header-row *matHeaderRowDef="memberTableColumns; sticky: true"></mat-header-row>
+                <mat-row *matRowDef="let row; columns: memberTableColumns;"></mat-row>
+              </mat-table>
+
               <div *ngIf="selectedTeam.members.length === 0" class="member-empty">
                 <span>{{ 'teams.noMembersAssigned' | translate }}</span>
               </div>
@@ -309,24 +323,45 @@ const GET_MEMBERS_QUERY = gql`
       overflow-y: auto;
     }
 
-    .list-item {
-      display: flex;
-      align-items: center;
-      padding: 10px 16px;
-      cursor: pointer;
-      font-size: 14px;
-      white-space: nowrap;
-      border-bottom: 1px solid var(--mat-sys-outline-variant);
-      transition: background 100ms;
+    .teams-mat-table {
+      width: 100%;
+      background: transparent;
     }
 
-    .list-item:hover {
+    .teams-mat-table .mat-mdc-header-cell {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--mat-sys-on-surface-variant);
+      background: var(--mat-sys-surface-container);
+      padding: 0 8px;
+    }
+
+    .teams-mat-table .mat-mdc-cell {
+      font-size: 14px;
+      padding: 0 8px;
+    }
+
+    .teams-mat-table .mat-mdc-row {
+      cursor: pointer;
+      min-height: 40px;
+    }
+
+    .teams-mat-table .mat-mdc-row:hover .mat-mdc-cell {
       background: var(--mat-sys-surface-container);
     }
 
-    .list-item.selected {
+    .teams-mat-table .mat-mdc-row.selected .mat-mdc-cell {
       background: var(--mat-sys-secondary-container);
       color: var(--mat-sys-on-secondary-container);
+    }
+
+    .count-cell {
+      max-width: 56px;
+      text-align: center;
+      color: var(--mat-sys-on-surface-variant);
+      font-size: 12px;
     }
 
     .list-empty {
@@ -429,54 +464,42 @@ const GET_MEMBERS_QUERY = gql`
       margin: 0 16px 16px 16px;
     }
 
-    .member-table {
-      border-collapse: collapse;
-      white-space: nowrap;
+    .team-members-mat-table {
+      width: 100%;
+      background: transparent;
     }
 
-    .member-th {
-      text-align: left;
-      padding: 6px 24px 6px 8px;
-      font-size: 12px;
+    .team-members-mat-table .mat-mdc-header-cell {
+      font-size: 11px;
       font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
       color: var(--mat-sys-on-surface-variant);
       background: var(--mat-sys-surface-container);
-      border-bottom: 2px solid var(--mat-sys-outline-variant);
+      padding: 0 8px;
+    }
+
+    .team-members-mat-table .mat-mdc-cell {
+      font-size: 14px;
+      color: var(--mat-sys-on-surface);
+      padding: 0 8px;
+    }
+
+    .team-members-mat-table .mat-mdc-row {
+      min-height: 38px;
+    }
+
+    .sortable-header {
       cursor: pointer;
       user-select: none;
     }
 
-    .member-th.sort-active {
-      color: var(--mat-sys-primary);
-    }
-
-    .member-th .th-icon {
-      font-size: 14px;
-      width: 14px;
-      height: 14px;
+    .th-icon {
+      font-size: 12px;
+      width: 12px;
+      height: 12px;
       vertical-align: middle;
       margin-left: 2px;
-    }
-
-    .member-th .drag-icon {
-      opacity: 0.4;
-    }
-
-    /* keep table-cell display during CDK drag so table layout stays intact */
-    .member-th.cdk-drag-placeholder {
-      display: table-cell;
-      opacity: 0.4;
-    }
-
-    .member-td {
-      padding: 8px 24px 8px 8px;
-      font-size: 14px;
-      border-bottom: 1px solid var(--mat-sys-outline-variant);
-      color: var(--mat-sys-on-surface);
-    }
-
-    tr:last-child .member-td {
-      border-bottom: none;
     }
 
     .member-empty {
@@ -517,6 +540,8 @@ export class ManageTeamsComponent implements OnInit {
   selectedTeam: Team | null = null;
   teamSortDirection: 'asc' | 'desc' = 'asc';
 
+  teamTableColumns = ['name', 'count'];
+  memberTableColumns = ['name'];
   nameColumns = ['firstName', 'particles', 'lastName'];
   memberSortColumn = 'lastName';
   memberSortDirection: 'asc' | 'desc' = 'asc';

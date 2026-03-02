@@ -8,6 +8,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatTableModule } from '@angular/material/table';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
@@ -126,6 +127,7 @@ const REMOVE_ORG_ADMIN = gql`
     MatInputModule,
     MatTooltipModule,
     MatDividerModule,
+    MatTableModule,
     TranslateModule,
     ManageOrgSettingsComponent,
   ],
@@ -143,20 +145,41 @@ const REMOVE_ORG_ADMIN = gql`
         </div>
 
         <div class="org-list" *ngIf="!loading">
-          <button *ngFor="let org of organisations"
-                  class="org-list-item"
-                  [class.selected]="selectedOrg?.id === org.id"
-                  (click)="selectOrg(org)">
-            <mat-icon class="org-item-icon">corporate_fare</mat-icon>
-            <div class="org-item-info">
-              <span class="org-item-name">{{ org.name }}</span>
-              <span class="org-item-meta">{{ org.memberCount }} members · {{ org.teamCount }} teams</span>
-            </div>
-          </button>
+          <mat-table [dataSource]="organisations" class="orgs-mat-table">
 
-          <div *ngIf="organisations.length === 0" class="empty-list">
-            {{ 'organisations.empty' | translate }}
-          </div>
+            <ng-container matColumnDef="name">
+              <mat-header-cell *matHeaderCellDef>{{ 'organisations.title' | translate }}</mat-header-cell>
+              <mat-cell *matCellDef="let org">
+                <mat-icon class="org-item-icon">corporate_fare</mat-icon>
+                <div class="org-item-info">
+                  <span class="org-item-name">{{ org.name }}</span>
+                  <span class="org-item-meta">{{ org.memberCount }} · {{ org.teamCount }}</span>
+                </div>
+              </mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="admins">
+              <mat-header-cell *matHeaderCellDef>{{ 'organisations.admins' | translate }}</mat-header-cell>
+              <mat-cell *matCellDef="let org" class="admins-cell">
+                <span *ngFor="let a of (org.orgAdmins || [])" class="admin-chip-sm">
+                  {{ a.firstName }} {{ a.particles ? a.particles + ' ' : '' }}{{ a.lastName }}
+                </span>
+                <span *ngIf="(org.orgAdmins || []).length === 0" class="no-admins">—</span>
+              </mat-cell>
+            </ng-container>
+
+            <mat-header-row *matHeaderRowDef="orgTableColumns; sticky: true"></mat-header-row>
+            <mat-row *matRowDef="let row; columns: orgTableColumns;"
+                     [class.selected]="selectedOrg?.id === row.id"
+                     (click)="selectOrg(row)">
+            </mat-row>
+
+            <tr class="mat-row" *matNoDataRow>
+              <td class="mat-cell" colspan="2">
+                <div class="empty-list">{{ 'organisations.empty' | translate }}</div>
+              </td>
+            </tr>
+          </mat-table>
         </div>
 
         <!-- Add new org -->
@@ -317,39 +340,49 @@ const REMOVE_ORG_ADMIN = gql`
     .org-list {
       flex: 1;
       overflow-y: auto;
-      padding: 4px 8px;
     }
 
-    .org-list-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
+    .orgs-mat-table {
       width: 100%;
-      padding: 8px 10px;
-      border: none;
-      background: none;
-      border-radius: 8px;
+      background: transparent;
+    }
+
+    .orgs-mat-table .mat-mdc-header-cell {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--mat-sys-on-surface-variant);
+      background: var(--mat-sys-surface-container-low);
+      padding: 0 8px;
+    }
+
+    .orgs-mat-table .mat-mdc-cell {
+      font-size: 13px;
+      padding: 0 8px;
+    }
+
+    .orgs-mat-table .mat-mdc-row {
       cursor: pointer;
-      text-align: left;
-      color: var(--mat-sys-on-surface);
-      transition: background 0.15s;
+      min-height: 44px;
     }
 
-    .org-list-item:hover {
-      background: var(--mat-sys-surface-container-highest);
+    .orgs-mat-table .mat-mdc-row:hover .mat-mdc-cell {
+      background: var(--mat-sys-surface-container);
     }
 
-    .org-list-item.selected {
+    .orgs-mat-table .mat-mdc-row.selected .mat-mdc-cell {
       background: var(--mat-sys-secondary-container);
       color: var(--mat-sys-on-secondary-container);
     }
 
     .org-item-icon {
-      font-size: 20px;
-      width: 20px;
-      height: 20px;
-      opacity: 0.7;
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+      opacity: 0.6;
       flex-shrink: 0;
+      margin-right: 8px;
     }
 
     .org-item-info {
@@ -360,7 +393,7 @@ const REMOVE_ORG_ADMIN = gql`
     }
 
     .org-item-name {
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 500;
       white-space: nowrap;
       overflow: hidden;
@@ -372,9 +405,25 @@ const REMOVE_ORG_ADMIN = gql`
       color: var(--mat-sys-on-surface-variant);
     }
 
-    .org-list-item.selected .org-item-meta {
-      color: var(--mat-sys-on-secondary-container);
-      opacity: 0.7;
+    .admins-cell {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      padding-top: 4px;
+      padding-bottom: 4px;
+    }
+
+    .admin-chip-sm {
+      font-size: 11px;
+      background: var(--mat-sys-surface-container-highest);
+      border-radius: 10px;
+      padding: 1px 8px;
+      white-space: nowrap;
+    }
+
+    .no-admins {
+      font-size: 12px;
+      color: var(--mat-sys-on-surface-variant);
     }
 
     .empty-list {
@@ -566,6 +615,7 @@ const REMOVE_ORG_ADMIN = gql`
 export class ManageOrganisationsComponent implements OnInit {
   organisations: Organisation[] = [];
   allMembers: AllMember[] = [];
+  orgTableColumns = ['name', 'admins'];
   loading = false;
   saving = false;
   newName = '';

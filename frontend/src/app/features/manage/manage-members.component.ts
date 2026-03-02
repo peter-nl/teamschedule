@@ -7,6 +7,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTableModule } from '@angular/material/table';
 import { NotificationService } from '../../shared/services/notification.service';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
@@ -26,6 +27,8 @@ interface Team {
 
 interface Member {
   id: string;
+  memberNo: number;
+  username: string;
   firstName: string;
   lastName: string;
   particles: string | null;
@@ -44,6 +47,8 @@ const GET_MEMBERS_QUERY = gql`
   query GetMembers($orgId: ID) {
     members(orgId: $orgId) {
       id
+      memberNo
+      username
       firstName
       lastName
       particles
@@ -97,6 +102,7 @@ const GET_ORG_LIST = gql`
     MatDividerModule,
     MatProgressSpinnerModule,
     MatSlideToggleModule,
+    MatTableModule,
     TranslateModule,
   ],
   template: `
@@ -143,48 +149,59 @@ const GET_ORG_LIST = gql`
             <mat-progress-spinner mode="indeterminate" diameter="32"></mat-progress-spinner>
           </div>
 
-          <table class="names-table" *ngIf="!loading">
-            <thead>
-              <tr cdkDropList
-                  cdkDropListOrientation="horizontal"
-                  (cdkDropListDropped)="dropNameColumn($event)">
-                <th *ngFor="let col of nameColumns"
-                    cdkDrag
-                    class="name-col-header"
-                    [class.col-active]="sortColumn === col"
-                    (click)="setSortColumn(col)">
-                  <span>{{ columnLabel(col) }}</span>
-                  <mat-icon class="sort-icon" *ngIf="sortColumn === col">
-                    {{ sortDirection === 'asc' ? 'arrow_upward' : 'arrow_downward' }}
-                  </mat-icon>
-                  <mat-icon class="sort-icon drag-icon" *ngIf="sortColumn !== col">drag_indicator</mat-icon>
-                </th>
-                <th class="name-col-header role-col-header"></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let member of filteredMembers"
-                  class="list-item"
-                  [class.selected]="selectedMember?.id === member.id"
-                  (click)="selectMember(member)">
-                <td *ngFor="let col of nameColumns" class="name-col">
-                  {{ getNamePart(member, col) }}
-                </td>
-                <td class="name-col role-col">
-                  <mat-icon *ngIf="member.isOrgAdmin" class="role-icon role-icon-orgadmin" [matTooltip]="'common.role.orgadmin' | translate">admin_panel_settings</mat-icon>
-                  <mat-icon *ngIf="!member.isOrgAdmin && member.adminOfTeams.length > 0" class="role-icon role-icon-teamadmin" [matTooltip]="'common.role.teamadmin' | translate">manage_accounts</mat-icon>
-                </td>
-              </tr>
-              <tr *ngIf="filteredMembers.length === 0">
-                <td [attr.colspan]="nameColumns.length" class="empty-cell">
-                  <div class="list-empty">
-                    <mat-icon>person_off</mat-icon>
-                    <span>{{ 'members.noMembersFound' | translate }}</span>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <mat-table *ngIf="!loading" [dataSource]="filteredMembers" class="members-mat-table">
+
+            <!-- Avatar column -->
+            <ng-container matColumnDef="avatar">
+              <mat-header-cell *matHeaderCellDef></mat-header-cell>
+              <mat-cell *matCellDef="let m">
+                <img *ngIf="m.avatarUrl" [src]="m.avatarUrl" class="list-avatar" alt="">
+                <mat-icon *ngIf="!m.avatarUrl" class="list-avatar-icon">account_circle</mat-icon>
+              </mat-cell>
+            </ng-container>
+
+            <!-- Name column -->
+            <ng-container matColumnDef="name">
+              <mat-header-cell *matHeaderCellDef (click)="setSortColumn('lastName')" class="sortable-header">
+                {{ 'members.lastName' | translate }}
+                <mat-icon class="sort-icon" *ngIf="sortColumn === 'lastName'">{{ sortDirection === 'asc' ? 'arrow_upward' : 'arrow_downward' }}</mat-icon>
+              </mat-header-cell>
+              <mat-cell *matCellDef="let m">{{ displayName(m) }}</mat-cell>
+            </ng-container>
+
+            <!-- Username column -->
+            <ng-container matColumnDef="username">
+              <mat-header-cell *matHeaderCellDef (click)="setSortColumn('username')" class="sortable-header">
+                {{ 'members.username' | translate }}
+                <mat-icon class="sort-icon" *ngIf="sortColumn === 'username'">{{ sortDirection === 'asc' ? 'arrow_upward' : 'arrow_downward' }}</mat-icon>
+              </mat-header-cell>
+              <mat-cell *matCellDef="let m" class="username-cell">{{ m.username }}</mat-cell>
+            </ng-container>
+
+            <!-- Role column -->
+            <ng-container matColumnDef="role">
+              <mat-header-cell *matHeaderCellDef></mat-header-cell>
+              <mat-cell *matCellDef="let m">
+                <mat-icon *ngIf="m.isOrgAdmin" class="role-icon role-icon-orgadmin" [matTooltip]="'common.role.orgadmin' | translate">admin_panel_settings</mat-icon>
+                <mat-icon *ngIf="!m.isOrgAdmin && m.adminOfTeams.length > 0" class="role-icon role-icon-teamadmin" [matTooltip]="'common.role.teamadmin' | translate">manage_accounts</mat-icon>
+              </mat-cell>
+            </ng-container>
+
+            <mat-header-row *matHeaderRowDef="memberTableColumns; sticky: true"></mat-header-row>
+            <mat-row *matRowDef="let row; columns: memberTableColumns;"
+                     [class.selected]="selectedMember?.id === row.id"
+                     (click)="selectMember(row)">
+            </mat-row>
+
+            <tr class="mat-row" *matNoDataRow>
+              <td class="mat-cell" [attr.colspan]="memberTableColumns.length">
+                <div class="list-empty">
+                  <mat-icon>person_off</mat-icon>
+                  <span>{{ 'members.noMembersFound' | translate }}</span>
+                </div>
+              </td>
+            </tr>
+          </mat-table>
         </div>
       </div>
 
@@ -214,8 +231,12 @@ const GET_ORG_LIST = gql`
           <!-- Attributes -->
           <div class="attr-section">
             <div class="attr-row">
-              <span class="attr-label">{{ 'members.id' | translate }}</span>
-              <span class="attr-value attr-mono">{{ selectedMember.id }}</span>
+              <span class="attr-label">{{ 'members.memberNo' | translate }}</span>
+              <span class="attr-value attr-mono">#{{ selectedMember.memberNo }}</span>
+            </div>
+            <div class="attr-row">
+              <span class="attr-label">{{ 'members.username' | translate }}</span>
+              <span class="attr-value attr-mono">{{ selectedMember.username }}</span>
             </div>
             <div class="attr-row">
               <span class="attr-label">{{ 'members.firstName' | translate }}</span>
@@ -402,40 +423,44 @@ const GET_ORG_LIST = gql`
       overflow-y: auto;
     }
 
-    .names-table {
-      border-collapse: collapse;
-      white-space: nowrap;
+    .members-mat-table {
+      width: 100%;
+      background: transparent;
     }
 
-    .name-col-header {
-      text-align: left;
-      padding: 5px 20px 5px 16px;
+    .members-mat-table .mat-mdc-header-cell {
       font-size: 11px;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.04em;
       color: var(--mat-sys-on-surface-variant);
       background: var(--mat-sys-surface-container-low);
-      border-bottom: 2px solid var(--mat-sys-outline-variant);
+      padding: 0 8px 0 8px;
+    }
+
+    .members-mat-table .mat-mdc-cell {
+      font-size: 13px;
+      color: var(--mat-sys-on-surface);
+      padding: 0 8px 0 8px;
+    }
+
+    .members-mat-table .mat-mdc-row {
+      cursor: pointer;
+      min-height: 40px;
+    }
+
+    .members-mat-table .mat-mdc-row:hover .mat-mdc-cell {
+      background: var(--mat-sys-surface-container);
+    }
+
+    .members-mat-table .mat-mdc-row.selected .mat-mdc-cell {
+      background: var(--mat-sys-secondary-container);
+      color: var(--mat-sys-on-secondary-container);
+    }
+
+    .sortable-header {
       cursor: pointer;
       user-select: none;
-      position: sticky;
-      top: 0;
-      z-index: 1;
-    }
-
-    .name-col-header:hover {
-      color: var(--mat-sys-on-surface);
-    }
-
-    .name-col-header.col-active {
-      color: var(--mat-sys-primary);
-    }
-
-    /* CDK drag placeholder keeps table cell display */
-    .name-col-header.cdk-drag-placeholder {
-      display: table-cell;
-      opacity: 0.4;
     }
 
     .sort-icon {
@@ -446,39 +471,30 @@ const GET_ORG_LIST = gql`
       margin-left: 2px;
     }
 
-    .drag-icon {
-      opacity: 0.4;
-    }
-
     .list-loading {
       display: flex;
       justify-content: center;
       padding: 24px;
     }
 
-    .list-item {
-      cursor: pointer;
-      font-size: 14px;
-      color: var(--mat-sys-on-surface);
-      user-select: none;
+    .list-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      object-fit: cover;
     }
 
-    .list-item:hover .name-col {
-      background: var(--mat-sys-surface-container);
+    .list-avatar-icon {
+      font-size: 28px;
+      width: 28px;
+      height: 28px;
+      color: var(--mat-sys-on-surface-variant);
+      opacity: 0.5;
     }
 
-    .list-item.selected .name-col {
-      background: var(--mat-sys-secondary-container);
-      color: var(--mat-sys-on-secondary-container);
-    }
-
-    .name-col {
-      padding: 8px 20px 8px 16px;
-      white-space: nowrap;
-    }
-
-    .empty-cell {
-      padding: 0;
+    .username-cell {
+      font-size: 12px;
+      color: var(--mat-sys-on-surface-variant);
     }
 
     .list-empty {
@@ -694,6 +710,7 @@ export class ManageMembersComponent implements OnInit {
   teamFilterMode: TeamFilterMode = 'and';
 
   nameColumns = ['firstName', 'particles', 'lastName'];
+  memberTableColumns = ['avatar', 'name', 'username', 'role'];
   sortColumn = 'lastName';
   sortDirection: 'asc' | 'desc' = 'asc';
 
@@ -804,6 +821,7 @@ export class ManageMembersComponent implements OnInit {
     if (col === 'firstName') return member.firstName;
     if (col === 'particles') return member.particles || '';
     if (col === 'lastName') return member.lastName;
+    if (col === 'username') return member.username || '';
     return '';
   }
 
