@@ -39,31 +39,33 @@ interface TeamAdmin {
 interface Team {
   id: string;
   name: string;
+  organisationId: number | null;
+  organisationName: string | null;
   members: Member[];
   teamAdmins: TeamAdmin[];
 }
+
+interface OrgGroupRow {
+  isGroup: true;
+  orgId: number | null;
+  orgName: string;
+  teamCount: number;
+}
+
+type TableRow = OrgGroupRow | Team;
 
 const GET_TEAMS_QUERY = gql`
   query GetTeams {
     teams {
       id
       name
+      organisationId
+      organisationName
       members {
-        id
-        memberNo
-        firstName
-        lastName
-        particles
-        email
-        username
-        role
-        avatarUrl
+        id memberNo firstName lastName particles email username role avatarUrl
       }
       teamAdmins {
-        id
-        firstName
-        lastName
-        particles
+        id firstName lastName particles
       }
     }
   }
@@ -72,11 +74,7 @@ const GET_TEAMS_QUERY = gql`
 const GET_MEMBERS_QUERY = gql`
   query GetMembers {
     members {
-      id
-      firstName
-      lastName
-      particles
-      email
+      id firstName lastName particles email
     }
   }
 `;
@@ -105,44 +103,61 @@ const GET_MEMBERS_QUERY = gql`
         </button>
         <input class="search-input"
                [(ngModel)]="searchText"
-               (ngModelChange)="filterTeams()"
+               (ngModelChange)="buildRows()"
                [placeholder]="'teams.searchTeams' | translate">
       </div>
 
       <div class="table-scroll">
-        <mat-table [dataSource]="filteredTeams" class="teams-table">
+        <mat-table [dataSource]="tableRows" class="teams-table">
 
-          <ng-container matColumnDef="name">
-            <mat-header-cell *matHeaderCellDef
-                             (click)="toggleSort()"
-                             class="sortable-header">
-              {{ 'teams.name' | translate }}
-              <mat-icon class="sort-icon">
-                {{ sortDirection === 'asc' ? 'arrow_upward' : 'arrow_downward' }}
-              </mat-icon>
-            </mat-header-cell>
-            <mat-cell *matCellDef="let team">{{ team.name }}</mat-cell>
+          <!-- Org group column (full-width) -->
+          <ng-container matColumnDef="group">
+            <mat-header-cell *matHeaderCellDef></mat-header-cell>
+            <mat-cell *matCellDef="let row">
+              <mat-icon class="org-icon">corporate_fare</mat-icon>
+              <span class="org-name">{{ row.orgName }}</span>
+              <span class="org-count">{{ row.teamCount }}</span>
+            </mat-cell>
           </ng-container>
 
+          <!-- Name column -->
+          <ng-container matColumnDef="name">
+            <mat-header-cell *matHeaderCellDef (click)="toggleSort()" class="sortable-header">
+              {{ 'teams.name' | translate }}
+              <mat-icon class="sort-icon">{{ sortDirection === 'asc' ? 'arrow_upward' : 'arrow_downward' }}</mat-icon>
+            </mat-header-cell>
+            <mat-cell *matCellDef="let row">
+              <mat-icon class="team-icon">group</mat-icon>
+              {{ row.name }}
+            </mat-cell>
+          </ng-container>
+
+          <!-- Admins column -->
           <ng-container matColumnDef="admins">
             <mat-header-cell *matHeaderCellDef>{{ 'teams.teamAdmins' | translate }}</mat-header-cell>
-            <mat-cell *matCellDef="let team" class="admins-cell">
-              {{ formatAdmins(team.teamAdmins) }}
+            <mat-cell *matCellDef="let row">
+              <span *ngIf="row.teamAdmins?.length">{{ formatAdmins(row.teamAdmins) }}</span>
+              <span *ngIf="!row.teamAdmins?.length" class="no-value">—</span>
             </mat-cell>
           </ng-container>
 
+          <!-- Member count column -->
           <ng-container matColumnDef="count">
-            <mat-header-cell *matHeaderCellDef class="count-header">{{ 'teams.members' | translate }}</mat-header-cell>
-            <mat-cell *matCellDef="let team" class="count-cell">
-              {{ team.members.length }}
-            </mat-cell>
+            <mat-header-cell *matHeaderCellDef>{{ 'teams.members' | translate }}</mat-header-cell>
+            <mat-cell *matCellDef="let row">{{ row.members?.length }}</mat-cell>
           </ng-container>
 
-          <mat-header-row *matHeaderRowDef="tableColumns; sticky: true"></mat-header-row>
-          <mat-row *matRowDef="let row; columns: tableColumns;" (click)="openMembers(row)"></mat-row>
+          <mat-header-row *matHeaderRowDef="dataColumns; sticky: true"></mat-header-row>
+
+          <!-- Org group rows -->
+          <mat-row *matRowDef="let row; columns: ['group']; when: isGroupRow" class="org-group-row"></mat-row>
+
+          <!-- Team data rows -->
+          <mat-row *matRowDef="let row; columns: dataColumns; when: isDataRow"
+                   (click)="openMembers(asTeam(row))"></mat-row>
 
           <tr class="mat-row" *matNoDataRow>
-            <td class="mat-cell" colspan="2">
+            <td class="mat-cell" [attr.colspan]="dataColumns.length">
               <div class="empty-state">
                 <mat-icon>group_off</mat-icon>
                 <span>{{ 'teams.noTeamsFound' | translate }}</span>
@@ -193,10 +208,7 @@ const GET_MEMBERS_QUERY = gql`
       font-size: 14px;
       padding: 4px;
     }
-
-    .search-input::placeholder {
-      color: var(--mat-sys-on-surface-variant);
-    }
+    .search-input::placeholder { color: var(--mat-sys-on-surface-variant); }
 
     .table-scroll {
       flex: 1;
@@ -232,6 +244,92 @@ const GET_MEMBERS_QUERY = gql`
       background: var(--mat-sys-surface-container);
     }
 
+    /* Org group row */
+    .org-group-row {
+      background: var(--mat-sys-surface-container-low) !important;
+      cursor: default !important;
+      min-height: 36px !important;
+    }
+
+    .org-group-row:hover .mat-mdc-cell {
+      background: var(--mat-sys-surface-container-low) !important;
+    }
+
+    .org-group-row .mat-mdc-cell {
+      border-top: 1px solid var(--mat-sys-outline-variant);
+    }
+
+    /* The group column takes full width */
+    .teams-table .mat-column-group {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .org-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      opacity: 0.6;
+      color: var(--mat-sys-primary);
+      flex-shrink: 0;
+    }
+
+    .org-name {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--mat-sys-on-surface-variant);
+    }
+
+    .org-count {
+      font-size: 11px;
+      color: var(--mat-sys-on-surface-variant);
+      background: var(--mat-sys-surface-container);
+      border-radius: 10px;
+      padding: 1px 8px;
+      margin-left: 4px;
+    }
+
+    /* Column widths */
+    .teams-table .mat-column-name {
+      flex: 2 1 160px;
+      min-width: 120px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .teams-table .mat-column-admins {
+      flex: 2 1 140px;
+      min-width: 100px;
+      color: var(--mat-sys-on-surface-variant);
+      font-size: 13px;
+    }
+
+    .teams-table .mat-column-count {
+      flex: 0 0 72px;
+      justify-content: flex-end;
+      text-align: right;
+      color: var(--mat-sys-on-surface-variant);
+      font-size: 13px;
+    }
+
+    .team-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      opacity: 0.4;
+      flex-shrink: 0;
+    }
+
+    .no-value {
+      color: var(--mat-sys-on-surface-variant);
+      opacity: 0.5;
+    }
+
     .sortable-header {
       cursor: pointer;
       user-select: none;
@@ -242,24 +340,6 @@ const GET_MEMBERS_QUERY = gql`
       width: 14px;
       height: 14px;
       margin-left: 4px;
-    }
-
-    .admins-cell {
-      color: var(--mat-sys-on-surface-variant);
-      font-size: 13px;
-    }
-
-    .count-header {
-      justify-content: flex-end !important;
-      text-align: right;
-    }
-
-    .count-cell {
-      max-width: 100px;
-      justify-content: flex-end !important;
-      text-align: right;
-      color: var(--mat-sys-on-surface-variant);
-      font-size: 13px;
     }
 
     .empty-state {
@@ -285,12 +365,16 @@ export class ManageTeamsComponent implements OnInit {
   @Input() myTeamsOnly = false;
 
   teams: Team[] = [];
-  filteredTeams: Team[] = [];
+  tableRows: TableRow[] = [];
   allMembers: Member[] = [];
   loading = true;
   searchText = '';
   sortDirection: 'asc' | 'desc' = 'asc';
-  tableColumns = ['name', 'admins', 'count'];
+  dataColumns = ['name', 'admins', 'count'];
+
+  isGroupRow = (_: number, row: TableRow): boolean => (row as OrgGroupRow).isGroup === true;
+  isDataRow  = (_: number, row: TableRow): boolean => (row as OrgGroupRow).isGroup !== true;
+  asTeam = (row: TableRow): Team => row as Team;
 
   constructor(
     private notificationService: NotificationService,
@@ -313,7 +397,7 @@ export class ManageTeamsComponent implements OnInit {
       ]);
       this.teams = teamsResult.data.teams;
       this.allMembers = membersResult.data.members;
-      this.filterTeams();
+      this.buildRows();
     } catch {
       this.notificationService.error(this.translate.instant('teams.messages.loadFailed'));
     } finally {
@@ -321,18 +405,47 @@ export class ManageTeamsComponent implements OnInit {
     }
   }
 
-  filterTeams(): void {
+  buildRows(): void {
     let filtered = this.teams;
+
     if (this.myTeamsOnly) {
       const adminIds = this.authService.currentUser?.teamAdminIds ?? [];
       filtered = filtered.filter(t => adminIds.includes(Number(t.id)));
     }
+
     if (this.searchText) {
       const term = this.searchText.toLowerCase();
-      filtered = filtered.filter(t => t.name.toLowerCase().includes(term));
+      filtered = filtered.filter(t =>
+        t.name.toLowerCase().includes(term) ||
+        (t.organisationName ?? '').toLowerCase().includes(term)
+      );
     }
+
     const dir = this.sortDirection === 'asc' ? 1 : -1;
-    this.filteredTeams = [...filtered].sort((a, b) => a.name.localeCompare(b.name) * dir);
+    const sorted = [...filtered].sort((a, b) => {
+      const orgCmp = (a.organisationName ?? '').localeCompare(b.organisationName ?? '');
+      return orgCmp !== 0 ? orgCmp : a.name.localeCompare(b.name) * dir;
+    });
+
+    // Build interleaved rows: org group header + team rows
+    const rows: TableRow[] = [];
+    let lastOrgId: number | null | undefined = undefined;
+
+    for (const team of sorted) {
+      if (team.organisationId !== lastOrgId) {
+        const orgTeams = sorted.filter(t => t.organisationId === team.organisationId);
+        rows.push({
+          isGroup: true,
+          orgId: team.organisationId,
+          orgName: team.organisationName ?? '—',
+          teamCount: orgTeams.length
+        });
+        lastOrgId = team.organisationId;
+      }
+      rows.push(team);
+    }
+
+    this.tableRows = rows;
   }
 
   formatAdmins(admins: TeamAdmin[]): string {
@@ -344,7 +457,7 @@ export class ManageTeamsComponent implements OnInit {
 
   toggleSort(): void {
     this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
-    this.filterTeams();
+    this.buildRows();
   }
 
   openMembers(team: Team): void {
@@ -367,9 +480,7 @@ export class ManageTeamsComponent implements OnInit {
     );
 
     panelRef.afterClosed().subscribe(reloadNeeded => {
-      if (reloadNeeded) {
-        this.loadData();
-      }
+      if (reloadNeeded) this.loadData();
     });
   }
 
@@ -385,9 +496,7 @@ export class ManageTeamsComponent implements OnInit {
     );
 
     addRef.afterClosed().subscribe(saved => {
-      if (saved) {
-        this.loadData();
-      }
+      if (saved) this.loadData();
     });
   }
 }

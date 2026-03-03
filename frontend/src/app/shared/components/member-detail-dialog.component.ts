@@ -51,8 +51,8 @@ export interface MemberDetailDialogResult {
 }
 
 const GET_MEMBER_QUERY = gql`
-  query GetMemberDetail {
-    members {
+  query GetMemberDetail($id: String!) {
+    memberProfile(id: $id) {
       id
       memberNo
       username
@@ -166,15 +166,6 @@ const UPDATE_AVATAR_MUTATION = gql`
         </div>
 
         <div *ngIf="!loadingData && member" class="detail-content">
-
-          <!-- Role -->
-          <div class="detail-row">
-            <span class="detail-label">{{ 'memberDetail.role' | translate }}</span>
-            <span class="detail-value role-badge" [class.elevated]="member.role === 'orgadmin' || member.role === 'teamadmin'">
-              <mat-icon>{{ roleIcon }}</mat-icon>
-              {{ roleLabel | translate }}
-            </span>
-          </div>
 
           <!-- Email -->
           <div class="detail-row">
@@ -500,23 +491,6 @@ const UPDATE_AVATAR_MUTATION = gql`
       display: none;
     }
 
-    .role-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .role-badge mat-icon {
-      font-size: 20px;
-      width: 20px;
-      height: 20px;
-      color: var(--mat-sys-on-surface-variant);
-    }
-
-    .role-badge.elevated mat-icon {
-      color: var(--mat-sys-primary);
-    }
-
     .teams-list {
       display: flex;
       flex-wrap: wrap;
@@ -734,31 +708,16 @@ export class MemberDetailDialogComponent implements OnInit {
     return this.isManager && !this.isSelf;
   }
 
-  get roleIcon(): string {
-    if (!this.member) return 'person';
-    if (this.member.role === 'orgadmin') return 'admin_panel_settings';
-    if (this.member.role === 'teamadmin') return 'manage_accounts';
-    return 'person';
-  }
-
-  get roleLabel(): string {
-    if (!this.member) return '';
-    if (this.member.role === 'orgadmin') return 'common.role.orgadmin';
-    if (this.member.role === 'teamadmin') return 'common.role.teamadmin';
-    return 'common.role.user';
-  }
-
   private async loadData(): Promise<void> {
     this.loadingData = true;
     try {
-      const [membersResult, teamsResult]: any[] = await Promise.all([
-        apolloClient.query({ query: GET_MEMBER_QUERY, fetchPolicy: 'network-only' }),
+      const [memberResult, teamsResult]: any[] = await Promise.all([
+        apolloClient.query({ query: GET_MEMBER_QUERY, variables: { id: this.data.memberId }, fetchPolicy: 'network-only' }),
         apolloClient.query({ query: GET_TEAMS_QUERY, fetchPolicy: 'network-only' })
       ]);
 
       this.allTeams = teamsResult.data.teams;
-      const members: MemberFull[] = membersResult.data.members;
-      this.member = members.find(m => m.id === this.data.memberId) || null;
+      this.member = memberResult.data.memberProfile || null;
       if (this.member) {
         this.editUsername = this.member.username;
         this.savedUsername = this.member.username;

@@ -32,6 +32,7 @@ interface Member {
   particles: string | null;
   email: string | null;
   role: string;
+  organisationName: string | null;
   scheduleDisabled: boolean;
   isOrgAdmin: boolean;
   adminOfTeams: { id: string; name: string }[];
@@ -52,6 +53,7 @@ const GET_MEMBERS_QUERY = gql`
       particles
       email
       role
+      organisationName
       scheduleDisabled
       isOrgAdmin
       adminOfTeams { id name }
@@ -93,22 +95,16 @@ const GET_ORG_LIST = gql`
     TranslateModule,
   ],
   template: `
-    <!-- Sysadmin org picker -->
+    <!-- Sysadmin org filter -->
     <div *ngIf="authService.isSysadmin" class="org-picker-bar">
       <mat-icon class="org-picker-icon">admin_panel_settings</mat-icon>
       <select class="org-picker-select" [(ngModel)]="selectedOrgId" (ngModelChange)="onOrgSelected()">
-        <option value="">{{ 'sysadmin.selectOrg' | translate }}</option>
+        <option value="">{{ 'sysadmin.allOrgs' | translate }}</option>
         <option *ngFor="let org of orgList" [value]="org.id">{{ org.name }}</option>
       </select>
     </div>
 
-    <!-- No org selected (sysadmin only) -->
-    <div *ngIf="authService.isSysadmin && !selectedOrgId" class="no-org-selected">
-      <mat-icon>manage_accounts</mat-icon>
-      <p>{{ 'sysadmin.selectOrgPrompt' | translate }}</p>
-    </div>
-
-    <ng-container *ngIf="!authService.isSysadmin || selectedOrgId">
+    <ng-container>
       <div class="members-view" *ngIf="!loading; else loadingTpl">
 
         <div class="view-header">
@@ -130,7 +126,7 @@ const GET_ORG_LIST = gql`
         </div>
 
         <div class="table-scroll">
-          <mat-table [dataSource]="dataSource" matSort class="members-table">
+          <mat-table [dataSource]="dataSource" matSort class="members-table" [class.sysadmin-table]="authService.isSysadmin">
 
             <ng-container matColumnDef="avatar">
               <mat-header-cell *matHeaderCellDef class="avatar-col"></mat-header-cell>
@@ -160,6 +156,11 @@ const GET_ORG_LIST = gql`
               <mat-cell *matCellDef="let m" class="secondary-cell">{{ m.email }}</mat-cell>
             </ng-container>
 
+            <ng-container matColumnDef="org">
+              <mat-header-cell *matHeaderCellDef mat-sort-header>{{ 'members.organisation' | translate }}</mat-header-cell>
+              <mat-cell *matCellDef="let m" class="secondary-cell">{{ m.organisationName }}</mat-cell>
+            </ng-container>
+
             <ng-container matColumnDef="role">
               <mat-header-cell *matHeaderCellDef class="role-col">{{ 'members.role' | translate }}</mat-header-cell>
               <mat-cell *matCellDef="let m" class="role-col">
@@ -168,11 +169,11 @@ const GET_ORG_LIST = gql`
               </mat-cell>
             </ng-container>
 
-            <mat-header-row *matHeaderRowDef="tableColumns; sticky: true"></mat-header-row>
-            <mat-row *matRowDef="let row; columns: tableColumns;" (dblclick)="openMemberDetail(row)" class="member-row"></mat-row>
+            <mat-header-row *matHeaderRowDef="authService.isSysadmin ? sysadminColumns : tableColumns; sticky: true"></mat-header-row>
+            <mat-row *matRowDef="let row; columns: authService.isSysadmin ? sysadminColumns : tableColumns;" (dblclick)="openMemberDetail(row)" class="member-row"></mat-row>
 
             <tr class="mat-row" *matNoDataRow>
-              <td class="mat-cell" [attr.colspan]="tableColumns.length">
+              <td class="mat-cell" [attr.colspan]="(authService.isSysadmin ? sysadminColumns : tableColumns).length">
                 <div class="empty-state">
                   <mat-icon>person_off</mat-icon>
                   <span>{{ 'members.noMembersFound' | translate }}</span>
@@ -226,22 +227,6 @@ const GET_ORG_LIST = gql`
       outline: none;
       cursor: pointer;
       flex: 1;
-    }
-
-    .no-org-selected {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      flex: 1;
-      color: var(--mat-sys-on-surface-variant);
-      gap: 12px;
-    }
-
-    .no-org-selected mat-icon {
-      font-size: 48px;
-      width: 48px;
-      height: 48px;
     }
 
     .members-view {
@@ -400,6 +385,7 @@ export class ManageMembersComponent implements OnInit, AfterViewInit {
   loading = true;
   dataSource = new MatTableDataSource<Member>([]);
   tableColumns = ['avatar', 'no', 'name', 'username', 'email', 'role'];
+  sysadminColumns = ['avatar', 'no', 'name', 'username', 'email', 'org', 'role'];
 
   orgList: { id: string; name: string }[] = [];
   selectedOrgId = '';
@@ -420,9 +406,8 @@ export class ManageMembersComponent implements OnInit, AfterViewInit {
   async ngOnInit(): Promise<void> {
     if (this.authService.isSysadmin) {
       await this.loadOrgList();
-    } else {
-      this.loadData();
     }
+    this.loadData();
   }
 
   ngAfterViewInit(): void {
@@ -446,9 +431,7 @@ export class ManageMembersComponent implements OnInit, AfterViewInit {
   }
 
   onOrgSelected(): void {
-    if (this.selectedOrgId) {
-      this.loadData();
-    }
+    this.loadData();
   }
 
   async loadData(): Promise<void> {

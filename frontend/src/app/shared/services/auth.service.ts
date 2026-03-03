@@ -19,11 +19,18 @@ export interface AuthMember {
   isDemo?: boolean;
 }
 
+export interface OrgOption {
+  id: number;
+  name: string;
+}
+
 export interface AuthPayload {
   success: boolean;
   message: string | null;
   member: AuthMember | null;
   token: string | null;
+  personToken?: string | null;
+  orgList?: OrgOption[] | null;
 }
 
 const MEMBER_FIELDS = `
@@ -45,6 +52,21 @@ const MEMBER_FIELDS = `
 const LOGIN_MUTATION = gql`
   mutation Login($username: String!, $password: String!) {
     login(username: $username, password: $password) {
+      success
+      message
+      token
+      personToken
+      orgList { id name }
+      member {
+        ${MEMBER_FIELDS}
+      }
+    }
+  }
+`;
+
+const SELECT_ORG_MUTATION = gql`
+  mutation SelectOrg($personToken: String!, $orgId: ID!) {
+    selectOrg(personToken: $personToken, orgId: $orgId) {
       success
       message
       token
@@ -174,6 +196,27 @@ export class AuthService {
     ).pipe(
       map((result: any) => {
         const payload: AuthPayload = result.data.login;
+        // Only store auth when single-org login (no org picker needed)
+        if (payload.success && payload.member && payload.token && !payload.orgList?.length) {
+          this.token = payload.token ?? null;
+          this.storeAuth(payload.member, this.token);
+          this.currentUserSubject.next(payload.member);
+        }
+        return payload;
+      })
+    );
+  }
+
+  selectOrg(personToken: string, orgId: number, remember = false): Observable<AuthPayload> {
+    this.remember = remember;
+    return from(
+      apolloClient.mutate({
+        mutation: SELECT_ORG_MUTATION,
+        variables: { personToken, orgId: String(orgId) }
+      })
+    ).pipe(
+      map((result: any) => {
+        const payload: AuthPayload = result.data.selectOrg;
         if (payload.success && payload.member) {
           this.token = payload.token ?? null;
           this.storeAuth(payload.member, this.token);

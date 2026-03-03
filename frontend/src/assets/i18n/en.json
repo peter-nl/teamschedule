@@ -2,6 +2,7 @@
   "common": {
     "close": "Close",
     "cancel": "Cancel",
+    "back": "Back",
     "confirm": "Confirm",
     "save": "Save",
     "delete": "Delete",
@@ -101,6 +102,9 @@
     "rememberMe": "Remember me",
     "forgotPassword": "Forgot password?",
     "emailAddress": "Your email address",
+    "usernameForReset": "Username",
+    "selectOrg": "Select organisation",
+    "selectOrgPrompt": "You have access to multiple organisations. Please select one to continue.",
     "sendResetLink": "Send Reset Link",
     "messages": {
       "fieldsRequired": "Please enter both Member ID and Password",
@@ -320,6 +324,7 @@
     "memberNo": "Member #",
     "username": "Username",
     "usernameHint": "Used to log in. Can be changed.",
+    "organisation": "Organisation",
     "noMembersFound": "No members found",
     "selectPrompt": "Select a member to view details",
     "messages": {
@@ -393,6 +398,10 @@
   },
   "addMember": {
     "title": "Add New Member",
+    "emailStepHint": "Enter the new member's email address to check if they already have an account.",
+    "checkEmail": "Check",
+    "personFound": "Account found — a new membership will be created.",
+    "personNotFound": "No account found. Fill in the details below to create one.",
     "memberId": "Member ID",
     "memberIdPlaceholder": "e.g., jdoe001",
     "memberIdHint": "Unique identifier for the member",
@@ -495,6 +504,7 @@
   },
   "sysadmin": {
     "selectOrg": "Select an organisation...",
+    "allOrgs": "All organisations",
     "selectOrgPrompt": "Please select an organisation to manage."
   },
   "organisations": {
@@ -511,6 +521,12 @@
     "deleted": "Organisation deleted",
     "confirmDelete": "Delete organisation \"{{ name }}\"? This cannot be undone.",
     "admins": "Admins",
+    "membersColumn": "Members",
+    "teamsColumn": "Teams",
+    "createdAt": "Created",
+    "search": "Search organisations…",
+    "demoOrg": "Demo organisation",
+    "demoExpires": "Expires",
     "noAdmins": "none",
     "addAdmin": "Add admin",
     "removeAdmin": "Remove admin",

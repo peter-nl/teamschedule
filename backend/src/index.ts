@@ -45,6 +45,15 @@ function generateToken(member: AuthUser): string {
   );
 }
 
+// Short-lived person token for multi-org login intermediate step (5 min)
+const PERSON_TOKEN_SECRET = JWT_SECRET + '-person-step1';
+function generatePersonToken(personId: string): string {
+  return jwt.sign({ personId }, PERSON_TOKEN_SECRET, { expiresIn: '5m' });
+}
+function verifyPersonToken(token: string): { personId: string } {
+  return jwt.verify(token, PERSON_TOKEN_SECRET) as { personId: string };
+}
+
 function requireAuth(ctx: AuthContext): AuthUser {
   if (!ctx.user) throw new Error('Authentication required');
   return ctx.user;
@@ -129,11 +138,11 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
-// Populate missing member avatars from randomuser.me thumbnails (fire-and-forget)
+// Populate missing person avatars from randomuser.me thumbnails (fire-and-forget)
 async function populateMissingAvatars(): Promise<void> {
   try {
     const { rows } = await pool.query(
-      "SELECT id FROM member WHERE avatar_url IS NULL AND id <> 'sysadmin' LIMIT 100"
+      "SELECT p.id FROM person p WHERE p.avatar_url IS NULL AND p.id <> 'sysadmin' LIMIT 100"
     );
     if (!rows.length) return;
     const resp = await fetch(`https://randomuser.me/api/?results=${rows.length}&nat=nl`);
@@ -141,10 +150,10 @@ async function populateMissingAvatars(): Promise<void> {
     for (let i = 0; i < rows.length; i++) {
       const thumb = data.results?.[i]?.picture?.thumbnail;
       if (thumb) {
-        await pool.query('UPDATE member SET avatar_url = $1 WHERE id = $2', [thumb, rows[i].id]);
+        await pool.query('UPDATE person SET avatar_url = $1 WHERE id = $2', [thumb, rows[i].id]);
       }
     }
-    console.log(`Populated avatars for ${rows.length} member(s)`);
+    console.log(`Populated avatars for ${rows.length} person(s)`);
   } catch {
     // Non-critical — silently ignore
   }
@@ -255,6 +264,8 @@ const typeDefs = `#graphql
   type Team {
     id: ID!
     name: String!
+    organisationId: Int
+    organisationName: String
     members: [Member!]!
     teamAdmins: [Member!]!
   }
@@ -269,6 +280,7 @@ const typeDefs = `#graphql
     email: String
     role: String!
     organisationId: Int
+    organisationName: String
     scheduleDisabled: Boolean!
     isDemo: Boolean!
     isOrgAdmin: Boolean!
@@ -309,11 +321,25 @@ const typeDefs = `#graphql
     holidayTypeId: ID
   }
 
+  type OrgOption {
+    id: ID!
+    name: String!
+  }
+
+  type PersonLookup {
+    id: ID!
+    firstName: String!
+    lastName: String!
+    username: String!
+  }
+
   type AuthPayload {
     success: Boolean!
     message: String
     member: Member
     token: String
+    personToken: String
+    orgList: [OrgOption!]
   }
 
   type EmailConfig {
@@ -432,6 +458,7 @@ const typeDefs = `#graphql
     members(orgId: ID): [Member!]!
     member(id: ID!): Member
     memberProfile(id: String!): Member
+    lookupPersonByEmail(email: String!): PersonLookup
     organisation(orgId: ID): Organisation!
     orgAdmins(orgId: ID): [Member!]!
     holidayTypes(orgId: ID): [HolidayType!]!
@@ -457,7 +484,7 @@ const typeDefs = `#graphql
     createTeam(name: String!, orgId: ID): Team!
     updateTeam(id: ID!, name: String!): Team
     deleteTeam(id: ID!): Boolean!
-    createMember(id: String, firstName: String!, lastName: String!, particles: String, email: String, password: String!, orgId: ID): Member!
+    createMember(firstName: String!, lastName: String!, particles: String, email: String, password: String!, orgId: ID): Member!
     deleteMember(id: ID!): Boolean!
     updateMemberRole(memberId: String!, role: String!): Member
     assignOrgAdmin(memberId: String!, orgId: ID): Boolean!
@@ -484,7 +511,8 @@ const typeDefs = `#graphql
     updateUsername(id: String!, username: String!): Member!
     # Auth (public)
     login(username: String!, password: String!): AuthPayload!
-    requestPasswordReset(email: String!): SimpleResult!
+    selectOrg(personToken: String!, orgId: ID!): AuthPayload!
+    requestPasswordReset(username: String!): SimpleResult!
     resetPasswordWithToken(token: String!, newPassword: String!): AuthPayload!
     # Auth (self or elevated)
     updateMemberProfile(id: String!, firstName: String!, lastName: String!, particles: String, email: String, phone: String, dateOfBirth: String, avatarUrl: String): Member
@@ -537,6 +565,14 @@ const HOLIDAY_JOIN_SELECT = `
          ht.color_dark as ht_color_dark, ht.sort_order as ht_sort_order, ht.is_system as ht_is_system
   FROM member_holiday mh
   LEFT JOIN holiday_type ht ON mh.holiday_type_id = ht.id
+`;
+
+// Standard person+member JOIN — column names match mapMemberRow expectations
+const PM_SELECT = `
+  SELECT m.id, m.member_no, m.organisation_id, m.schedule_disabled, m.person_id,
+         p.username, p.first_name, p.last_name, p.particles,
+         p.email, p.phone, p.date_of_birth, p.avatar_url, p.role
+  FROM member m JOIN person p ON p.id = m.person_id
 `;
 
 // GraphQL resolvers
@@ -635,17 +671,21 @@ const resolvers = {
     teams: async (_: any, { orgId }: { orgId?: string }, ctx: AuthContext) => {
       const user = requireAuth(ctx);
       const effectiveOrgId = orgId && user.role === 'sysadmin' ? Number(orgId) : user.organisationId;
+      const teamSelect = `SELECT t.id, t.name, t.organisation_id as "organisationId", o.name as "organisationName"
+         FROM team t LEFT JOIN organisation o ON o.id = t.organisation_id`;
       const result = effectiveOrgId === null
-        ? await pool.query('SELECT * FROM team ORDER BY name')
-        : await pool.query('SELECT * FROM team WHERE organisation_id = $1 ORDER BY name', [effectiveOrgId]);
+        ? await pool.query(teamSelect + ' ORDER BY o.name, t.name')
+        : await pool.query(teamSelect + ' WHERE t.organisation_id = $1 ORDER BY t.name', [effectiveOrgId]);
       return result.rows;
     },
 
     team: async (_: any, { id }: { id: number }, ctx: AuthContext) => {
       const user = requireAuth(ctx);
+      const teamSelect = `SELECT t.id, t.name, t.organisation_id as "organisationId", o.name as "organisationName"
+         FROM team t LEFT JOIN organisation o ON o.id = t.organisation_id`;
       const result = user.organisationId === null
-        ? await pool.query('SELECT * FROM team WHERE id = $1', [id])
-        : await pool.query('SELECT * FROM team WHERE id = $1 AND organisation_id = $2', [id, user.organisationId]);
+        ? await pool.query(teamSelect + ' WHERE t.id = $1', [id])
+        : await pool.query(teamSelect + ' WHERE t.id = $1 AND t.organisation_id = $2', [id, user.organisationId]);
       return result.rows[0] || null;
     },
 
@@ -653,16 +693,27 @@ const resolvers = {
       const user = requireAuth(ctx);
       const effectiveOrgId = orgId && user.role === 'sysadmin' ? Number(orgId) : user.organisationId;
       const result = effectiveOrgId === null
-        ? await pool.query("SELECT * FROM member WHERE role != 'sysadmin' ORDER BY last_name, first_name")
-        : await pool.query("SELECT * FROM member WHERE organisation_id = $1 AND role != 'sysadmin' ORDER BY last_name, first_name", [effectiveOrgId]);
+        ? await pool.query(PM_SELECT + "WHERE p.role != 'sysadmin' ORDER BY p.last_name, p.first_name")
+        : await pool.query(PM_SELECT + "WHERE m.organisation_id = $1 AND p.role != 'sysadmin' ORDER BY p.last_name, p.first_name", [effectiveOrgId]);
       return result.rows.map(mapMemberRow);
+    },
+
+    lookupPersonByEmail: async (_: any, { email }: { email: string }, ctx: AuthContext) => {
+      requireOrgAdmin(ctx);
+      const result = await pool.query(
+        'SELECT id, first_name, last_name, username FROM person WHERE LOWER(email) = LOWER($1)',
+        [email]
+      );
+      if (result.rows.length === 0) return null;
+      const row = result.rows[0];
+      return { id: row.id, firstName: row.first_name, lastName: row.last_name, username: row.username };
     },
 
     member: async (_: any, { id }: { id: string }, ctx: AuthContext) => {
       const user = requireAuth(ctx);
       const result = user.organisationId === null
-        ? await pool.query('SELECT * FROM member WHERE id = $1', [id])
-        : await pool.query('SELECT * FROM member WHERE id = $1 AND organisation_id = $2', [id, user.organisationId]);
+        ? await pool.query(PM_SELECT + 'WHERE m.id = $1', [id])
+        : await pool.query(PM_SELECT + 'WHERE m.id = $1 AND m.organisation_id = $2', [id, user.organisationId]);
       return result.rows[0] ? mapMemberRow(result.rows[0]) : null;
     },
 
@@ -670,8 +721,8 @@ const resolvers = {
       const user = requireAuth(ctx);
       if (user.id !== id && !isElevatedRole(user)) throw new Error('Access denied');
       const result = user.organisationId === null
-        ? await pool.query('SELECT * FROM member WHERE id = $1', [id])
-        : await pool.query('SELECT * FROM member WHERE id = $1 AND organisation_id = $2', [id, user.organisationId]);
+        ? await pool.query(PM_SELECT + 'WHERE m.id = $1', [id])
+        : await pool.query(PM_SELECT + 'WHERE m.id = $1 AND m.organisation_id = $2', [id, user.organisationId]);
       return result.rows[0] ? mapMemberRow(result.rows[0]) : null;
     },
 
@@ -694,10 +745,9 @@ const resolvers = {
       const effectiveOrgId = orgId && user.role === 'sysadmin' ? Number(orgId) : user.organisationId;
       if (effectiveOrgId === null) return [];
       const result = await pool.query(
-        `SELECT m.* FROM member m
-         JOIN member_role mr ON m.id = mr.member_id
+        PM_SELECT + `JOIN member_role mr ON m.id = mr.member_id
          WHERE mr.role = 'orgadmin' AND mr.organisation_id = $1
-         ORDER BY m.last_name, m.first_name`,
+         ORDER BY p.last_name, p.first_name`,
         [effectiveOrgId]
       );
       return result.rows.map(mapMemberRow);
@@ -734,6 +784,7 @@ const resolvers = {
       const result = await pool.query(
         HOLIDAY_JOIN_SELECT + `
           JOIN member m ON mh.member_id = m.id
+          JOIN person p ON p.id = m.person_id
           WHERE mh.start_date <= $2 AND mh.end_date >= $1
           AND m.organisation_id = $3
           ORDER BY mh.start_date`,
@@ -808,12 +859,13 @@ const resolvers = {
       const user = requireTeamAdmin(ctx);
       if (user.organisationId === null) return [];
       const result = await pool.query(
-        `SELECT mh.*, m.first_name, m.last_name, m.particles, ht.name as ht_name
+        `SELECT mh.*, p.first_name, p.last_name, p.particles, ht.name as ht_name
          FROM member_holiday mh
          JOIN member m ON mh.member_id = m.id
+         JOIN person p ON p.id = m.person_id
          LEFT JOIN holiday_type ht ON mh.holiday_type_id = ht.id
          WHERE m.organisation_id = $1
-         ORDER BY m.last_name, m.first_name, mh.start_date`,
+         ORDER BY p.last_name, p.first_name, mh.start_date`,
         [user.organisationId]
       );
       return result.rows.map(row => {
@@ -921,6 +973,12 @@ const resolvers = {
       try {
         await client.query('BEGIN');
         await client.query('DELETE FROM member_holiday WHERE member_id IN (SELECT id FROM member WHERE organisation_id = $1)', [org.id]);
+        // Delete persons who only belong to this demo org (no other memberships)
+        await client.query(`
+          DELETE FROM person WHERE id IN (
+            SELECT p.id FROM person p JOIN member m ON m.person_id = p.id
+            WHERE m.organisation_id = $1 GROUP BY p.id HAVING COUNT(*) = 1
+          )`, [org.id]);
         await client.query('DELETE FROM member WHERE organisation_id = $1', [org.id]);
         await client.query('DELETE FROM holiday_type WHERE organisation_id = $1', [org.id]);
         await client.query('DELETE FROM team WHERE organisation_id = $1', [org.id]);
@@ -999,63 +1057,100 @@ const resolvers = {
       return (result.rowCount ?? 0) > 0;
     },
 
-    createMember: async (_: any, { id, firstName, lastName, particles, email, password, orgId }: { id?: string; firstName: string; lastName: string; particles?: string; email?: string; password: string; orgId?: string }, ctx: AuthContext) => {
+    createMember: async (_: any, { firstName, lastName, particles, email, password, orgId }: { firstName: string; lastName: string; particles?: string; email?: string; password: string; orgId?: string }, ctx: AuthContext) => {
       const user = requireOrgAdmin(ctx);
       const effectiveOrgId = orgId && user.role === 'sysadmin' ? Number(orgId) : user.organisationId;
       if (effectiveOrgId === null) throw new Error('No organisation context');
-      // Auto-generate member ID if not provided
-      const memberId = id && id.trim() ? id.trim() : crypto.randomUUID();
-      // Member ID must be unique across all organisations
-      const idCheck = await pool.query('SELECT id FROM member WHERE id = $1', [memberId]);
-      if (idCheck.rows.length > 0) throw new Error(`Member ID "${memberId}" is already in use`);
-      // Derive unique username from firstName+lastName
+
+      // Email-first: check if a person with this email already exists
+      if (email) {
+        const existingPerson = await pool.query(
+          'SELECT id, first_name, last_name, username FROM person WHERE LOWER(email) = LOWER($1)',
+          [email]
+        );
+        if (existingPerson.rows.length > 0) {
+          // Person exists — check they're not already in this org
+          const personId = existingPerson.rows[0].id;
+          const alreadyMember = await pool.query(
+            'SELECT id FROM member WHERE person_id = $1 AND organisation_id = $2',
+            [personId, effectiveOrgId]
+          );
+          if (alreadyMember.rows.length > 0) throw new Error('This person is already a member of this organisation');
+          // Create membership only
+          const memberId = crypto.randomUUID();
+          await pool.query(
+            'INSERT INTO member (id, person_id, organisation_id) VALUES ($1, $2, $3)',
+            [memberId, personId, effectiveOrgId]
+          );
+          const result = await pool.query(PM_SELECT + 'WHERE m.id = $1', [memberId]);
+          const member = mapMemberRow(result.rows[0]);
+          logEvent('member_created', ctx.user?.id ?? null, ctx.ip, { memberId, personId, orgId: effectiveOrgId, existingPerson: true });
+          return member;
+        }
+      }
+
+      // New person: derive unique username
       const baseUsername = (firstName + lastName).toLowerCase().replace(/[^a-z0-9]/g, '');
-      let candidateUsername = baseUsername || memberId;
+      const personId = crypto.randomUUID();
+      let candidateUsername = baseUsername || personId;
       let counter = 2;
       while (true) {
-        const uCheck = await pool.query('SELECT id FROM member WHERE LOWER(username) = LOWER($1)', [candidateUsername]);
+        const uCheck = await pool.query('SELECT id FROM person WHERE LOWER(username) = LOWER($1)', [candidateUsername]);
         if (uCheck.rows.length === 0) break;
         candidateUsername = baseUsername + counter++;
       }
-      // Email must be unique within this organisation
+      // Email globally unique on person
       if (email) {
-        const emailCheck = await pool.query(
-          'SELECT id FROM member WHERE LOWER(email) = LOWER($1) AND organisation_id = $2',
-          [email, effectiveOrgId]
-        );
-        if (emailCheck.rows.length > 0) throw new Error(`Email address "${email}" is already used by another member in this organisation`);
+        const emailCheck = await pool.query('SELECT id FROM person WHERE LOWER(email) = LOWER($1)', [email]);
+        if (emailCheck.rows.length > 0) throw new Error(`Email address "${email}" is already registered`);
       }
       const hashedPassword = await bcrypt.hash(password, 10);
-      const result = await pool.query(
-        'INSERT INTO member (id, username, first_name, last_name, particles, email, password_hash, organisation_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
-        [memberId, candidateUsername, firstName, lastName, particles || null, email || null, hashedPassword, effectiveOrgId]
+      await pool.query(
+        'INSERT INTO person (id, username, first_name, last_name, particles, email, password_hash) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [personId, candidateUsername, firstName, lastName, particles || null, email || null, hashedPassword]
       );
+      const memberId = crypto.randomUUID();
+      await pool.query(
+        'INSERT INTO member (id, person_id, organisation_id) VALUES ($1, $2, $3)',
+        [memberId, personId, effectiveOrgId]
+      );
+      const result = await pool.query(PM_SELECT + 'WHERE m.id = $1', [memberId]);
       const member = mapMemberRow(result.rows[0]);
-      logEvent('member_created', ctx.user?.id ?? null, ctx.ip, { memberId, orgId: effectiveOrgId });
+      logEvent('member_created', ctx.user?.id ?? null, ctx.ip, { memberId, personId, orgId: effectiveOrgId });
       return member;
     },
 
-    deleteMember: async (_: any, { id }: { id: number }, ctx: AuthContext) => {
+    deleteMember: async (_: any, { id }: { id: string }, ctx: AuthContext) => {
       const user = requireOrgAdmin(ctx);
-      const result = await pool.query(
-        'DELETE FROM member WHERE id = $1 AND ($2::int IS NULL OR organisation_id = $2)',
+      // Find person_id before deleting
+      const memberRow = await pool.query(
+        'SELECT person_id FROM member WHERE id = $1 AND ($2::int IS NULL OR organisation_id = $2)',
         [id, user.organisationId]
       );
-      if ((result.rowCount ?? 0) > 0) logEvent('member_deleted', ctx.user?.id ?? null, ctx.ip, { memberId: id, orgId: user.organisationId });
-      return (result.rowCount ?? 0) > 0;
+      if (memberRow.rows.length === 0) return false;
+      const personId = memberRow.rows[0].person_id;
+      await pool.query('DELETE FROM member WHERE id = $1', [id]);
+      // Delete person if they have no remaining memberships
+      const remaining = await pool.query('SELECT 1 FROM member WHERE person_id = $1 LIMIT 1', [personId]);
+      if (remaining.rows.length === 0) {
+        await pool.query('DELETE FROM person WHERE id = $1', [personId]);
+      }
+      logEvent('member_deleted', ctx.user?.id ?? null, ctx.ip, { memberId: id, orgId: user.organisationId });
+      return true;
     },
 
     // Kept for backward compat — sysadmin can change base role ('user'/'sysadmin')
     updateMemberRole: async (_: any, { memberId, role }: { memberId: string; role: string }, ctx: AuthContext) => {
-      const user = requireSysadmin(ctx);
+      requireSysadmin(ctx);
       const validRoles = ['user', 'sysadmin'];
       if (!validRoles.includes(role)) {
         throw new Error(`Invalid role. Must be one of: ${validRoles.join(', ')}`);
       }
-      const result = await pool.query(
-        'UPDATE member SET role = $2 WHERE id = $1 RETURNING *',
+      await pool.query(
+        'UPDATE person SET role = $2 WHERE id = (SELECT person_id FROM member WHERE id = $1)',
         [memberId, role]
       );
+      const result = await pool.query(PM_SELECT + 'WHERE m.id = $1', [memberId]);
       return result.rows[0] ? mapMemberRow(result.rows[0]) : null;
     },
 
@@ -1118,10 +1213,8 @@ const resolvers = {
 
     updateScheduleDisabled: async (_: any, { disabled }: { disabled: boolean }, ctx: AuthContext) => {
       const user = requireAuth(ctx);
-      const result = await pool.query(
-        'UPDATE member SET schedule_disabled = $2 WHERE id = $1 RETURNING *',
-        [user.id, disabled]
-      );
+      await pool.query('UPDATE member SET schedule_disabled = $2 WHERE id = $1', [user.id, disabled]);
+      const result = await pool.query(PM_SELECT + 'WHERE m.id = $1', [user.id]);
       return result.rows[0] ? mapMemberRow(result.rows[0]) : null;
     },
 
@@ -1148,10 +1241,8 @@ const resolvers = {
           throw new Error('Admin access required');
         }
       }
-      const result = await pool.query(
-        'UPDATE member SET schedule_disabled = $2 WHERE id = $1 RETURNING *',
-        [memberId, disabled]
-      );
+      await pool.query('UPDATE member SET schedule_disabled = $2 WHERE id = $1', [memberId, disabled]);
+      const result = await pool.query(PM_SELECT + 'WHERE m.id = $1', [memberId]);
       return result.rows[0] ? mapMemberRow(result.rows[0]) : null;
     },
 
@@ -1380,12 +1471,13 @@ const resolvers = {
       const user = requireTeamAdmin(ctx);
       if (user.organisationId === null) return [];
       const result = await pool.query(
-        `SELECT mh.*, m.first_name, m.last_name, m.particles, ht.name as ht_name
+        `SELECT mh.*, p.first_name, p.last_name, p.particles, ht.name as ht_name
          FROM member_holiday mh
          JOIN member m ON mh.member_id = m.id
+         JOIN person p ON p.id = m.person_id
          LEFT JOIN holiday_type ht ON mh.holiday_type_id = ht.id
          WHERE m.organisation_id = $1
-         ORDER BY m.last_name, m.first_name, mh.start_date`,
+         ORDER BY p.last_name, p.first_name, mh.start_date`,
         [user.organisationId]
       );
       return result.rows.map(row => {
@@ -1484,7 +1576,7 @@ const resolvers = {
           bcrypt.hash(mem1Pass, 10),
         ]);
 
-        // Create members with realistic profile data
+        // Create persons + members with realistic profile data
         const hashes = [adminHash, leadHash, mem1Hash, mem1Hash, mem1Hash];
         const memberIds = [adminId, leadId, mem1Id, mem2Id, mem3Id];
         for (let i = 0; i < 5; i++) {
@@ -1492,13 +1584,18 @@ const resolvers = {
           const baseU = (d.firstName + d.lastName).toLowerCase().replace(/[^a-z0-9]/g, '');
           let candidateU = baseU || memberIds[i];
           let cnt = 2;
-          while ((await pool.query('SELECT id FROM member WHERE LOWER(username) = LOWER($1)', [candidateU])).rows.length > 0) {
+          while ((await pool.query('SELECT id FROM person WHERE LOWER(username) = LOWER($1)', [candidateU])).rows.length > 0) {
             candidateU = baseU + cnt++;
           }
+          const personId = crypto.randomUUID();
           await pool.query(
-            `INSERT INTO member (id, username, first_name, last_name, password_hash, role, organisation_id, phone, date_of_birth, avatar_url)
-             VALUES ($1, $2, $3, $4, $5, 'user', $6, $7, $8, $9)`,
-            [memberIds[i], candidateU, d.firstName, d.lastName, hashes[i], orgId, d.phone, d.dateOfBirth, d.avatarUrl]
+            `INSERT INTO person (id, username, first_name, last_name, password_hash, phone, date_of_birth, avatar_url)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [personId, candidateU, d.firstName, d.lastName, hashes[i], d.phone, d.dateOfBirth, d.avatarUrl]
+          );
+          await pool.query(
+            'INSERT INTO member (id, person_id, organisation_id) VALUES ($1, $2, $3)',
+            [memberIds[i], personId, orgId]
           );
         }
 
@@ -1617,28 +1714,27 @@ const resolvers = {
       if (!newAdminId || newAdminId.length > 10) throw new Error('Login ID must be 1–10 characters');
       if (!/^[a-zA-Z0-9._-]+$/.test(newAdminId)) throw new Error('Login ID may only contain letters, digits, . - _');
 
-      // Check the new ID is not already taken
-      const taken = await pool.query('SELECT id FROM member WHERE id = $1', [newAdminId]);
-      if (taken.rows.length > 0) throw new Error('That login ID is already in use');
+      // Check username not already taken on person table
+      const taken = await pool.query('SELECT id FROM person WHERE LOWER(username) = LOWER($1)', [newAdminId]);
+      if (taken.rows.length > 0) throw new Error('That username is already in use');
 
       const hashedPassword = await bcrypt.hash(newPassword, 10);
       const orgId = user.organisationId!;
+      const personId = crypto.randomUUID();
+      const memberId = crypto.randomUUID();
 
-      // Derive unique username from the chosen admin ID
-      let claimUsername = newAdminId.toLowerCase().replace(/[^a-z0-9]/g, '') || newAdminId;
-      let claimCnt = 2;
-      while ((await pool.query('SELECT id FROM member WHERE LOWER(username) = LOWER($1)', [claimUsername])).rows.length > 0) {
-        claimUsername = newAdminId + claimCnt++;
-      }
-
-      // Create new admin member
+      // Create new person + member
       await pool.query(
-        'INSERT INTO member (id, username, first_name, last_name, password_hash, role, organisation_id) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-        [newAdminId, claimUsername, 'Admin', '', hashedPassword, 'user', orgId]
+        'INSERT INTO person (id, username, first_name, last_name, password_hash) VALUES ($1, $2, $3, $4, $5)',
+        [personId, newAdminId, 'Admin', '', hashedPassword]
+      );
+      await pool.query(
+        'INSERT INTO member (id, person_id, organisation_id) VALUES ($1, $2, $3)',
+        [memberId, personId, orgId]
       );
       await pool.query(
         'INSERT INTO member_role (member_id, role, organisation_id, team_id) VALUES ($1, $2, $3, NULL)',
-        [newAdminId, 'orgadmin', orgId]
+        [memberId, 'orgadmin', orgId]
       );
 
       // Convert demo org to real
@@ -1648,11 +1744,11 @@ const resolvers = {
       );
 
       // Return fresh JWT for new admin
-      const { isOrgAdmin, teamAdminIds } = await fetchMemberRoles(newAdminId);
-      const memberResult = await pool.query('SELECT * FROM member WHERE id = $1', [newAdminId]);
+      const { isOrgAdmin, teamAdminIds } = await fetchMemberRoles(memberId);
+      const memberResult = await pool.query(PM_SELECT + 'WHERE m.id = $1', [memberId]);
       const authUser: AuthUser = {
-        id: newAdminId,
-        username: memberResult.rows[0].username ?? claimUsername,
+        id: memberId,
+        username: newAdminId,
         role: 'user',
         organisationId: orgId,
         isOrgAdmin,
@@ -1660,43 +1756,98 @@ const resolvers = {
         isDemo: false,
       };
       const member = { ...mapMemberRow(memberResult.rows[0]), isOrgAdmin, teamAdminIds, isDemo: false };
-      logEvent('demo_claimed', newAdminId, ctx.ip, { orgName, newAdminId });
+      logEvent('demo_claimed', memberId, ctx.ip, { orgName, newAdminId });
       return { success: true, message: 'Account created successfully', member, token: generateToken(authUser) };
     },
 
     // Auth mutations
     login: async (_: any, { username, password }: { username: string; password: string }, ctx: AuthContext) => {
       try {
-        const result = await pool.query('SELECT * FROM member WHERE LOWER(username) = LOWER($1)', [username]);
-        if (result.rows.length === 0) {
+        // 1. Verify credentials against person table
+        const personResult = await pool.query(
+          'SELECT id, password_hash, username, role FROM person WHERE LOWER(username) = LOWER($1)',
+          [username]
+        );
+        if (personResult.rows.length === 0) {
           logEvent('login_failed', null, ctx.ip, { username });
           return { success: false, message: 'Invalid username or password', member: null, token: null };
         }
-        const row = result.rows[0];
-        const passwordValid = await bcrypt.compare(password, row.password_hash);
+        const person = personResult.rows[0];
+        const passwordValid = await bcrypt.compare(password, person.password_hash);
         if (!passwordValid) {
           logEvent('login_failed', null, ctx.ip, { username });
           return { success: false, message: 'Invalid username or password', member: null, token: null };
         }
-        const { isOrgAdmin, teamAdminIds } = await fetchMemberRoles(row.id);
-        // Fetch org demo status
-        const isDemo = row.organisation_id
-          ? ((await pool.query('SELECT is_demo FROM organisation WHERE id = $1', [row.organisation_id])).rows[0]?.is_demo ?? false)
-          : false;
+        // 2. Find memberships
+        const memberships = await pool.query(
+          `SELECT m.id, m.organisation_id, m.schedule_disabled, o.name as org_name, o.is_demo
+           FROM member m LEFT JOIN organisation o ON o.id = m.organisation_id
+           WHERE m.person_id = $1`,
+          [person.id]
+        );
+        if (memberships.rows.length === 0) {
+          return { success: false, message: 'No organisation membership found', member: null, token: null };
+        }
+        // 3a. Single membership → full login
+        if (memberships.rows.length === 1) {
+          const m = memberships.rows[0];
+          const { isOrgAdmin, teamAdminIds } = await fetchMemberRoles(m.id);
+          const isDemo = m.is_demo ?? false;
+          const authUser: AuthUser = {
+            id: m.id,
+            username: person.username,
+            role: person.role,
+            organisationId: m.organisation_id,
+            isOrgAdmin,
+            teamAdminIds,
+            isDemo,
+          };
+          const memberResult = await pool.query(PM_SELECT + 'WHERE m.id = $1', [m.id]);
+          const member = { ...mapMemberRow(memberResult.rows[0]), isOrgAdmin, teamAdminIds, isDemo };
+          logEvent('login_success', m.id, ctx.ip, { memberId: m.id });
+          return { success: true, message: 'Login successful', member, token: generateToken(authUser) };
+        }
+        // 3b. Multiple memberships → return personToken + orgList for org picker
+        const orgList = memberships.rows
+          .filter(m => m.organisation_id !== null)
+          .map(m => ({ id: m.organisation_id, name: m.org_name }));
+        const personToken = generatePersonToken(person.id);
+        logEvent('login_multi_org', null, ctx.ip, { personId: person.id, orgCount: orgList.length });
+        return { success: true, message: 'Select organisation', member: null, token: null, personToken, orgList };
+      } catch {
+        return { success: false, message: 'Login failed', member: null, token: null };
+      }
+    },
+
+    selectOrg: async (_: any, { personToken, orgId }: { personToken: string; orgId: string }, ctx: AuthContext) => {
+      try {
+        const { personId } = verifyPersonToken(personToken);
+        const personResult = await pool.query('SELECT id, username, role FROM person WHERE id = $1', [personId]);
+        if (personResult.rows.length === 0) return { success: false, message: 'Invalid session', member: null, token: null };
+        const person = personResult.rows[0];
+        const memberResult = await pool.query(
+          PM_SELECT + 'JOIN organisation o ON o.id = m.organisation_id WHERE m.person_id = $1 AND m.organisation_id = $2',
+          [personId, orgId]
+        );
+        if (memberResult.rows.length === 0) return { success: false, message: 'Organisation not found', member: null, token: null };
+        const m = memberResult.rows[0];
+        const { isOrgAdmin, teamAdminIds } = await fetchMemberRoles(m.id);
+        const orgRow = await pool.query('SELECT is_demo FROM organisation WHERE id = $1', [orgId]);
+        const isDemo = orgRow.rows[0]?.is_demo ?? false;
         const authUser: AuthUser = {
-          id: row.id,
-          username: row.username,
-          role: row.role,
-          organisationId: row.organisation_id,
+          id: m.id,
+          username: person.username,
+          role: person.role,
+          organisationId: m.organisation_id,
           isOrgAdmin,
           teamAdminIds,
           isDemo,
         };
-        const member = { ...mapMemberRow(row), isOrgAdmin, teamAdminIds, isDemo };
-        logEvent('login_success', row.id, ctx.ip, { memberId: row.id });
+        const member = { ...mapMemberRow(m), isOrgAdmin, teamAdminIds, isDemo };
+        logEvent('login_success', m.id, ctx.ip, { memberId: m.id });
         return { success: true, message: 'Login successful', member, token: generateToken(authUser) };
       } catch {
-        return { success: false, message: 'Login failed', member: null, token: null };
+        return { success: false, message: 'Invalid or expired session', member: null, token: null };
       }
     },
 
@@ -1705,28 +1856,26 @@ const resolvers = {
       if (user.id !== args.id && !isElevatedRole(user)) {
         throw new Error('You can only update your own profile');
       }
-      // Email must be unique within this organisation (excluding this member)
+      // Get person_id for this member
+      const memberRow = await pool.query('SELECT person_id FROM member WHERE id = $1', [args.id]);
+      if (memberRow.rows.length === 0) throw new Error('Member not found');
+      const personId = memberRow.rows[0].person_id;
+      // Email must be globally unique on person (excluding this person)
       if (args.email) {
-        const memberRow = await pool.query('SELECT organisation_id FROM member WHERE id = $1', [args.id]);
-        const orgId = memberRow.rows[0]?.organisation_id;
-        if (orgId) {
-          const emailCheck = await pool.query(
-            'SELECT id FROM member WHERE LOWER(email) = LOWER($1) AND organisation_id = $2 AND id <> $3',
-            [args.email, orgId, args.id]
-          );
-          if (emailCheck.rows.length > 0) throw new Error(`Email address "${args.email}" is already used by another member in this organisation`);
-        }
+        const emailCheck = await pool.query(
+          'SELECT id FROM person WHERE LOWER(email) = LOWER($1) AND id <> $2',
+          [args.email, personId]
+        );
+        if (emailCheck.rows.length > 0) throw new Error(`Email address "${args.email}" is already registered by another account`);
       }
-      // Always update name/email fields; only update extended fields when explicitly provided
+      // Update person table
       const sets = ['first_name = $2', 'last_name = $3', 'particles = $4', 'email = $5'];
-      const params: any[] = [args.id, args.firstName, args.lastName, args.particles || null, args.email || null];
+      const params: any[] = [personId, args.firstName, args.lastName, args.particles || null, args.email || null];
       if (args.phone !== undefined) { sets.push(`phone = $${params.length + 1}`); params.push(args.phone || null); }
       if (args.dateOfBirth !== undefined) { sets.push(`date_of_birth = $${params.length + 1}`); params.push(args.dateOfBirth || null); }
       if (args.avatarUrl !== undefined) { sets.push(`avatar_url = $${params.length + 1}`); params.push(args.avatarUrl || null); }
-      const result = await pool.query(
-        `UPDATE member SET ${sets.join(', ')} WHERE id = $1 RETURNING *`,
-        params
-      );
+      await pool.query(`UPDATE person SET ${sets.join(', ')} WHERE id = $1`, params);
+      const result = await pool.query(PM_SELECT + 'WHERE m.id = $1', [args.id]);
       return result.rows[0] ? mapMemberRow(result.rows[0]) : null;
     },
 
@@ -1735,15 +1884,17 @@ const resolvers = {
       if (user.id !== id && !isElevatedRole(user)) throw new Error('You can only update your own username');
       const trimmed = username.trim();
       if (!trimmed) throw new Error('Username cannot be empty');
+      // Get person_id
+      const memberRow = await pool.query('SELECT person_id FROM member WHERE id = $1', [id]);
+      if (memberRow.rows.length === 0) throw new Error('Member not found');
+      const personId = memberRow.rows[0].person_id;
       const uCheck = await pool.query(
-        'SELECT id FROM member WHERE LOWER(username) = LOWER($1) AND id <> $2',
-        [trimmed, id]
+        'SELECT id FROM person WHERE LOWER(username) = LOWER($1) AND id <> $2',
+        [trimmed, personId]
       );
       if (uCheck.rows.length > 0) throw new Error(`Username "${trimmed}" is already taken`);
-      const result = await pool.query(
-        'UPDATE member SET username = $1 WHERE id = $2 RETURNING *',
-        [trimmed, id]
-      );
+      await pool.query('UPDATE person SET username = $1 WHERE id = $2', [trimmed, personId]);
+      const result = await pool.query(PM_SELECT + 'WHERE m.id = $1', [id]);
       if (!result.rows[0]) throw new Error('Member not found');
       logEvent('username_changed', ctx.user?.id ?? null, ctx.ip, { memberId: id });
       return mapMemberRow(result.rows[0]);
@@ -1753,14 +1904,18 @@ const resolvers = {
       const user = requireAuth(ctx);
       if (user.id !== memberId) throw new Error('You can only change your own password');
       try {
-        const result = await pool.query('SELECT * FROM member WHERE id = $1', [memberId]);
-        if (result.rows.length === 0) return { success: false, message: 'Member not found', member: null, token: null };
-        const row = result.rows[0];
-        const passwordValid = await bcrypt.compare(currentPassword, row.password_hash);
+        const personResult = await pool.query(
+          'SELECT p.id, p.password_hash FROM person p JOIN member m ON m.person_id = p.id WHERE m.id = $1',
+          [memberId]
+        );
+        if (personResult.rows.length === 0) return { success: false, message: 'Member not found', member: null, token: null };
+        const person = personResult.rows[0];
+        const passwordValid = await bcrypt.compare(currentPassword, person.password_hash);
         if (!passwordValid) return { success: false, message: 'Current password is incorrect', member: null, token: null };
         const hashedPassword = await bcrypt.hash(newPassword, 10);
-        await pool.query('UPDATE member SET password_hash = $2 WHERE id = $1', [memberId, hashedPassword]);
-        return { success: true, message: 'Password changed successfully', member: mapMemberRow(row), token: null };
+        await pool.query('UPDATE person SET password_hash = $2 WHERE id = $1', [person.id, hashedPassword]);
+        const memberResult = await pool.query(PM_SELECT + 'WHERE m.id = $1', [memberId]);
+        return { success: true, message: 'Password changed successfully', member: memberResult.rows[0] ? mapMemberRow(memberResult.rows[0]) : null, token: null };
       } catch {
         return { success: false, message: 'Failed to change password', member: null, token: null };
       }
@@ -1772,10 +1927,13 @@ const resolvers = {
         if (memberId === admin.id) {
           return { success: false, message: 'Cannot reset your own password. Use change password instead.', member: null, token: null };
         }
-        const memberResult = await pool.query('SELECT * FROM member WHERE id = $1', [memberId]);
-        if (memberResult.rows.length === 0) return { success: false, message: 'Member not found', member: null, token: null };
         const hashedPassword = await bcrypt.hash(newPassword, 10);
-        await pool.query('UPDATE member SET password_hash = $2 WHERE id = $1', [memberId, hashedPassword]);
+        await pool.query(
+          'UPDATE person SET password_hash = $1 WHERE id = (SELECT person_id FROM member WHERE id = $2)',
+          [hashedPassword, memberId]
+        );
+        const memberResult = await pool.query(PM_SELECT + 'WHERE m.id = $1', [memberId]);
+        if (memberResult.rows.length === 0) return { success: false, message: 'Member not found', member: null, token: null };
         return { success: true, message: 'Password reset successfully', member: mapMemberRow(memberResult.rows[0]), token: null };
       } catch {
         return { success: false, message: 'Failed to reset password', member: null, token: null };
@@ -1812,30 +1970,35 @@ const resolvers = {
       return mapHolidayRow(result.rows[0]);
     },
 
-    requestPasswordReset: async (_: any, { email }: { email: string }, ctx: AuthContext) => {
-      const genericMessage = 'If an account with that email exists, a password reset link has been sent.';
+    requestPasswordReset: async (_: any, { username }: { username: string }, ctx: AuthContext) => {
+      const genericMessage = 'If an account with that username exists, a password reset link has been sent.';
       try {
-        const memberResult = await pool.query('SELECT id, first_name, email FROM member WHERE LOWER(email) = LOWER($1)', [email]);
-        if (memberResult.rows.length > 0) {
-          const member = memberResult.rows[0];
-          const token = crypto.randomBytes(32).toString('hex');
-          const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
-          await pool.query('UPDATE password_reset_token SET used = TRUE WHERE member_id = $1 AND used = FALSE', [member.id]);
-          await pool.query(
-            'INSERT INTO password_reset_token (member_id, token, expires_at) VALUES ($1, $2, $3)',
-            [member.id, token, expiresAt]
-          );
-          const appUrl = process.env.APP_URL || 'http://localhost:4200';
-          const resetUrl = `${appUrl}/reset-password?token=${token}`;
-          await sendEmail(
-            member.email,
-            'TeamSchedule - Password Reset',
-            `<p>Hi ${member.first_name},</p>
-             <p>A password reset was requested for your account. Click the link below to reset your password:</p>
-             <p><a href="${resetUrl}">${resetUrl}</a></p>
-             <p>This link expires in 1 hour. If you did not request this, you can safely ignore this email.</p>`
-          );
-          logEvent('password_reset_requested', null, ctx.ip, { memberId: member.id });
+        const personResult = await pool.query(
+          'SELECT id, first_name, email FROM person WHERE LOWER(username) = LOWER($1)',
+          [username]
+        );
+        if (personResult.rows.length > 0) {
+          const person = personResult.rows[0];
+          if (person.email) {
+            const token = crypto.randomBytes(32).toString('hex');
+            const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+            await pool.query('UPDATE password_reset_token SET used = TRUE WHERE person_id = $1 AND used = FALSE', [person.id]);
+            await pool.query(
+              'INSERT INTO password_reset_token (person_id, token, expires_at) VALUES ($1, $2, $3)',
+              [person.id, token, expiresAt]
+            );
+            const appUrl = process.env.APP_URL || 'http://localhost:4200';
+            const resetUrl = `${appUrl}/reset-password?token=${token}`;
+            await sendEmail(
+              person.email,
+              'TeamSchedule - Password Reset',
+              `<p>Hi ${person.first_name},</p>
+               <p>A password reset was requested for your account. Click the link below to reset your password:</p>
+               <p><a href="${resetUrl}">${resetUrl}</a></p>
+               <p>This link expires in 1 hour. If you did not request this, you can safely ignore this email.</p>`
+            );
+            logEvent('password_reset_requested', null, ctx.ip, { personId: person.id });
+          }
         }
       } catch (error) {
         console.error('Password reset error:', error);
@@ -1854,21 +2017,55 @@ const resolvers = {
       const resetRow = tokenResult.rows[0];
       await pool.query('UPDATE password_reset_token SET used = TRUE WHERE id = $1', [resetRow.id]);
       const hashedPassword = await bcrypt.hash(newPassword, 10);
-      await pool.query('UPDATE member SET password_hash = $1 WHERE id = $2', [hashedPassword, resetRow.member_id]);
-      const memberResult = await pool.query('SELECT * FROM member WHERE id = $1', [resetRow.member_id]);
-      const row = memberResult.rows[0];
-      const { isOrgAdmin, teamAdminIds } = await fetchMemberRoles(row.id);
-      const authUser: AuthUser = {
-        id: row.id,
-        username: row.username ?? row.id,
-        role: row.role,
-        organisationId: row.organisation_id,
-        isOrgAdmin,
-        teamAdminIds,
+      await pool.query('UPDATE person SET password_hash = $1 WHERE id = $2', [hashedPassword, resetRow.person_id]);
+      // Find the person's memberships
+      const personResult = await pool.query('SELECT id, username, role FROM person WHERE id = $1', [resetRow.person_id]);
+      const person = personResult.rows[0];
+      const memberships = await pool.query(
+        `SELECT m.id, m.organisation_id FROM member m WHERE m.person_id = $1`,
+        [resetRow.person_id]
+      );
+      if (memberships.rows.length === 0) {
+        return { success: false, message: 'No membership found', member: null, token: null };
+      }
+      // If single membership → auto-login
+      if (memberships.rows.length === 1) {
+        const m = memberships.rows[0];
+        const { isOrgAdmin, teamAdminIds } = await fetchMemberRoles(m.id);
+        const orgRow = m.organisation_id
+          ? await pool.query('SELECT is_demo FROM organisation WHERE id = $1', [m.organisation_id])
+          : null;
+        const isDemo = orgRow?.rows[0]?.is_demo ?? false;
+        const authUser: AuthUser = {
+          id: m.id,
+          username: person.username,
+          role: person.role,
+          organisationId: m.organisation_id,
+          isOrgAdmin,
+          teamAdminIds,
+          isDemo,
+        };
+        const memberResult = await pool.query(PM_SELECT + 'WHERE m.id = $1', [m.id]);
+        const member = { ...mapMemberRow(memberResult.rows[0]), isOrgAdmin, teamAdminIds, isDemo };
+        logEvent('password_reset_completed', m.id, ctx.ip, { memberId: m.id });
+        return { success: true, message: 'Password reset successfully', member, token: generateToken(authUser) };
+      }
+      // Multiple memberships → return personToken for org selection
+      const orgList = memberships.rows
+        .filter(m => m.organisation_id !== null)
+        .map(async m => {
+          const o = await pool.query('SELECT name FROM organisation WHERE id = $1', [m.organisation_id]);
+          return { id: m.organisation_id, name: o.rows[0]?.name ?? '' };
+        });
+      logEvent('password_reset_completed', resetRow.person_id, ctx.ip, { personId: resetRow.person_id });
+      return {
+        success: true,
+        message: 'Password reset — select organisation',
+        member: null,
+        token: null,
+        personToken: generatePersonToken(resetRow.person_id),
+        orgList: await Promise.all(orgList),
       };
-      const member = { ...mapMemberRow(row), isOrgAdmin, teamAdminIds };
-      logEvent('password_reset_completed', row.id, ctx.ip, { memberId: row.id });
-      return { success: true, message: 'Password reset successfully', member, token: generateToken(authUser) };
     },
 
     saveMemberSchedule: async (_: any, { memberId, referenceDate, week1, week2 }: { memberId: string; referenceDate: string; week1: Array<{ morning: number; afternoon: number }>; week2: Array<{ morning: number; afternoon: number }> }, ctx: AuthContext) => {
@@ -1905,10 +2102,9 @@ const resolvers = {
   Organisation: {
     orgAdmins: async (parent: any) => {
       const result = await pool.query(
-        `SELECT m.* FROM member m
-         JOIN member_role mr ON m.id = mr.member_id
+        PM_SELECT + `JOIN member_role mr ON m.id = mr.member_id
          WHERE mr.role = 'orgadmin' AND mr.organisation_id = $1
-         ORDER BY m.last_name, m.first_name`,
+         ORDER BY p.last_name, p.first_name`,
         [parent.id]
       );
       return result.rows.map(mapMemberRow);
@@ -1920,20 +2116,18 @@ const resolvers = {
   Team: {
     members: async (parent: any) => {
       const result = await pool.query(
-        `SELECT m.* FROM member m
-         INNER JOIN team_member tm ON m.id = tm.member_id
+        PM_SELECT + `INNER JOIN team_member tm ON m.id = tm.member_id
          WHERE tm.team_id = $1
-         ORDER BY m.last_name, m.first_name`,
+         ORDER BY p.last_name, p.first_name`,
         [parent.id]
       );
       return result.rows.map(mapMemberRow);
     },
     teamAdmins: async (parent: any) => {
       const result = await pool.query(
-        `SELECT m.* FROM member m
-         JOIN member_role mr ON m.id = mr.member_id
+        PM_SELECT + `JOIN member_role mr ON m.id = mr.member_id
          WHERE mr.role = 'teamadmin' AND mr.team_id = $1
-         ORDER BY m.last_name, m.first_name`,
+         ORDER BY p.last_name, p.first_name`,
         [parent.id]
       );
       return result.rows.map(mapMemberRow);
@@ -1980,6 +2174,11 @@ const resolvers = {
       return result.rows;
     },
     isDemo: (parent: any) => parent.isDemo ?? false,
+    organisationName: async (parent: any) => {
+      if (!parent.organisationId) return null;
+      const result = await pool.query('SELECT name FROM organisation WHERE id = $1', [parent.organisationId]);
+      return result.rows[0]?.name ?? null;
+    },
   },
 };
 

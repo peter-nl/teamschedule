@@ -12,11 +12,11 @@ import { NotificationService } from '../../shared/services/notification.service'
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
-import { AuthService } from '../../shared/services/auth.service';
+import { AuthService, OrgOption } from '../../shared/services/auth.service';
 
 const REQUEST_PASSWORD_RESET = gql`
-  mutation RequestPasswordReset($email: String!) {
-    requestPasswordReset(email: $email) { success message }
+  mutation RequestPasswordReset($username: String!) {
+    requestPasswordReset(username: $username) { success message }
   }
 `;
 
@@ -44,71 +44,99 @@ const REQUEST_PASSWORD_RESET = gql`
       </mat-card-header>
 
       <mat-card-content>
-        <form (ngSubmit)="onLogin()" class="login-form">
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>{{ 'login.username' | translate }}</mat-label>
-            <input matInput
-                   [(ngModel)]="loginForm.memberId"
-                   name="memberId"
-                   required
-                   [placeholder]="'login.usernamePlaceholder' | translate">
-            <mat-icon matSuffix>badge</mat-icon>
-          </mat-form-field>
 
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>{{ 'login.password' | translate }}</mat-label>
-            <input matInput
-                   [(ngModel)]="loginForm.password"
-                   name="password"
-                   [type]="hidePassword ? 'password' : 'text'"
-                   required
-                   [placeholder]="'login.passwordPlaceholder' | translate">
-            <button mat-icon-button matSuffix type="button" (click)="hidePassword = !hidePassword">
-              <mat-icon>{{ hidePassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+        <!-- Step 1: credentials -->
+        <ng-container *ngIf="loginStep === 'credentials'">
+          <form (ngSubmit)="onLogin()" class="login-form">
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>{{ 'login.username' | translate }}</mat-label>
+              <input matInput
+                     [(ngModel)]="loginForm.memberId"
+                     name="memberId"
+                     required
+                     [placeholder]="'login.usernamePlaceholder' | translate">
+              <mat-icon matSuffix>badge</mat-icon>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>{{ 'login.password' | translate }}</mat-label>
+              <input matInput
+                     [(ngModel)]="loginForm.password"
+                     name="password"
+                     [type]="hidePassword ? 'password' : 'text'"
+                     required
+                     [placeholder]="'login.passwordPlaceholder' | translate">
+              <button mat-icon-button matSuffix type="button" (click)="hidePassword = !hidePassword">
+                <mat-icon>{{ hidePassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+              </button>
+            </mat-form-field>
+
+            <mat-checkbox [(ngModel)]="rememberMe" name="rememberMe" class="remember-me">
+              {{ 'login.rememberMe' | translate }}
+            </mat-checkbox>
+
+            <div *ngIf="loginError" class="error-message">
+              <mat-icon>error</mat-icon>
+              {{ loginError }}
+            </div>
+
+            <button mat-raised-button
+                    color="primary"
+                    type="submit"
+                    class="full-width"
+                    [disabled]="loginLoading">
+              <mat-spinner *ngIf="loginLoading" diameter="20"></mat-spinner>
+              <span *ngIf="!loginLoading">{{ 'login.signIn' | translate }}</span>
             </button>
-          </mat-form-field>
+          </form>
 
-          <mat-checkbox [(ngModel)]="rememberMe" name="rememberMe" class="remember-me">
-            {{ 'login.rememberMe' | translate }}
-          </mat-checkbox>
+          <div class="forgot-password-section">
+            <button mat-button type="button" class="forgot-link" (click)="showForgotForm = !showForgotForm">
+              {{ 'login.forgotPassword' | translate }}
+            </button>
 
+            <div *ngIf="showForgotForm" class="forgot-form">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>{{ 'login.usernameForReset' | translate }}</mat-label>
+                <input matInput [(ngModel)]="forgotUsername" name="forgotUsername">
+                <mat-icon matSuffix>badge</mat-icon>
+              </mat-form-field>
+              <button mat-raised-button color="primary" class="full-width"
+                      (click)="onRequestReset()" [disabled]="resetLoading || !forgotUsername">
+                <mat-spinner *ngIf="resetLoading" diameter="18"></mat-spinner>
+                <span *ngIf="!resetLoading">{{ 'login.sendResetLink' | translate }}</span>
+              </button>
+              <div *ngIf="resetMessage" class="reset-message">
+                <mat-icon>info</mat-icon>
+                {{ resetMessage }}
+              </div>
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- Step 2: org picker -->
+        <ng-container *ngIf="loginStep === 'org-picker'">
+          <p class="org-prompt">{{ 'login.selectOrgPrompt' | translate }}</p>
+          <div class="org-list">
+            <button *ngFor="let org of pendingOrgList"
+                    mat-stroked-button
+                    class="org-btn"
+                    [disabled]="loginLoading"
+                    (click)="onSelectOrg(org.id)">
+              <mat-icon>corporate_fare</mat-icon>
+              {{ org.name }}
+            </button>
+          </div>
           <div *ngIf="loginError" class="error-message">
             <mat-icon>error</mat-icon>
             {{ loginError }}
           </div>
-
-          <button mat-raised-button
-                  color="primary"
-                  type="submit"
-                  class="full-width"
-                  [disabled]="loginLoading">
-            <mat-spinner *ngIf="loginLoading" diameter="20"></mat-spinner>
-            <span *ngIf="!loginLoading">{{ 'login.signIn' | translate }}</span>
+          <button mat-button (click)="backToCredentials()">
+            <mat-icon>arrow_back</mat-icon>
+            {{ 'common.back' | translate }}
           </button>
-        </form>
+        </ng-container>
 
-        <div class="forgot-password-section">
-          <button mat-button type="button" class="forgot-link" (click)="showForgotForm = !showForgotForm">
-            {{ 'login.forgotPassword' | translate }}
-          </button>
-
-          <div *ngIf="showForgotForm" class="forgot-form">
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>{{ 'login.emailAddress' | translate }}</mat-label>
-              <input matInput [(ngModel)]="forgotEmail" name="forgotEmail" type="email">
-              <mat-icon matSuffix>email</mat-icon>
-            </mat-form-field>
-            <button mat-raised-button color="primary" class="full-width"
-                    (click)="onRequestReset()" [disabled]="resetLoading || !forgotEmail">
-              <mat-spinner *ngIf="resetLoading" diameter="18"></mat-spinner>
-              <span *ngIf="!resetLoading">{{ 'login.sendResetLink' | translate }}</span>
-            </button>
-            <div *ngIf="resetMessage" class="reset-message">
-              <mat-icon>info</mat-icon>
-              {{ resetMessage }}
-            </div>
-          </div>
-        </div>
       </mat-card-content>
     </mat-card>
   `,
@@ -193,6 +221,25 @@ const REQUEST_PASSWORD_RESET = gql`
       color: var(--mat-sys-on-primary-container);
       font-size: 14px;
     }
+
+    .org-prompt {
+      font-size: 14px;
+      color: var(--mat-sys-on-surface-variant);
+      margin: 0 0 16px;
+    }
+
+    .org-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .org-btn {
+      width: 100%;
+      justify-content: flex-start;
+      gap: 8px;
+    }
   `]
 })
 export class AccountLoginComponent {
@@ -207,8 +254,13 @@ export class AccountLoginComponent {
   hidePassword = true;
   rememberMe = false;
 
+  // Multi-org state
+  loginStep: 'credentials' | 'org-picker' = 'credentials';
+  pendingPersonToken = '';
+  pendingOrgList: OrgOption[] = [];
+
   showForgotForm = false;
-  forgotEmail = '';
+  forgotUsername = '';
   resetLoading = false;
   resetMessage: string | null = null;
 
@@ -230,7 +282,12 @@ export class AccountLoginComponent {
     this.authService.login(this.loginForm.memberId, this.loginForm.password, this.rememberMe).subscribe({
       next: (result) => {
         this.loginLoading = false;
-        if (result.success) {
+        if (result.success && result.orgList?.length) {
+          // Multi-org: show org picker
+          this.pendingPersonToken = result.personToken!;
+          this.pendingOrgList = result.orgList;
+          this.loginStep = 'org-picker';
+        } else if (result.success && result.member) {
           this.notificationService.success(this.translate.instant('login.messages.welcome'));
           this.loginForm = { memberId: '', password: '' };
           this.loginSuccess.emit();
@@ -246,12 +303,40 @@ export class AccountLoginComponent {
     });
   }
 
+  onSelectOrg(orgId: number): void {
+    this.loginLoading = true;
+    this.loginError = null;
+    this.authService.selectOrg(this.pendingPersonToken, orgId, this.rememberMe).subscribe({
+      next: (result) => {
+        this.loginLoading = false;
+        if (result.success && result.member) {
+          this.notificationService.success(this.translate.instant('login.messages.welcome'));
+          this.loginForm = { memberId: '', password: '' };
+          this.loginSuccess.emit();
+        } else {
+          this.loginError = result.message || this.translate.instant('login.messages.loginFailed');
+        }
+      },
+      error: () => {
+        this.loginLoading = false;
+        this.loginError = this.translate.instant('login.messages.error');
+      }
+    });
+  }
+
+  backToCredentials(): void {
+    this.loginStep = 'credentials';
+    this.pendingPersonToken = '';
+    this.pendingOrgList = [];
+    this.loginError = null;
+  }
+
   onRequestReset(): void {
     this.resetLoading = true;
     this.resetMessage = null;
     apolloClient.mutate({
       mutation: REQUEST_PASSWORD_RESET,
-      variables: { email: this.forgotEmail }
+      variables: { username: this.forgotUsername }
     }).then(result => {
       this.resetLoading = false;
       this.resetMessage = (result.data as any).requestPasswordReset.message;

@@ -1,19 +1,21 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild, AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatDividerModule } from '@angular/material/divider';
-import { MatTableModule } from '@angular/material/table';
+import { MatTableModule, MatTableDataSource } from '@angular/material/table';
+import { MatSortModule, MatSort } from '@angular/material/sort';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { gql } from '@apollo/client';
 import { apolloClient } from '../../app.config';
 import { NotificationService } from '../../shared/services/notification.service';
-import { ManageOrgSettingsComponent } from './manage-org-settings.component';
+import { SlideInPanelService } from '../../shared/services/slide-in-panel.service';
+import { UserPreferencesService } from '../../shared/services/user-preferences.service';
+import { OrgDetailPanelComponent, OrgDetailPanelData, OrgDetailOrg } from '../../shared/components/org-detail-panel.component';
 
 interface OrgAdmin {
   id: string;
@@ -22,22 +24,7 @@ interface OrgAdmin {
   lastName: string;
 }
 
-interface Organisation {
-  id: string;
-  name: string;
-  memberCount: number;
-  teamCount: number;
-  orgAdmins: OrgAdmin[];
-}
-
-interface AllMember {
-  id: string;
-  firstName: string;
-  particles: string | null;
-  lastName: string;
-  role: string;
-  organisationId: number | null;
-}
+interface Organisation extends OrgDetailOrg {}
 
 const GET_ORGANISATIONS = gql`
   query Organisations {
@@ -46,25 +33,11 @@ const GET_ORGANISATIONS = gql`
       name
       memberCount
       teamCount
-      orgAdmins {
-        id
-        firstName
-        particles
-        lastName
-      }
-    }
-  }
-`;
-
-const GET_ALL_MEMBERS = gql`
-  query AllMembers {
-    members {
-      id
-      firstName
-      particles
-      lastName
-      role
-      organisationId
+      orgAdmins { id firstName particles lastName }
+      isDemo
+      demoExpiresAt
+      demoEmail
+      createdAt
     }
   }
 `;
@@ -72,678 +45,360 @@ const GET_ALL_MEMBERS = gql`
 const CREATE_ORGANISATION = gql`
   mutation CreateOrganisation($name: String!) {
     createOrganisation(name: $name) {
-      id
-      name
-      memberCount
-      teamCount
+      id name memberCount teamCount
       orgAdmins { id firstName particles lastName }
+      isDemo demoExpiresAt demoEmail createdAt
     }
-  }
-`;
-
-const UPDATE_ORGANISATION = gql`
-  mutation UpdateOrganisation($id: ID!, $name: String!) {
-    updateOrganisation(id: $id, name: $name) {
-      id
-      name
-      memberCount
-      teamCount
-      orgAdmins { id firstName particles lastName }
-    }
-  }
-`;
-
-const DELETE_ORGANISATION = gql`
-  mutation DeleteOrganisation($id: ID!) {
-    deleteOrganisation(id: $id) {
-      success
-      message
-    }
-  }
-`;
-
-const ASSIGN_ORG_ADMIN = gql`
-  mutation AssignOrgAdmin($memberId: String!, $orgId: ID) {
-    assignOrgAdmin(memberId: $memberId, orgId: $orgId)
-  }
-`;
-
-const REMOVE_ORG_ADMIN = gql`
-  mutation RemoveOrgAdmin($memberId: String!, $orgId: ID) {
-    removeOrgAdmin(memberId: $memberId, orgId: $orgId)
   }
 `;
 
 @Component({
   selector: 'app-manage-organisations',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
     FormsModule,
-    MatIconModule,
     MatButtonModule,
+    MatIconModule,
+    MatTooltipModule,
     MatProgressSpinnerModule,
     MatFormFieldModule,
     MatInputModule,
-    MatTooltipModule,
-    MatDividerModule,
     MatTableModule,
+    MatSortModule,
     TranslateModule,
-    ManageOrgSettingsComponent,
   ],
   template: `
-    <div class="orgs-layout">
+    <div class="orgs-view" *ngIf="!loading; else loadingTpl">
 
-      <!-- LEFT: org list -->
-      <div class="orgs-list-pane">
-        <div class="list-header">
-          <h3 class="list-title">{{ 'organisations.title' | translate }}</h3>
-        </div>
-
-        <div *ngIf="loading" class="list-loading">
-          <mat-spinner diameter="32"></mat-spinner>
-        </div>
-
-        <div class="org-list" *ngIf="!loading">
-          <mat-table [dataSource]="organisations" class="orgs-mat-table">
-
-            <ng-container matColumnDef="name">
-              <mat-header-cell *matHeaderCellDef>{{ 'organisations.title' | translate }}</mat-header-cell>
-              <mat-cell *matCellDef="let org">
-                <mat-icon class="org-item-icon">corporate_fare</mat-icon>
-                <div class="org-item-info">
-                  <span class="org-item-name">{{ org.name }}</span>
-                  <span class="org-item-meta">{{ org.memberCount }} · {{ org.teamCount }}</span>
-                </div>
-              </mat-cell>
-            </ng-container>
-
-            <ng-container matColumnDef="admins">
-              <mat-header-cell *matHeaderCellDef>{{ 'organisations.admins' | translate }}</mat-header-cell>
-              <mat-cell *matCellDef="let org" class="admins-cell">
-                <span *ngFor="let a of (org.orgAdmins || [])" class="admin-chip-sm">
-                  {{ a.firstName }} {{ a.particles ? a.particles + ' ' : '' }}{{ a.lastName }}
-                </span>
-                <span *ngIf="(org.orgAdmins || []).length === 0" class="no-admins">—</span>
-              </mat-cell>
-            </ng-container>
-
-            <mat-header-row *matHeaderRowDef="orgTableColumns; sticky: true"></mat-header-row>
-            <mat-row *matRowDef="let row; columns: orgTableColumns;"
-                     [class.selected]="selectedOrg?.id === row.id"
-                     (click)="selectOrg(row)">
-            </mat-row>
-
-            <tr class="mat-row" *matNoDataRow>
-              <td class="mat-cell" colspan="2">
-                <div class="empty-list">{{ 'organisations.empty' | translate }}</div>
-              </td>
-            </tr>
-          </mat-table>
-        </div>
-
-        <!-- Add new org -->
-        <div class="add-org-form" *ngIf="!loading">
-          <mat-form-field appearance="outline" class="add-field">
-            <mat-label>{{ 'organisations.newName' | translate }}</mat-label>
-            <input matInput [(ngModel)]="newName" (keydown.enter)="createOrg()"
-                   [placeholder]="'organisations.newNamePlaceholder' | translate">
-          </mat-form-field>
-          <button mat-icon-button color="primary"
-                  (click)="createOrg()"
-                  [disabled]="!newName.trim() || saving"
-                  [matTooltip]="'organisations.create' | translate">
-            <mat-icon>add</mat-icon>
-          </button>
-        </div>
+      <!-- Toolbar -->
+      <div class="view-header">
+        <button mat-icon-button
+                (click)="toggleCreateForm()"
+                [matTooltip]="'organisations.create' | translate">
+          <mat-icon>add_business</mat-icon>
+        </button>
+        <input class="search-input"
+               [(ngModel)]="searchText"
+               (ngModelChange)="applyFilter()"
+               [placeholder]="'organisations.search' | translate">
       </div>
 
-      <!-- RIGHT: org detail -->
-      <div class="org-detail-pane">
+      <!-- Inline create form -->
+      <div class="create-form" *ngIf="showCreateForm">
+        <mat-form-field appearance="outline" class="create-field">
+          <mat-label>{{ 'organisations.newName' | translate }}</mat-label>
+          <input matInput [(ngModel)]="newName"
+                 (keydown.enter)="createOrg()"
+                 (keydown.escape)="toggleCreateForm()"
+                 [placeholder]="'organisations.newNamePlaceholder' | translate">
+        </mat-form-field>
+        <button mat-icon-button color="primary"
+                [disabled]="!newName.trim() || saving"
+                (click)="createOrg()"
+                [matTooltip]="'organisations.create' | translate">
+          <mat-icon>check</mat-icon>
+        </button>
+        <button mat-icon-button (click)="toggleCreateForm()">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
 
-        <!-- No selection placeholder -->
-        <div *ngIf="!selectedOrg" class="no-selection">
-          <mat-icon class="no-sel-icon">corporate_fare</mat-icon>
-          <p>{{ 'organisations.selectPrompt' | translate }}</p>
-        </div>
+      <!-- Table -->
+      <div class="table-scroll">
+        <mat-table [dataSource]="dataSource" matSort class="orgs-table">
 
-        <ng-container *ngIf="selectedOrg">
-          <!-- Org name bar -->
-          <div class="detail-name-bar">
-            <ng-container *ngIf="!editingName">
-              <mat-icon class="detail-org-icon">corporate_fare</mat-icon>
-              <h2 class="detail-org-name">{{ selectedOrg.name }}</h2>
-              <button mat-icon-button [matTooltip]="'common.edit' | translate" (click)="startEditName()">
-                <mat-icon>edit</mat-icon>
-              </button>
-              <button mat-icon-button color="warn"
-                      [matTooltip]="'common.delete' | translate"
-                      [disabled]="selectedOrg.memberCount > 0 || selectedOrg.teamCount > 0"
-                      (click)="deleteOrg(selectedOrg)">
-                <mat-icon>delete</mat-icon>
-              </button>
-            </ng-container>
-            <ng-container *ngIf="editingName">
-              <mat-form-field appearance="outline" class="name-edit-field">
-                <input matInput [(ngModel)]="editName"
-                       (keydown.enter)="saveEditName()"
-                       (keydown.escape)="cancelEditName()">
-              </mat-form-field>
-              <button mat-icon-button color="primary" (click)="saveEditName()" [disabled]="!editName.trim()">
-                <mat-icon>check</mat-icon>
-              </button>
-              <button mat-icon-button (click)="cancelEditName()">
-                <mat-icon>close</mat-icon>
-              </button>
-            </ng-container>
-          </div>
+          <ng-container matColumnDef="name">
+            <mat-header-cell *matHeaderCellDef mat-sort-header>{{ 'organisations.name' | translate }}</mat-header-cell>
+            <mat-cell *matCellDef="let org">
+              <mat-icon class="row-icon">corporate_fare</mat-icon>
+              <span class="org-name">{{ org.name }}</span>
+              <span *ngIf="org.isDemo" class="demo-badge">DEMO</span>
+            </mat-cell>
+          </ng-container>
 
-          <div class="detail-scroll">
-            <!-- Org meta -->
-            <p class="org-meta-line">
-              {{ selectedOrg.memberCount }} {{ 'organisations.members' | translate }} &middot;
-              {{ selectedOrg.teamCount }} {{ 'organisations.teams' | translate }}
-            </p>
+          <ng-container matColumnDef="admins">
+            <mat-header-cell *matHeaderCellDef>{{ 'organisations.admins' | translate }}</mat-header-cell>
+            <mat-cell *matCellDef="let org" class="admins-cell">
+              <span *ngIf="(org.orgAdmins || []).length > 0">{{ formatAdmins(org.orgAdmins) }}</span>
+              <span *ngIf="(org.orgAdmins || []).length === 0" class="no-value">—</span>
+            </mat-cell>
+          </ng-container>
 
-            <!-- Org admins -->
-            <div class="admins-section">
-              <span class="admins-label">{{ 'organisations.admins' | translate }}</span>
-              <div class="admin-chips">
-                <span *ngFor="let admin of (selectedOrg.orgAdmins || [])" class="admin-chip">
-                  {{ admin.firstName }} {{ admin.particles ? admin.particles + ' ' : '' }}{{ admin.lastName }}
-                  <button class="chip-remove" [matTooltip]="'organisations.removeAdmin' | translate"
-                          (click)="removeAdmin(selectedOrg, admin)">
-                    <mat-icon>close</mat-icon>
-                  </button>
-                </span>
-                <span *ngIf="(selectedOrg.orgAdmins || []).length === 0 && !addingAdmin" class="no-admins">
-                  {{ 'organisations.noAdmins' | translate }}
-                </span>
+          <ng-container matColumnDef="memberCount">
+            <mat-header-cell *matHeaderCellDef mat-sort-header>{{ 'organisations.membersColumn' | translate }}</mat-header-cell>
+            <mat-cell *matCellDef="let org">{{ org.memberCount }}</mat-cell>
+          </ng-container>
 
-                <ng-container *ngIf="!addingAdmin">
-                  <button class="add-admin-btn" [matTooltip]="'organisations.addAdmin' | translate"
-                          (click)="startAddAdmin()">
-                    <mat-icon>person_add</mat-icon>
-                  </button>
-                </ng-container>
-                <ng-container *ngIf="addingAdmin">
-                  <select class="admin-select" [(ngModel)]="selectedMemberId">
-                    <option value="" disabled>{{ 'organisations.selectMember' | translate }}</option>
-                    <option *ngFor="let m of nonAdminMembers" [value]="m.id">
-                      {{ m.firstName }} {{ m.particles ? m.particles + ' ' : '' }}{{ m.lastName }}
-                    </option>
-                  </select>
-                  <button mat-icon-button color="primary"
-                          [disabled]="!selectedMemberId" (click)="confirmAddAdmin()">
-                    <mat-icon>check</mat-icon>
-                  </button>
-                  <button mat-icon-button (click)="cancelAddAdmin()">
-                    <mat-icon>close</mat-icon>
-                  </button>
-                </ng-container>
+          <ng-container matColumnDef="teamCount">
+            <mat-header-cell *matHeaderCellDef mat-sort-header>{{ 'organisations.teamsColumn' | translate }}</mat-header-cell>
+            <mat-cell *matCellDef="let org">{{ org.teamCount }}</mat-cell>
+          </ng-container>
+
+          <ng-container matColumnDef="createdAt">
+            <mat-header-cell *matHeaderCellDef mat-sort-header>{{ 'organisations.createdAt' | translate }}</mat-header-cell>
+            <mat-cell *matCellDef="let org">
+              <span *ngIf="org.createdAt">{{ org.createdAt | date:'dd MMM yyyy' }}</span>
+              <span *ngIf="!org.createdAt" class="no-value">—</span>
+            </mat-cell>
+          </ng-container>
+
+          <mat-header-row *matHeaderRowDef="tableColumns; sticky: true"></mat-header-row>
+          <mat-row *matRowDef="let row; columns: tableColumns;" (click)="openDetail(row)"></mat-row>
+
+          <tr class="mat-row" *matNoDataRow>
+            <td class="mat-cell" [attr.colspan]="tableColumns.length">
+              <div class="empty-state">
+                <mat-icon>corporate_fare</mat-icon>
+                <span>{{ 'organisations.empty' | translate }}</span>
               </div>
-            </div>
-
-            <mat-divider></mat-divider>
-
-            <!-- Settings sub-component -->
-            <app-manage-org-settings [orgId]="selectedOrg.id"></app-manage-org-settings>
-          </div>
-        </ng-container>
+            </td>
+          </tr>
+        </mat-table>
       </div>
     </div>
+
+    <ng-template #loadingTpl>
+      <div class="loading">
+        <mat-progress-spinner mode="indeterminate" diameter="40"></mat-progress-spinner>
+      </div>
+    </ng-template>
   `,
   styles: [`
     :host {
       display: flex;
+      flex-direction: column;
       flex: 1;
-      overflow: hidden;
+      min-height: 0;
       height: 100%;
     }
 
-    .orgs-layout {
-      display: flex;
-      flex: 1;
-      overflow: hidden;
-    }
-
-    /* LEFT PANE */
-    .orgs-list-pane {
-      width: 260px;
-      flex-shrink: 0;
+    .orgs-view {
       display: flex;
       flex-direction: column;
-      border-right: 1px solid var(--mat-sys-outline-variant);
-      overflow: hidden;
+      width: 100%;
+      height: 100%;
     }
 
-    .list-header {
-      padding: 16px 16px 8px;
+    .view-header {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 8px 4px 8px;
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--mat-sys-outline-variant);
+    }
+
+    .search-input {
+      flex: 1;
+      border: none;
+      outline: none;
+      background: transparent;
+      color: var(--mat-sys-on-surface);
+      font-size: 14px;
+      padding: 4px;
+    }
+    .search-input::placeholder { color: var(--mat-sys-on-surface-variant); }
+
+    .create-form {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 12px;
+      background: var(--mat-sys-surface-container-low);
+      border-bottom: 1px solid var(--mat-sys-outline-variant);
       flex-shrink: 0;
     }
+    .create-field { flex: 1; }
 
-    .list-title {
-      margin: 0;
-      font-size: 14px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--mat-sys-on-surface-variant);
-    }
-
-    .list-loading {
-      display: flex;
-      justify-content: center;
-      padding: 32px;
-    }
-
-    .org-list {
+    .table-scroll {
       flex: 1;
       overflow-y: auto;
     }
 
-    .orgs-mat-table {
+    .orgs-table {
       width: 100%;
       background: transparent;
     }
 
-    .orgs-mat-table .mat-mdc-header-cell {
+    .orgs-table .mat-mdc-header-cell {
       font-size: 11px;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.04em;
       color: var(--mat-sys-on-surface-variant);
-      background: var(--mat-sys-surface-container-low);
-      padding: 0 8px;
+      background: var(--mat-sys-surface-container);
+      padding: 0 16px;
     }
 
-    .orgs-mat-table .mat-mdc-cell {
-      font-size: 13px;
-      padding: 0 8px;
+    .orgs-table .mat-mdc-cell {
+      font-size: 14px;
+      padding: 0 16px;
     }
 
-    .orgs-mat-table .mat-mdc-row {
+    .orgs-table .mat-mdc-row {
       cursor: pointer;
       min-height: 44px;
     }
 
-    .orgs-mat-table .mat-mdc-row:hover .mat-mdc-cell {
+    .orgs-table .mat-mdc-row:hover .mat-mdc-cell {
       background: var(--mat-sys-surface-container);
     }
 
-    .orgs-mat-table .mat-mdc-row.selected .mat-mdc-cell {
-      background: var(--mat-sys-secondary-container);
-      color: var(--mat-sys-on-secondary-container);
-    }
-
-    .org-item-icon {
+    /* Name column */
+    .row-icon {
       font-size: 18px;
       width: 18px;
       height: 18px;
-      opacity: 0.6;
+      opacity: 0.5;
       flex-shrink: 0;
-      margin-right: 8px;
+      margin-right: 10px;
     }
 
-    .org-item-info {
-      display: flex;
-      flex-direction: column;
-      gap: 1px;
-      min-width: 0;
-    }
-
-    .org-item-name {
-      font-size: 13px;
+    .org-name {
       font-weight: 500;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
 
-    .org-item-meta {
-      font-size: 11px;
-      color: var(--mat-sys-on-surface-variant);
-    }
-
-    .admins-cell {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-      padding-top: 4px;
-      padding-bottom: 4px;
-    }
-
-    .admin-chip-sm {
-      font-size: 11px;
-      background: var(--mat-sys-surface-container-highest);
-      border-radius: 10px;
-      padding: 1px 8px;
-      white-space: nowrap;
-    }
-
-    .no-admins {
-      font-size: 12px;
-      color: var(--mat-sys-on-surface-variant);
-    }
-
-    .empty-list {
-      padding: 16px;
-      font-size: 13px;
-      color: var(--mat-sys-on-surface-variant);
-      text-align: center;
-    }
-
-    .add-org-form {
-      padding: 8px 8px 12px;
-      display: flex;
-      align-items: center;
-      gap: 4px;
+    .demo-badge {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      background: var(--mat-sys-tertiary-container);
+      color: var(--mat-sys-on-tertiary-container);
+      border-radius: 4px;
+      padding: 2px 6px;
+      margin-left: 8px;
       flex-shrink: 0;
-      border-top: 1px solid var(--mat-sys-outline-variant);
     }
 
-    .add-field { flex: 1; }
-
-    /* RIGHT PANE */
-    .org-detail-pane {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
+    /* Column widths and alignment via mat-column-* (applies to both header and cell) */
+    .orgs-table .mat-column-name {
+      flex: 2 1 160px;
+      min-width: 120px;
     }
 
-    .no-selection {
-      flex: 1;
+    .orgs-table .mat-column-admins {
+      flex: 2 1 140px;
+      min-width: 100px;
+      color: var(--mat-sys-on-surface-variant);
+      font-size: 13px;
+    }
+
+    .orgs-table .mat-column-memberCount,
+    .orgs-table .mat-column-teamCount {
+      flex: 0 0 72px;
+      justify-content: flex-end;
+      text-align: right;
+      color: var(--mat-sys-on-surface-variant);
+      font-size: 13px;
+    }
+
+    .orgs-table .mat-column-createdAt {
+      flex: 0 0 120px;
+      justify-content: flex-end;
+      text-align: right;
+      color: var(--mat-sys-on-surface-variant);
+      font-size: 13px;
+    }
+
+    .no-value {
+      color: var(--mat-sys-on-surface-variant);
+      opacity: 0.5;
+    }
+
+    .empty-state {
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
+      padding: 48px 16px;
+      color: var(--mat-sys-on-surface-variant);
       gap: 12px;
-      color: var(--mat-sys-on-surface-variant);
-    }
-
-    .no-sel-icon {
-      font-size: 48px;
-      width: 48px;
-      height: 48px;
-      opacity: 0.3;
-    }
-
-    .no-selection p {
       font-size: 14px;
-      margin: 0;
     }
 
-    /* Detail name bar */
-    .detail-name-bar {
+    .loading {
       display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 12px 16px;
-      flex-shrink: 0;
-      border-bottom: 1px solid var(--mat-sys-outline-variant);
-    }
-
-    .detail-org-icon {
-      font-size: 24px;
-      width: 24px;
-      height: 24px;
-      color: var(--mat-sys-primary);
-      flex-shrink: 0;
-    }
-
-    .detail-org-name {
-      flex: 1;
-      margin: 0;
-      font-size: 18px;
-      font-weight: 500;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .name-edit-field {
-      flex: 1;
-    }
-
-    /* Detail scroll area */
-    .detail-scroll {
-      flex: 1;
-      overflow-y: auto;
-      padding: 0 16px 24px;
-    }
-
-    .org-meta-line {
-      margin: 12px 0 8px;
-      font-size: 13px;
-      color: var(--mat-sys-on-surface-variant);
-    }
-
-    /* Admins */
-    .admins-section {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-bottom: 12px;
-    }
-
-    .admins-label {
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--mat-sys-on-surface-variant);
-      white-space: nowrap;
-    }
-
-    .admin-chips {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .admin-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 2px;
-      background: var(--mat-sys-secondary-container);
-      color: var(--mat-sys-on-secondary-container);
-      border-radius: 16px;
-      padding: 2px 4px 2px 10px;
-      font-size: 12px;
-      font-weight: 500;
-    }
-
-    .chip-remove {
-      display: flex;
-      align-items: center;
       justify-content: center;
-      background: none;
-      border: none;
-      cursor: pointer;
-      color: var(--mat-sys-on-secondary-container);
-      padding: 0;
-      border-radius: 50%;
-      width: 20px;
-      height: 20px;
-    }
-
-    .chip-remove:hover { background: var(--mat-sys-outline-variant); }
-    .chip-remove mat-icon { font-size: 14px; width: 14px; height: 14px; }
-
-    .no-admins {
-      font-size: 12px;
-      color: var(--mat-sys-on-surface-variant);
-      font-style: italic;
-    }
-
-    .add-admin-btn {
-      display: flex;
       align-items: center;
-      justify-content: center;
-      background: none;
-      border: 1px dashed var(--mat-sys-outline-variant);
-      cursor: pointer;
-      color: var(--mat-sys-primary);
-      border-radius: 50%;
-      width: 24px;
-      height: 24px;
-      padding: 0;
-    }
-
-    .add-admin-btn:hover { background: var(--mat-sys-surface-container-highest); }
-    .add-admin-btn mat-icon { font-size: 16px; width: 16px; height: 16px; }
-
-    .admin-select {
-      font-size: 13px;
-      height: 28px;
-      padding: 0 6px;
-      border: 1px solid var(--mat-sys-outline-variant);
-      border-radius: 6px;
-      background: var(--mat-sys-surface-container);
-      color: var(--mat-sys-on-surface);
-      cursor: pointer;
-      max-width: 160px;
-    }
-
-    .admin-select:focus {
-      outline: 2px solid var(--mat-sys-primary);
-      border-color: transparent;
+      flex: 1;
+      padding: 48px;
     }
   `]
 })
-export class ManageOrganisationsComponent implements OnInit {
-  organisations: Organisation[] = [];
-  allMembers: AllMember[] = [];
-  orgTableColumns = ['name', 'admins'];
+export class ManageOrganisationsComponent implements OnInit, AfterViewInit {
+  @ViewChild(MatSort) sort!: MatSort;
+
+  dataSource = new MatTableDataSource<Organisation>([]);
+  tableColumns = ['name', 'admins', 'memberCount', 'teamCount', 'createdAt'];
   loading = false;
   saving = false;
   newName = '';
-  selectedOrg: Organisation | null = null;
-
-  editingName = false;
-  editName = '';
-
-  addingAdmin = false;
-  selectedMemberId = '';
+  searchText = '';
+  showCreateForm = false;
 
   constructor(
     private notificationService: NotificationService,
-    private translate: TranslateService
+    private translate: TranslateService,
+    private panelService: SlideInPanelService,
+    private userPreferencesService: UserPreferencesService,
+    private cdr: ChangeDetectorRef,
   ) {}
 
   ngOnInit(): void {
     this.loadData();
   }
 
+  ngAfterViewInit(): void {
+    this.dataSource.sort = this.sort;
+  }
+
   private async loadData(): Promise<void> {
     this.loading = true;
+    this.cdr.markForCheck();
     try {
-      const [orgsResult, membersResult] = await Promise.all([
-        apolloClient.query({ query: GET_ORGANISATIONS, fetchPolicy: 'network-only' }) as Promise<any>,
-        apolloClient.query({ query: GET_ALL_MEMBERS, fetchPolicy: 'network-only' }) as Promise<any>,
-      ]);
-      this.organisations = orgsResult.data.organisations;
-      this.allMembers = membersResult.data.members;
+      const result = await apolloClient.query({ query: GET_ORGANISATIONS, fetchPolicy: 'network-only' }) as any;
+      this.dataSource.data = result.data.organisations;
     } catch (e: any) {
-      this.notificationService.error(e.message || 'Error loading data');
+      this.notificationService.error(e.message || 'Error loading organisations');
     } finally {
       this.loading = false;
+      this.cdr.markForCheck();
     }
   }
 
-  selectOrg(org: Organisation): void {
-    this.cancelEditName();
-    this.cancelAddAdmin();
-    this.selectedOrg = org;
+  applyFilter(): void {
+    this.dataSource.filter = this.searchText.trim().toLowerCase();
   }
 
-  get nonAdminMembers(): AllMember[] {
-    if (!this.selectedOrg) return [];
-    const adminIds = new Set((this.selectedOrg.orgAdmins || []).map(a => a.id));
-    return this.allMembers.filter(m =>
-      Number(m.organisationId) === Number(this.selectedOrg!.id) &&
-      !adminIds.has(m.id) &&
-      m.role !== 'sysadmin'
+  toggleCreateForm(): void {
+    this.showCreateForm = !this.showCreateForm;
+    if (!this.showCreateForm) this.newName = '';
+    this.cdr.markForCheck();
+  }
+
+  formatAdmins(admins: OrgAdmin[]): string {
+    return admins.map(a =>
+      [a.firstName, a.particles, a.lastName].filter(Boolean).join(' ')
+    ).join(', ');
+  }
+
+  openDetail(org: Organisation): void {
+    const isNarrow = window.innerWidth < 768;
+    const navExpanded = this.userPreferencesService.preferences.navigationExpanded;
+    const railWidth = isNarrow ? 0 : (navExpanded ? 220 : 80);
+    const leftOffset = railWidth > 0 ? `${railWidth}px` : undefined;
+
+    const panelRef = this.panelService.open<OrgDetailPanelComponent, OrgDetailPanelData, boolean>(
+      OrgDetailPanelComponent,
+      { leftOffset, data: { org } }
     );
+
+    panelRef.afterClosed().subscribe(changed => {
+      if (changed) this.loadData();
+    });
   }
 
-  // Name edit
-  startEditName(): void {
-    this.editingName = true;
-    this.editName = this.selectedOrg?.name ?? '';
-  }
-
-  cancelEditName(): void {
-    this.editingName = false;
-    this.editName = '';
-  }
-
-  async saveEditName(): Promise<void> {
-    if (!this.selectedOrg || !this.editName.trim()) return;
-    try {
-      const result = await apolloClient.mutate({
-        mutation: UPDATE_ORGANISATION,
-        variables: { id: this.selectedOrg.id, name: this.editName.trim() }
-      }) as any;
-      const updated = result.data.updateOrganisation;
-      this.organisations = this.organisations.map(o => o.id === updated.id ? updated : o);
-      this.selectedOrg = updated;
-      this.cancelEditName();
-      this.notificationService.success(this.translate.instant('organisations.updated'));
-    } catch (e: any) {
-      this.notificationService.error(e.message || 'Error updating organisation');
-    }
-  }
-
-  // Admin management
-  startAddAdmin(): void {
-    this.addingAdmin = true;
-    this.selectedMemberId = '';
-  }
-
-  cancelAddAdmin(): void {
-    this.addingAdmin = false;
-    this.selectedMemberId = '';
-  }
-
-  async confirmAddAdmin(): Promise<void> {
-    if (!this.selectedMemberId || !this.selectedOrg) return;
-    try {
-      await apolloClient.mutate({
-        mutation: ASSIGN_ORG_ADMIN,
-        variables: { memberId: this.selectedMemberId, orgId: this.selectedOrg.id }
-      });
-      const member = this.allMembers.find(m => m.id === this.selectedMemberId);
-      if (member) {
-        const newAdmin = { id: member.id, firstName: member.firstName, particles: member.particles, lastName: member.lastName };
-        const updated = { ...this.selectedOrg, orgAdmins: [...this.selectedOrg.orgAdmins, newAdmin] };
-        this.organisations = this.organisations.map(o => o.id === updated.id ? updated : o);
-        this.selectedOrg = updated;
-      }
-      this.cancelAddAdmin();
-      this.notificationService.success(this.translate.instant('organisations.adminAdded'));
-    } catch (e: any) {
-      this.notificationService.error(e.message || 'Error adding admin');
-    }
-  }
-
-  async removeAdmin(org: Organisation, admin: OrgAdmin): Promise<void> {
-    try {
-      await apolloClient.mutate({
-        mutation: REMOVE_ORG_ADMIN,
-        variables: { memberId: admin.id, orgId: org.id }
-      });
-      const updated = { ...org, orgAdmins: org.orgAdmins.filter(a => a.id !== admin.id) };
-      this.organisations = this.organisations.map(o => o.id === updated.id ? updated : o);
-      this.selectedOrg = updated;
-      this.notificationService.success(this.translate.instant('organisations.adminRemoved'));
-    } catch (e: any) {
-      this.notificationService.error(e.message || 'Error removing admin');
-    }
-  }
-
-  // Create / delete org
   async createOrg(): Promise<void> {
     const name = this.newName.trim();
     if (!name) return;
@@ -754,29 +409,17 @@ export class ManageOrganisationsComponent implements OnInit {
         variables: { name }
       }) as any;
       const created = result.data.createOrganisation;
-      this.organisations = [...this.organisations, created];
+      this.dataSource.data = [...this.dataSource.data, created];
       this.newName = '';
-      this.selectedOrg = created;
+      this.showCreateForm = false;
       this.notificationService.success(this.translate.instant('organisations.created'));
+      this.cdr.markForCheck();
+      this.openDetail(created);
     } catch (e: any) {
       this.notificationService.error(e.message || 'Error creating organisation');
     } finally {
       this.saving = false;
-    }
-  }
-
-  async deleteOrg(org: Organisation): Promise<void> {
-    if (!confirm(this.translate.instant('organisations.confirmDelete', { name: org.name }))) return;
-    try {
-      await apolloClient.mutate({
-        mutation: DELETE_ORGANISATION,
-        variables: { id: org.id }
-      });
-      this.organisations = this.organisations.filter(o => o.id !== org.id);
-      this.selectedOrg = null;
-      this.notificationService.success(this.translate.instant('organisations.deleted'));
-    } catch (e: any) {
-      this.notificationService.error(e.message || 'Error deleting organisation');
+      this.cdr.markForCheck();
     }
   }
 }

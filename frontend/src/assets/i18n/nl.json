@@ -2,6 +2,7 @@
   "common": {
     "close": "Sluiten",
     "cancel": "Annuleren",
+    "back": "Terug",
     "confirm": "Bevestigen",
     "save": "Opslaan",
     "delete": "Verwijderen",
@@ -101,6 +102,9 @@
     "rememberMe": "Onthoud mij",
     "forgotPassword": "Wachtwoord vergeten?",
     "emailAddress": "Uw e-mailadres",
+    "usernameForReset": "Gebruikersnaam",
+    "selectOrg": "Selecteer organisatie",
+    "selectOrgPrompt": "Je hebt toegang tot meerdere organisaties. Selecteer er een om verder te gaan.",
     "sendResetLink": "Herstelkoppeling versturen",
     "messages": {
       "fieldsRequired": "Voer zowel Lid ID als wachtwoord in",
@@ -320,6 +324,7 @@
     "memberNo": "Lid #",
     "username": "Gebruikersnaam",
     "usernameHint": "Gebruikt om in te loggen. Kan worden gewijzigd.",
+    "organisation": "Organisatie",
     "noMembersFound": "Geen leden gevonden",
     "selectPrompt": "Selecteer een lid om details te bekijken",
     "messages": {
@@ -393,6 +398,10 @@
   },
   "addMember": {
     "title": "Nieuw lid toevoegen",
+    "emailStepHint": "Voer het e-mailadres in van het nieuwe lid om te controleren of er al een account bestaat.",
+    "checkEmail": "Controleren",
+    "personFound": "Account gevonden — een nieuw lidmaatschap wordt aangemaakt.",
+    "personNotFound": "Geen account gevonden. Vul de gegevens in om er een aan te maken.",
     "memberId": "Lid ID",
     "memberIdPlaceholder": "bijv. jjanssen001",
     "memberIdHint": "Unieke identificatie voor het lid",
@@ -495,6 +504,7 @@
   },
   "sysadmin": {
     "selectOrg": "Selecteer een organisatie...",
+    "allOrgs": "Alle organisaties",
     "selectOrgPrompt": "Selecteer een organisatie om te beheren."
   },
   "organisations": {
@@ -511,6 +521,12 @@
     "deleted": "Organisatie verwijderd",
     "confirmDelete": "Organisatie \"{{ name }}\" verwijderen? Dit kan niet ongedaan worden gemaakt.",
     "admins": "Beheerders",
+    "membersColumn": "Leden",
+    "teamsColumn": "Teams",
+    "createdAt": "Aangemaakt",
+    "search": "Zoek organisaties…",
+    "demoOrg": "Demo-organisatie",
+    "demoExpires": "Vervalt",
     "noAdmins": "geen",
     "addAdmin": "Beheerder toevoegen",
     "removeAdmin": "Beheerder verwijderen",
