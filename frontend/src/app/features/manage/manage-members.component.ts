@@ -14,7 +14,7 @@ import { apolloClient } from '../../app.config';
 import { SlideInPanelService } from '../../shared/services/slide-in-panel.service';
 import { AuthService } from '../../shared/services/auth.service';
 import { UserPreferencesService, TeamFilterMode } from '../../shared/services/user-preferences.service';
-import { MemberDetailDialogComponent, MemberDetailDialogData } from '../../shared/components/member-detail-dialog.component';
+import { MemberEditDialogComponent, MemberEditDialogData } from '../../shared/components/member-edit-dialog.component';
 import { ScheduleFilterPanelComponent, ScheduleFilterPanelData, ScheduleFilterPanelResult } from '../schedule/schedule-filter/schedule-filter-panel.component';
 import { AddMemberDialogComponent } from '../../shell/add-member-dialog.component';
 
@@ -494,14 +494,36 @@ export class ManageMembersComponent implements OnInit, AfterViewInit {
   }
 
   openMemberDetail(member: Member): void {
-    const isNarrow = window.innerWidth < 768;
-    const navExpanded = this.userPreferencesService.preferences.navigationExpanded;
-    const railWidth = isNarrow ? 0 : (navExpanded ? 220 : 80);
-    const leftOffset = railWidth > 0 ? `${railWidth}px` : undefined;
+    const leftOffset = this.userPreferencesService.getManagementPanelLeftOffset();
+    const isSelf = this.authService.currentUser?.id === member.id;
+    const isManager = this.authService.isAnyAdmin || this.authService.isSysadmin;
 
-    const ref = this.panelService.open<MemberDetailDialogComponent, MemberDetailDialogData>(
-      MemberDetailDialogComponent,
-      { leftOffset, data: { memberId: member.id, leftOffset } }
+    const ref = this.panelService.open<MemberEditDialogComponent, MemberEditDialogData, boolean>(
+      MemberEditDialogComponent,
+      {
+        leftOffset,
+        data: {
+          leftOffset,
+          member: {
+            id: member.id,
+            username: member.username,
+            firstName: member.firstName,
+            lastName: member.lastName,
+            particles: member.particles,
+            email: member.email,
+            role: member.role,
+            isOrgAdmin: member.isOrgAdmin,
+            adminOfTeams: member.adminOfTeams,
+            teams: member.teams,
+            phone: member.phone,
+            dateOfBirth: member.dateOfBirth,
+            avatarUrl: member.avatarUrl
+          },
+          allTeams: this.allTeams,
+          isSelf,
+          isManager
+        }
+      }
     );
 
     ref.afterClosed().subscribe(result => {

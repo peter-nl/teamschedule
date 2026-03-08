@@ -35,6 +35,8 @@ interface MemberFull {
   email: string | null;
   role: string;
   scheduleDisabled: boolean;
+  isOrgAdmin: boolean;
+  adminOfTeams: { id: string; name: string }[];
   teams: { id: string; name: string }[];
   phone: string | null;
   dateOfBirth: string | null;
@@ -62,6 +64,8 @@ const GET_MEMBER_QUERY = gql`
       email
       role
       scheduleDisabled
+      isOrgAdmin
+      adminOfTeams { id name }
       teams { id name }
       phone
       dateOfBirth
@@ -697,7 +701,7 @@ export class MemberDetailDialogComponent implements OnInit {
   }
 
   private get isManager(): boolean {
-    return this.authService.isAnyAdmin;
+    return this.authService.isAnyAdmin || this.authService.isSysadmin;
   }
 
   get canEdit(): boolean {
@@ -872,6 +876,7 @@ export class MemberDetailDialogComponent implements OnInit {
       {
         leftOffset: this.data.leftOffset,
         data: {
+          leftOffset: this.data.leftOffset,
           member: { ...this.member, teams: [...this.member.teams] },
           allTeams: this.allTeams,
           isSelf: this.isSelf,

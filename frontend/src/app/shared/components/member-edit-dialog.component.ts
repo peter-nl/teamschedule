@@ -1,6 +1,7 @@
-import { Component, Inject } from '@angular/core';
+import { Component, Inject, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -19,16 +20,21 @@ import { DaySchedule } from '../models/member.model';
 import { ScheduleService } from '../../features/schedule/services/schedule.service';
 import { MemberHolidayService, MemberHolidayPeriod } from '../../core/services/member-holiday.service';
 import { HolidayDialogComponent, HolidayDialogData, HolidayDialogResult } from './holiday-dialog.component';
+import { CropImageDialogComponent, CropImageDialogData } from './crop-image-dialog.component';
 import { UserPreferencesService } from '../services/user-preferences.service';
 
 export interface MemberEditDialogData {
+  leftOffset?: string;
   member: {
     id: string;
+    username: string;
     firstName: string;
     lastName: string;
     particles: string | null;
     email: string | null;
     role: string;
+    isOrgAdmin: boolean;
+    adminOfTeams: { id: string; name: string }[];
     teams: { id: string; name: string }[];
     phone: string | null;
     dateOfBirth: string | null;
@@ -56,6 +62,36 @@ const ADD_MEMBER_TO_TEAM_MUTATION = gql`
 const REMOVE_MEMBER_FROM_TEAM_MUTATION = gql`
   mutation RemoveMemberFromTeam($teamId: ID!, $memberId: ID!) {
     removeMemberFromTeam(teamId: $teamId, memberId: $memberId) { id }
+  }
+`;
+
+const ASSIGN_ORG_ADMIN_MUTATION = gql`
+  mutation AssignOrgAdmin($memberId: String!) {
+    assignOrgAdmin(memberId: $memberId)
+  }
+`;
+
+const REMOVE_ORG_ADMIN_MUTATION = gql`
+  mutation RemoveOrgAdmin($memberId: String!) {
+    removeOrgAdmin(memberId: $memberId)
+  }
+`;
+
+const ASSIGN_TEAM_ADMIN_MUTATION = gql`
+  mutation AssignTeamAdmin($memberId: String!, $teamId: Int!) {
+    assignTeamAdmin(memberId: $memberId, teamId: $teamId)
+  }
+`;
+
+const REMOVE_TEAM_ADMIN_MUTATION = gql`
+  mutation RemoveTeamAdmin($memberId: String!, $teamId: Int!) {
+    removeTeamAdmin(memberId: $memberId, teamId: $teamId)
+  }
+`;
+
+const UPDATE_USERNAME_MUTATION = gql`
+  mutation UpdateUsername($id: String!, $username: String!) {
+    updateUsername(id: $id, username: $username) { id username }
   }
 `;
 
@@ -99,9 +135,24 @@ const RESET_PASSWORD_MUTATION = gql`
 
       <div class="panel-content">
         <div class="form-content">
+
+          <!-- Avatar -->
+          <div class="avatar-section">
+            <div class="avatar-wrapper" (click)="triggerAvatarUpload()"
+                 [matTooltip]="'profile.uploadAvatar' | translate">
+              <img *ngIf="safeAvatarUrl" [src]="safeAvatarUrl" class="avatar-img" alt="">
+              <mat-icon *ngIf="!safeAvatarUrl" class="avatar-icon">account_circle</mat-icon>
+              <div class="avatar-overlay">
+                <mat-icon class="camera-icon">photo_camera</mat-icon>
+              </div>
+            </div>
+          </div>
+          <input #avatarInput type="file" accept="image/*" style="display:none"
+                 (change)="onAvatarFileSelected($event)">
+
           <mat-form-field appearance="outline" class="full-width">
-            <mat-label>{{ 'editMember.memberId' | translate }}</mat-label>
-            <input matInput [value]="data.member.id" disabled>
+            <mat-label>{{ 'editMember.username' | translate }}</mat-label>
+            <input matInput [(ngModel)]="editForm.username" name="username" maxlength="100">
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
@@ -137,14 +188,30 @@ const RESET_PASSWORD_MUTATION = gql`
             <input matInput [(ngModel)]="editForm.dateOfBirth" name="dateOfBirth" type="date">
           </mat-form-field>
 
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>{{ 'editMember.role' | translate }}</mat-label>
-            <mat-select [(ngModel)]="editForm.role" name="role" disabled>
-              <mat-option value="user">{{ 'common.role.user' | translate }}</mat-option>
-              <mat-option value="sysadmin">{{ 'common.role.sysadmin' | translate }}</mat-option>
+          <!-- Roles section (managers only) -->
+          <ng-container *ngIf="data.isManager">
+            <mat-divider style="margin: 16px 0;"></mat-divider>
+            <h4 style="margin: 0 0 12px 0; color: var(--mat-sys-primary); display: flex; align-items: center; gap: 8px;">
+              <mat-icon>admin_panel_settings</mat-icon>
+              {{ 'editMember.roles' | translate }}
+            </h4>
+            <label class="org-admin-toggle">
+              <input type="checkbox" [(ngModel)]="editForm.isOrgAdmin" name="isOrgAdmin">
+              <span>{{ 'editMember.orgAdmin' | translate }}</span>
+            </label>
+          </ng-container>
+
+          <!-- Teams as manager (managers only) -->
+          <mat-form-field appearance="outline" class="full-width" *ngIf="data.isManager">
+            <mat-label>{{ 'editMember.teamAdminLabel' | translate }}</mat-label>
+            <mat-select [(ngModel)]="editForm.adminTeamIds" name="adminTeams" multiple>
+              <mat-option *ngFor="let team of data.allTeams" [value]="team.id">
+                {{ team.name }}
+              </mat-option>
             </mat-select>
           </mat-form-field>
 
+          <!-- Teams as member -->
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>{{ 'editMember.teamsLabel' | translate }}</mat-label>
             <mat-select [(ngModel)]="editForm.teamIds" name="teams" multiple
@@ -302,6 +369,59 @@ const RESET_PASSWORD_MUTATION = gql`
       width: 100%;
     }
 
+    .avatar-section {
+      display: flex;
+      justify-content: center;
+      padding: 8px 0 4px;
+    }
+
+    .avatar-wrapper {
+      position: relative;
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      cursor: pointer;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .avatar-img {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .avatar-icon {
+      font-size: 80px;
+      width: 80px;
+      height: 80px;
+      color: var(--mat-sys-primary);
+    }
+
+    .avatar-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+
+    .avatar-wrapper:hover .avatar-overlay {
+      opacity: 1;
+    }
+
+    .camera-icon {
+      color: white;
+      font-size: 28px;
+      width: 28px;
+      height: 28px;
+    }
+
     button mat-spinner {
       display: inline-block;
       margin-right: 4px;
@@ -429,19 +549,35 @@ const RESET_PASSWORD_MUTATION = gql`
       overflow: hidden;
       text-overflow: ellipsis;
     }
+
+    .org-admin-toggle {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      font-size: 14px;
+      color: var(--mat-sys-on-surface);
+      margin-bottom: 12px;
+    }
   `]
 })
 export class MemberEditDialogComponent {
+  @ViewChild('avatarInput') avatarInputRef!: ElementRef<HTMLInputElement>;
+
   editForm: {
+    username: string;
     firstName: string;
     lastName: string;
     particles: string;
     email: string;
-    role: string;
+    isOrgAdmin: boolean;
     teamIds: string[];
+    adminTeamIds: string[];
     phone: string;
     dateOfBirth: string;
   };
+
+  avatarUrl: string | null;
 
   resetPasswordForm = {
     newPassword: '',
@@ -479,15 +615,19 @@ export class MemberEditDialogComponent {
     private scheduleService: ScheduleService,
     private holidayService: MemberHolidayService,
     private panelService: SlideInPanelService,
-    private userPrefsService: UserPreferencesService
+    private userPrefsService: UserPreferencesService,
+    private sanitizer: DomSanitizer
   ) {
+    this.avatarUrl = data.member.avatarUrl;
     this.editForm = {
+      username: data.member.username,
       firstName: data.member.firstName,
       lastName: data.member.lastName,
       particles: data.member.particles || '',
       email: data.member.email || '',
-      role: data.member.role,
+      isOrgAdmin: data.member.isOrgAdmin,
       teamIds: data.member.teams.map(t => t.id),
+      adminTeamIds: data.member.adminOfTeams.map(t => t.id),
       phone: data.member.phone || '',
       dateOfBirth: data.member.dateOfBirth || ''
     };
@@ -507,6 +647,13 @@ export class MemberEditDialogComponent {
     this.loadHolidays();
   }
 
+  get safeAvatarUrl(): SafeUrl | null {
+    if (!this.avatarUrl) return null;
+    return this.avatarUrl.startsWith('data:')
+      ? this.sanitizer.bypassSecurityTrustUrl(this.avatarUrl)
+      : this.avatarUrl;
+  }
+
   get canEditTeams(): boolean {
     return this.data.isManager;
   }
@@ -519,6 +666,36 @@ export class MemberEditDialogComponent {
     return !!(this.editForm.firstName && this.editForm.lastName);
   }
 
+  triggerAvatarUpload(): void {
+    if (this.avatarUrl) {
+      this.panelService.open<CropImageDialogComponent, CropImageDialogData, string | null>(
+        CropImageDialogComponent,
+        { leftOffset: this.data.leftOffset, data: { imageDataUrl: this.avatarUrl } }
+      ).afterClosed().subscribe(cropped => {
+        if (cropped) this.avatarUrl = cropped;
+      });
+    } else {
+      this.avatarInputRef?.nativeElement.click();
+    }
+  }
+
+  onAvatarFileSelected(event: Event): void {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      this.panelService.open<CropImageDialogComponent, CropImageDialogData, string | null>(
+        CropImageDialogComponent,
+        { leftOffset: this.data.leftOffset, data: { imageDataUrl: dataUrl } }
+      ).afterClosed().subscribe(cropped => {
+        if (cropped) this.avatarUrl = cropped;
+      });
+    };
+    reader.readAsDataURL(file);
+    (event.target as HTMLInputElement).value = '';
+  }
+
   get isPasswordFormValid(): boolean {
     return !!(
       this.resetPasswordForm.newPassword &&
@@ -529,6 +706,15 @@ export class MemberEditDialogComponent {
   async onSave(): Promise<void> {
     this.saving = true;
     try {
+      // Update username if changed
+      const trimmedUsername = this.editForm.username.trim();
+      if (trimmedUsername && trimmedUsername !== this.data.member.username) {
+        await apolloClient.mutate({
+          mutation: UPDATE_USERNAME_MUTATION,
+          variables: { id: this.data.member.id, username: trimmedUsername }
+        });
+      }
+
       // Update profile
       await apolloClient.mutate({
         mutation: UPDATE_MEMBER_MUTATION,
@@ -540,7 +726,7 @@ export class MemberEditDialogComponent {
           email: this.editForm.email || null,
           phone: this.editForm.phone || null,
           dateOfBirth: this.editForm.dateOfBirth || null,
-          avatarUrl: this.data.member.avatarUrl || null
+          avatarUrl: this.avatarUrl || null
         }
       });
 
@@ -563,6 +749,35 @@ export class MemberEditDialogComponent {
             await apolloClient.mutate({
               mutation: ADD_MEMBER_TO_TEAM_MUTATION,
               variables: { teamId, memberId: this.data.member.id }
+            });
+          }
+        }
+      }
+
+      // Update org admin and team admin roles (managers only)
+      if (this.data.isManager) {
+        const wasOrgAdmin = this.data.member.isOrgAdmin;
+        if (wasOrgAdmin !== this.editForm.isOrgAdmin) {
+          await apolloClient.mutate({
+            mutation: this.editForm.isOrgAdmin ? ASSIGN_ORG_ADMIN_MUTATION : REMOVE_ORG_ADMIN_MUTATION,
+            variables: { memberId: this.data.member.id }
+          });
+        }
+
+        const currentAdminTeamIds = this.data.member.adminOfTeams.map(t => t.id);
+        for (const teamId of currentAdminTeamIds) {
+          if (!this.editForm.adminTeamIds.includes(teamId)) {
+            await apolloClient.mutate({
+              mutation: REMOVE_TEAM_ADMIN_MUTATION,
+              variables: { memberId: this.data.member.id, teamId: parseInt(teamId, 10) }
+            });
+          }
+        }
+        for (const teamId of this.editForm.adminTeamIds) {
+          if (!currentAdminTeamIds.includes(teamId)) {
+            await apolloClient.mutate({
+              mutation: ASSIGN_TEAM_ADMIN_MUTATION,
+              variables: { memberId: this.data.member.id, teamId: parseInt(teamId, 10) }
             });
           }
         }

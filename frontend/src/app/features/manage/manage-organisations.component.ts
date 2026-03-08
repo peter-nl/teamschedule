@@ -145,7 +145,7 @@ const CREATE_ORGANISATION = gql`
           </ng-container>
 
           <mat-header-row *matHeaderRowDef="tableColumns; sticky: true"></mat-header-row>
-          <mat-row *matRowDef="let row; columns: tableColumns;" (click)="openDetail(row)"></mat-row>
+          <mat-row *matRowDef="let row; columns: tableColumns;" (dblclick)="openDetail(row)"></mat-row>
 
           <tr class="mat-row" *matNoDataRow>
             <td class="mat-cell" [attr.colspan]="tableColumns.length">
@@ -384,10 +384,7 @@ export class ManageOrganisationsComponent implements OnInit, AfterViewInit {
   }
 
   openDetail(org: Organisation): void {
-    const isNarrow = window.innerWidth < 768;
-    const navExpanded = this.userPreferencesService.preferences.navigationExpanded;
-    const railWidth = isNarrow ? 0 : (navExpanded ? 220 : 80);
-    const leftOffset = railWidth > 0 ? `${railWidth}px` : undefined;
+    const leftOffset = this.userPreferencesService.getManagementPanelLeftOffset();
 
     const panelRef = this.panelService.open<OrgDetailPanelComponent, OrgDetailPanelData, boolean>(
       OrgDetailPanelComponent,

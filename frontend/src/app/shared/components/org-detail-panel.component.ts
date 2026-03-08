@@ -104,35 +104,20 @@ const GET_ALL_MEMBERS = gql`
       <div class="panel-header">
         <mat-icon class="header-icon">corporate_fare</mat-icon>
 
-        <ng-container *ngIf="!editingName">
-          <h2 class="header-title">{{ org.name }}</h2>
-          <span *ngIf="org.isDemo" class="demo-badge">DEMO</span>
-          <span class="header-spacer"></span>
-          <button mat-icon-button [matTooltip]="'common.edit' | translate" (click)="startEditName()">
-            <mat-icon>edit</mat-icon>
-          </button>
-          <button mat-icon-button color="warn"
-                  [matTooltip]="'common.delete' | translate"
-                  [disabled]="org.memberCount > 0 || org.teamCount > 0"
-                  (click)="deleteOrg()">
-            <mat-icon>delete</mat-icon>
-          </button>
-        </ng-container>
-
-        <ng-container *ngIf="editingName">
-          <mat-form-field appearance="outline" class="name-field">
-            <input matInput [(ngModel)]="editName"
-                   (keydown.enter)="saveEditName()"
-                   (keydown.escape)="cancelEditName()">
-          </mat-form-field>
-          <span class="header-spacer"></span>
-          <button mat-icon-button color="primary" [disabled]="!editName.trim()" (click)="saveEditName()">
-            <mat-icon>check</mat-icon>
-          </button>
-          <button mat-icon-button (click)="cancelEditName()">
-            <mat-icon>close</mat-icon>
-          </button>
-        </ng-container>
+        <mat-form-field appearance="outline" class="name-field">
+          <input matInput [(ngModel)]="editName"
+                 (keydown.enter)="saveEditName()"
+                 (keydown.escape)="revertEditName()"
+                 (blur)="saveEditName()">
+        </mat-form-field>
+        <span *ngIf="org.isDemo" class="demo-badge">DEMO</span>
+        <span class="header-spacer"></span>
+        <button mat-icon-button color="warn"
+                [matTooltip]="'common.delete' | translate"
+                [disabled]="org.memberCount > 0 || org.teamCount > 0"
+                (click)="deleteOrg()">
+          <mat-icon>delete</mat-icon>
+        </button>
 
         <button class="panel-close" (click)="close()">
           <mat-icon>close</mat-icon>
@@ -205,8 +190,14 @@ const GET_ALL_MEMBERS = gql`
 
         <mat-divider></mat-divider>
 
-        <!-- Settings -->
-        <app-manage-org-settings [orgId]="org.id"></app-manage-org-settings>
+        <!-- Settings (lazy: only mount when expanded) -->
+        <div class="section">
+          <div class="section-header settings-toggle" (click)="settingsExpanded = !settingsExpanded">
+            <span class="section-label">{{ 'shell.management.settings' | translate }}</span>
+            <mat-icon class="expand-icon" [class.expanded]="settingsExpanded">expand_more</mat-icon>
+          </div>
+          <app-manage-org-settings *ngIf="settingsExpanded" [orgId]="org.id"></app-manage-org-settings>
+        </div>
 
       </div>
     </div>
@@ -323,6 +314,21 @@ const GET_ALL_MEMBERS = gql`
     .chip-remove:hover { background: var(--mat-sys-outline-variant); }
     .chip-remove mat-icon { font-size: 14px; width: 14px; height: 14px; }
 
+    .settings-toggle {
+      cursor: pointer;
+      user-select: none;
+    }
+    .settings-toggle:hover .section-label { color: var(--mat-sys-primary); }
+
+    .expand-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+      color: var(--mat-sys-on-surface-variant);
+      transition: transform 0.2s;
+    }
+    .expand-icon.expanded { transform: rotate(180deg); }
+
     .no-admins {
       font-size: 12px;
       color: var(--mat-sys-on-surface-variant);
@@ -350,11 +356,11 @@ export class OrgDetailPanelComponent implements OnInit {
   org: OrgDetailOrg;
   allMembers: AllMember[] = [];
 
-  editingName = false;
   editName = '';
   addingAdmin = false;
   selectedMemberId = '';
   changed = false;
+  settingsExpanded = false;
 
   constructor(
     public panelRef: SlideInPanelRef<OrgDetailPanelComponent, boolean>,
@@ -365,6 +371,7 @@ export class OrgDetailPanelComponent implements OnInit {
     private cdr: ChangeDetectorRef,
   ) {
     this.org = { ...data.org };
+    this.editName = this.org.name;
   }
 
   ngOnInit(): void {
@@ -398,19 +405,19 @@ export class OrgDetailPanelComponent implements OnInit {
     return [m.firstName, m.particles, m.lastName].filter(Boolean).join(' ');
   }
 
-  startEditName(): void { this.editingName = true; this.editName = this.org.name; }
-  cancelEditName(): void { this.editingName = false; this.editName = ''; }
+  revertEditName(): void { this.editName = this.org.name; }
 
   async saveEditName(): Promise<void> {
-    if (!this.editName.trim()) return;
+    const trimmed = this.editName.trim();
+    if (!trimmed || trimmed === this.org.name) return;
     try {
       const result = await apolloClient.mutate({
         mutation: UPDATE_ORGANISATION,
-        variables: { id: this.org.id, name: this.editName.trim() }
+        variables: { id: this.org.id, name: trimmed }
       }) as any;
       this.org = result.data.updateOrganisation;
+      this.editName = this.org.name;
       this.changed = true;
-      this.cancelEditName();
       this.notificationService.success(this.translate.instant('organisations.updated'));
       this.cdr.markForCheck();
     } catch (e: any) {

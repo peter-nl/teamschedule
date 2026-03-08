@@ -380,7 +380,7 @@ interface ManagementItem {
       display: flex;
       flex-direction: column;
       gap: 4px;
-      padding: 0 12px 12px;
+      padding: 0 12px 29px;
     }
 
     .nav-bar-item {
@@ -807,11 +807,9 @@ export class ShellComponent {
     // Clicking the active panel does nothing
     if (this.activePanel === panel) return;
 
-    const isManagement = panel.startsWith('manage');
+    this.panelService.closeAll();
 
-    // Close any slide-in panels when switching to an account (overlay) panel
-    if (!isManagement) {
-      this.panelService.closeAll();
+    if (!panel.startsWith('manage')) {
       this.activeNavBar = null;
     }
 

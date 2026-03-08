@@ -1518,10 +1518,7 @@ export class ManageOrgComponent implements OnInit, OnChanges {
   }
 
   openAddTeam(): void {
-    const isNarrow = window.innerWidth < 768;
-    const navExpanded = this.userPreferencesService.preferences.navigationExpanded;
-    const railWidth = isNarrow ? 0 : (navExpanded ? 220 : 80);
-    const leftOffset = railWidth > 0 ? `${railWidth}px` : undefined;
+    const leftOffset = this.userPreferencesService.getManagementPanelLeftOffset();
     const orgId = this.authService.isSysadmin ? this.selectedOrgId || undefined : undefined;
 
     const ref = this.panelService.open<AddTeamDialogComponent, { orgId?: string } | undefined, boolean>(

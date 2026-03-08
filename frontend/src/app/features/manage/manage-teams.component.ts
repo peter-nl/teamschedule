@@ -105,6 +105,12 @@ const GET_MEMBERS_QUERY = gql`
                [(ngModel)]="searchText"
                (ngModelChange)="buildRows()"
                [placeholder]="'teams.searchTeams' | translate">
+        <select *ngIf="isSysadmin" class="org-filter-select"
+                [(ngModel)]="orgFilter"
+                (ngModelChange)="buildRows()">
+          <option value="">{{ 'teams.organisation' | translate }}: {{ 'sysadmin.allOrgs' | translate }}</option>
+          <option *ngFor="let o of orgOptions" [value]="o.id">{{ o.name }}</option>
+        </select>
       </div>
 
       <div class="table-scroll">
@@ -141,6 +147,12 @@ const GET_MEMBERS_QUERY = gql`
             </mat-cell>
           </ng-container>
 
+          <!-- Organisation column (sysadmin only) -->
+          <ng-container matColumnDef="organisation">
+            <mat-header-cell *matHeaderCellDef>{{ 'teams.organisation' | translate }}</mat-header-cell>
+            <mat-cell *matCellDef="let row" class="org-cell">{{ row.organisationName }}</mat-cell>
+          </ng-container>
+
           <!-- Member count column -->
           <ng-container matColumnDef="count">
             <mat-header-cell *matHeaderCellDef>{{ 'teams.members' | translate }}</mat-header-cell>
@@ -154,7 +166,7 @@ const GET_MEMBERS_QUERY = gql`
 
           <!-- Team data rows -->
           <mat-row *matRowDef="let row; columns: dataColumns; when: isDataRow"
-                   (click)="openMembers(asTeam(row))"></mat-row>
+                   (dblclick)="openMembers(asTeam(row))"></mat-row>
 
           <tr class="mat-row" *matNoDataRow>
             <td class="mat-cell" [attr.colspan]="dataColumns.length">
@@ -209,6 +221,23 @@ const GET_MEMBERS_QUERY = gql`
       padding: 4px;
     }
     .search-input::placeholder { color: var(--mat-sys-on-surface-variant); }
+
+    .org-filter-select {
+      flex-shrink: 0;
+      height: 28px;
+      font-size: 13px;
+      padding: 0 6px;
+      border: 1px solid var(--mat-sys-outline-variant);
+      border-radius: 6px;
+      background: var(--mat-sys-surface-container);
+      color: var(--mat-sys-on-surface);
+      cursor: pointer;
+      max-width: 180px;
+    }
+    .org-filter-select:focus {
+      outline: 2px solid var(--mat-sys-primary);
+      border-color: transparent;
+    }
 
     .table-scroll {
       flex: 1;
@@ -309,6 +338,13 @@ const GET_MEMBERS_QUERY = gql`
       font-size: 13px;
     }
 
+    .teams-table .mat-column-organisation {
+      flex: 1 1 130px;
+      min-width: 100px;
+      color: var(--mat-sys-on-surface-variant);
+      font-size: 13px;
+    }
+
     .teams-table .mat-column-count {
       flex: 0 0 72px;
       justify-content: flex-end;
@@ -369,8 +405,10 @@ export class ManageTeamsComponent implements OnInit {
   allMembers: Member[] = [];
   loading = true;
   searchText = '';
+  orgFilter = '';
   sortDirection: 'asc' | 'desc' = 'asc';
-  dataColumns = ['name', 'admins', 'count'];
+  dataColumns: string[] = [];
+  isSysadmin = false;
 
   isGroupRow = (_: number, row: TableRow): boolean => (row as OrgGroupRow).isGroup === true;
   isDataRow  = (_: number, row: TableRow): boolean => (row as OrgGroupRow).isGroup !== true;
@@ -384,7 +422,19 @@ export class ManageTeamsComponent implements OnInit {
     private translate: TranslateService
   ) {}
 
+  get orgOptions(): { id: number | null; name: string }[] {
+    const seen = new Set<number | null>();
+    return this.teams
+      .filter(t => { if (seen.has(t.organisationId)) return false; seen.add(t.organisationId); return true; })
+      .map(t => ({ id: t.organisationId, name: t.organisationName ?? '—' }))
+      .sort((a, b) => (a.name).localeCompare(b.name));
+  }
+
   ngOnInit(): void {
+    this.isSysadmin = this.authService.isSysadmin;
+    this.dataColumns = this.isSysadmin
+      ? ['organisation', 'name', 'admins', 'count']
+      : ['name', 'admins', 'count'];
     this.loadData();
   }
 
@@ -411,6 +461,10 @@ export class ManageTeamsComponent implements OnInit {
     if (this.myTeamsOnly) {
       const adminIds = this.authService.currentUser?.teamAdminIds ?? [];
       filtered = filtered.filter(t => adminIds.includes(Number(t.id)));
+    }
+
+    if (this.orgFilter) {
+      filtered = filtered.filter(t => String(t.organisationId) === String(this.orgFilter));
     }
 
     if (this.searchText) {
@@ -461,10 +515,7 @@ export class ManageTeamsComponent implements OnInit {
   }
 
   openMembers(team: Team): void {
-    const isNarrow = window.innerWidth < 768;
-    const navExpanded = this.userPreferencesService.preferences.navigationExpanded;
-    const railWidth = isNarrow ? 0 : (navExpanded ? 220 : 80);
-    const leftOffset = railWidth > 0 ? `${railWidth}px` : undefined;
+    const leftOffset = this.userPreferencesService.getManagementPanelLeftOffset();
 
     const panelRef = this.panelService.open<TeamMembersPanelComponent, TeamMembersPanelData, boolean>(
       TeamMembersPanelComponent,
@@ -474,7 +525,8 @@ export class ManageTeamsComponent implements OnInit {
           teamId: team.id,
           teamName: team.name,
           members: team.members,
-          allMembers: this.allMembers
+          allMembers: this.allMembers,
+          allTeams: this.teams.map(t => ({ id: t.id, name: t.name }))
         }
       }
     );
@@ -485,10 +537,7 @@ export class ManageTeamsComponent implements OnInit {
   }
 
   openAddTeam(): void {
-    const isNarrow = window.innerWidth < 768;
-    const navExpanded = this.userPreferencesService.preferences.navigationExpanded;
-    const railWidth = isNarrow ? 0 : (navExpanded ? 220 : 80);
-    const leftOffset = railWidth > 0 ? `${railWidth}px` : undefined;
+    const leftOffset = this.userPreferencesService.getManagementPanelLeftOffset();
 
     const addRef = this.panelService.open<AddTeamDialogComponent, void, boolean>(
       AddTeamDialogComponent,

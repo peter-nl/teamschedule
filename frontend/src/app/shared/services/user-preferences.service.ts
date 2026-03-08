@@ -148,6 +148,21 @@ export class UserPreferencesService {
     root.classList.add(`${theme}-theme`);
   }
 
+  /** Left offset for slide-in panels in non-management context (rail only). */
+  getPanelLeftOffset(): string | undefined {
+    const isNarrow = window.innerWidth < 768;
+    const railWidth = isNarrow ? 0 : (this.preferences.navigationExpanded ? 220 : 80);
+    return railWidth > 0 ? `${railWidth}px` : undefined;
+  }
+
+  /** Left offset for slide-in panels opened from within the management section (rail + nav bar). */
+  getManagementPanelLeftOffset(): string | undefined {
+    if (window.innerWidth < 768) return undefined;
+    const navBarWidth = this.preferences.navigationExpanded ? 200 : 80;
+    const railWidth = this.preferences.navigationExpanded ? 220 : 80;
+    return `${railWidth + navBarWidth}px`;
+  }
+
   resetToDefaults(): void {
     this.preferencesSubject.next(DEFAULT_PREFERENCES);
     this.applyTheme(DEFAULT_PREFERENCES.theme);

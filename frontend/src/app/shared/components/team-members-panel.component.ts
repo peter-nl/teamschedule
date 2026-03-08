@@ -9,14 +9,18 @@ import { MatDividerModule } from '@angular/material/divider';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { SlideInPanelRef, SlideInPanelService, SLIDE_IN_PANEL_DATA } from '../services/slide-in-panel.service';
 import { UserPreferencesService } from '../services/user-preferences.service';
+import { AuthService } from '../services/auth.service';
 import { TeamEditDialogComponent, TeamEditDialogData } from './team-edit-dialog.component';
-import { MemberDetailDialogComponent, MemberDetailDialogData } from './member-detail-dialog.component';
+import { MemberEditDialogComponent, MemberEditDialogData } from './member-edit-dialog.component';
+import { gql } from '@apollo/client';
+import { apolloClient } from '../../app.config';
 
 export interface TeamMembersPanelData {
   teamId: string;
   teamName: string;
   members: Member[];
   allMembers: Member[];
+  allTeams: { id: string; name: string }[];
 }
 
 interface Member {
@@ -30,6 +34,17 @@ interface Member {
   role: string;
   avatarUrl: string | null;
 }
+
+const GET_MEMBER_PROFILE_QUERY = gql`
+  query GetMemberProfile($id: String!) {
+    memberProfile(id: $id) {
+      id username firstName lastName particles email role avatarUrl phone dateOfBirth
+      isOrgAdmin
+      adminOfTeams { id name }
+      teams { id name }
+    }
+  }
+`;
 
 @Component({
   selector: 'app-team-members-panel',
@@ -264,6 +279,7 @@ export class TeamMembersPanelComponent implements AfterViewInit {
     public panelRef: SlideInPanelRef<boolean>,
     private panelService: SlideInPanelService,
     private userPreferencesService: UserPreferencesService,
+    private authService: AuthService,
     private translate: TranslateService
   ) {
     this.dataSource.data = [...data.members];
@@ -280,23 +296,48 @@ export class TeamMembersPanelComponent implements AfterViewInit {
     };
   }
 
-  openMemberDetail(member: Member): void {
-    const isNarrow = window.innerWidth < 768;
-    const navExpanded = this.userPreferencesService.preferences.navigationExpanded;
-    const railWidth = isNarrow ? 0 : (navExpanded ? 220 : 80);
-    const leftOffset = railWidth > 0 ? `${railWidth}px` : undefined;
+  async openMemberDetail(member: Member): Promise<void> {
+    const leftOffset = this.userPreferencesService.getManagementPanelLeftOffset();
+    const result = await apolloClient.query({
+      query: GET_MEMBER_PROFILE_QUERY,
+      variables: { id: member.id },
+      fetchPolicy: 'network-only'
+    }) as any;
+    const full = result.data.memberProfile;
+    const isSelf = this.authService.currentUser?.id === member.id;
+    const isManager = this.authService.isAnyAdmin || this.authService.isSysadmin;
 
-    this.panelService.open<MemberDetailDialogComponent, MemberDetailDialogData>(
-      MemberDetailDialogComponent,
-      { leftOffset, data: { memberId: member.id, leftOffset } }
+    this.panelService.open<MemberEditDialogComponent, MemberEditDialogData, boolean>(
+      MemberEditDialogComponent,
+      {
+        leftOffset,
+        data: {
+          leftOffset,
+          member: {
+            id: full.id,
+            username: full.username,
+            firstName: full.firstName,
+            lastName: full.lastName,
+            particles: full.particles,
+            email: full.email,
+            role: full.role,
+            isOrgAdmin: full.isOrgAdmin ?? false,
+            adminOfTeams: full.adminOfTeams ?? [],
+            teams: full.teams,
+            phone: full.phone,
+            dateOfBirth: full.dateOfBirth,
+            avatarUrl: full.avatarUrl
+          },
+          allTeams: this.data.allTeams,
+          isSelf,
+          isManager
+        }
+      }
     );
   }
 
   openEdit(): void {
-    const isNarrow = window.innerWidth < 768;
-    const navExpanded = this.userPreferencesService.preferences.navigationExpanded;
-    const railWidth = isNarrow ? 0 : (navExpanded ? 220 : 80);
-    const leftOffset = railWidth > 0 ? `${railWidth}px` : undefined;
+    const leftOffset = this.userPreferencesService.getManagementPanelLeftOffset();
 
     const editRef = this.panelService.open<TeamEditDialogComponent, TeamEditDialogData, boolean>(
       TeamEditDialogComponent,
