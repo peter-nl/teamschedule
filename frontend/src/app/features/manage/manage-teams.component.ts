@@ -54,9 +54,15 @@ interface OrgGroupRow {
 
 type TableRow = OrgGroupRow | Team;
 
+const GET_ORGANISATIONS_QUERY = gql`
+  query GetOrgsForTeams {
+    organisations { id name }
+  }
+`;
+
 const GET_TEAMS_QUERY = gql`
-  query GetTeams {
-    teams {
+  query GetTeams($orgId: ID) {
+    teams(orgId: $orgId) {
       id
       name
       organisationId
@@ -72,8 +78,8 @@ const GET_TEAMS_QUERY = gql`
 `;
 
 const GET_MEMBERS_QUERY = gql`
-  query GetMembers {
-    members {
+  query GetMembers($orgId: ID) {
+    members(orgId: $orgId) {
       id firstName lastName particles email
     }
   }
@@ -94,8 +100,30 @@ const GET_MEMBERS_QUERY = gql`
     TranslateModule
   ],
   template: `
-    <div class="teams-view" *ngIf="!loading; else loadingTpl">
+    <!-- Sysadmin: org picker first step -->
+    <div class="org-picker" *ngIf="isSysadmin && !selectedOrg">
+      <div class="org-picker-header">
+        <mat-icon>group_work</mat-icon>
+        <span>{{ 'teams.selectOrgFirst' | translate }}</span>
+      </div>
+      <div *ngIf="orgsLoading" class="loading">
+        <mat-progress-spinner mode="indeterminate" diameter="32"></mat-progress-spinner>
+      </div>
+      <div class="org-picker-list" *ngIf="!orgsLoading">
+        <button *ngFor="let o of organisations" class="org-pick-btn" (click)="selectOrg(o)">
+          <mat-icon>corporate_fare</mat-icon>
+          <span>{{ o.name }}</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="teams-view" *ngIf="!isSysadmin || selectedOrg">
+      <ng-container *ngIf="!loading; else loadingTpl">
       <div class="view-header">
+        <button mat-icon-button *ngIf="isSysadmin" (click)="clearOrg()" [matTooltip]="'common.back' | translate">
+          <mat-icon>arrow_back</mat-icon>
+        </button>
+        <span *ngIf="isSysadmin && selectedOrg" class="selected-org-name">{{ selectedOrg.name }}</span>
         <button mat-icon-button
                 (click)="openAddTeam()"
                 [matTooltip]="'teams.addTeam' | translate">
@@ -105,12 +133,6 @@ const GET_MEMBERS_QUERY = gql`
                [(ngModel)]="searchText"
                (ngModelChange)="buildRows()"
                [placeholder]="'teams.searchTeams' | translate">
-        <select *ngIf="isSysadmin" class="org-filter-select"
-                [(ngModel)]="orgFilter"
-                (ngModelChange)="buildRows()">
-          <option value="">{{ 'teams.organisation' | translate }}: {{ 'sysadmin.allOrgs' | translate }}</option>
-          <option *ngFor="let o of orgOptions" [value]="o.id">{{ o.name }}</option>
-        </select>
       </div>
 
       <div class="table-scroll">
@@ -178,6 +200,7 @@ const GET_MEMBERS_QUERY = gql`
           </tr>
         </mat-table>
       </div>
+      </ng-container>
     </div>
 
     <ng-template #loadingTpl>
@@ -395,6 +418,64 @@ const GET_MEMBERS_QUERY = gql`
       flex: 1;
       padding: 48px;
     }
+
+    .org-picker {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      padding: 24px;
+      gap: 16px;
+    }
+
+    .org-picker-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--mat-sys-on-surface-variant);
+    }
+
+    .org-picker-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .org-pick-btn {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border: none;
+      border-radius: 12px;
+      background: transparent;
+      color: var(--mat-sys-on-surface);
+      font-size: 14px;
+      font-family: inherit;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .org-pick-btn:hover {
+      background: var(--mat-sys-surface-container);
+    }
+
+    .org-pick-btn mat-icon {
+      color: var(--mat-sys-primary);
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+    }
+
+    .selected-org-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--mat-sys-on-surface);
+      flex: 1;
+    }
   `]
 })
 export class ManageTeamsComponent implements OnInit {
@@ -403,11 +484,13 @@ export class ManageTeamsComponent implements OnInit {
   teams: Team[] = [];
   tableRows: TableRow[] = [];
   allMembers: Member[] = [];
+  organisations: { id: string; name: string }[] = [];
+  selectedOrg: { id: string; name: string } | null = null;
   loading = true;
+  orgsLoading = false;
   searchText = '';
-  orgFilter = '';
   sortDirection: 'asc' | 'desc' = 'asc';
-  dataColumns: string[] = [];
+  dataColumns: string[] = ['name', 'admins', 'count'];
   isSysadmin = false;
 
   isGroupRow = (_: number, row: TableRow): boolean => (row as OrgGroupRow).isGroup === true;
@@ -422,28 +505,46 @@ export class ManageTeamsComponent implements OnInit {
     private translate: TranslateService
   ) {}
 
-  get orgOptions(): { id: number | null; name: string }[] {
-    const seen = new Set<number | null>();
-    return this.teams
-      .filter(t => { if (seen.has(t.organisationId)) return false; seen.add(t.organisationId); return true; })
-      .map(t => ({ id: t.organisationId, name: t.organisationName ?? '—' }))
-      .sort((a, b) => (a.name).localeCompare(b.name));
-  }
-
   ngOnInit(): void {
     this.isSysadmin = this.authService.isSysadmin;
-    this.dataColumns = this.isSysadmin
-      ? ['organisation', 'name', 'admins', 'count']
-      : ['name', 'admins', 'count'];
+    if (this.isSysadmin) {
+      this.loadOrganisations();
+    } else {
+      this.loadData();
+    }
+  }
+
+  async loadOrganisations(): Promise<void> {
+    this.orgsLoading = true;
+    try {
+      const result: any = await apolloClient.query({ query: GET_ORGANISATIONS_QUERY, fetchPolicy: 'network-only' });
+      this.organisations = result.data.organisations.slice().sort((a: any, b: any) => a.name.localeCompare(b.name));
+    } catch {
+      this.notificationService.error(this.translate.instant('teams.messages.loadFailed'));
+    } finally {
+      this.orgsLoading = false;
+    }
+  }
+
+  selectOrg(org: { id: string; name: string }): void {
+    this.selectedOrg = org;
     this.loadData();
+  }
+
+  clearOrg(): void {
+    this.selectedOrg = null;
+    this.teams = [];
+    this.tableRows = [];
+    this.searchText = '';
   }
 
   async loadData(): Promise<void> {
     this.loading = true;
+    const orgId = this.selectedOrg?.id ?? undefined;
     try {
       const [teamsResult, membersResult]: any[] = await Promise.all([
-        apolloClient.query({ query: GET_TEAMS_QUERY, fetchPolicy: 'network-only' }),
-        apolloClient.query({ query: GET_MEMBERS_QUERY, fetchPolicy: 'network-only' })
+        apolloClient.query({ query: GET_TEAMS_QUERY, variables: { orgId }, fetchPolicy: 'network-only' }),
+        apolloClient.query({ query: GET_MEMBERS_QUERY, variables: { orgId }, fetchPolicy: 'network-only' })
       ]);
       this.teams = teamsResult.data.teams;
       this.allMembers = membersResult.data.members;
@@ -463,43 +564,13 @@ export class ManageTeamsComponent implements OnInit {
       filtered = filtered.filter(t => adminIds.includes(Number(t.id)));
     }
 
-    if (this.orgFilter) {
-      filtered = filtered.filter(t => String(t.organisationId) === String(this.orgFilter));
-    }
-
     if (this.searchText) {
       const term = this.searchText.toLowerCase();
-      filtered = filtered.filter(t =>
-        t.name.toLowerCase().includes(term) ||
-        (t.organisationName ?? '').toLowerCase().includes(term)
-      );
+      filtered = filtered.filter(t => t.name.toLowerCase().includes(term));
     }
 
     const dir = this.sortDirection === 'asc' ? 1 : -1;
-    const sorted = [...filtered].sort((a, b) => {
-      const orgCmp = (a.organisationName ?? '').localeCompare(b.organisationName ?? '');
-      return orgCmp !== 0 ? orgCmp : a.name.localeCompare(b.name) * dir;
-    });
-
-    // Build interleaved rows: org group header + team rows
-    const rows: TableRow[] = [];
-    let lastOrgId: number | null | undefined = undefined;
-
-    for (const team of sorted) {
-      if (team.organisationId !== lastOrgId) {
-        const orgTeams = sorted.filter(t => t.organisationId === team.organisationId);
-        rows.push({
-          isGroup: true,
-          orgId: team.organisationId,
-          orgName: team.organisationName ?? '—',
-          teamCount: orgTeams.length
-        });
-        lastOrgId = team.organisationId;
-      }
-      rows.push(team);
-    }
-
-    this.tableRows = rows;
+    this.tableRows = [...filtered].sort((a, b) => a.name.localeCompare(b.name) * dir);
   }
 
   formatAdmins(admins: TeamAdmin[]): string {
@@ -539,9 +610,9 @@ export class ManageTeamsComponent implements OnInit {
   openAddTeam(): void {
     const leftOffset = this.userPreferencesService.getManagementPanelLeftOffset();
 
-    const addRef = this.panelService.open<AddTeamDialogComponent, void, boolean>(
+    const addRef = this.panelService.open<AddTeamDialogComponent, { orgId?: string }, boolean>(
       AddTeamDialogComponent,
-      { leftOffset }
+      { leftOffset, data: { orgId: this.selectedOrg?.id } }
     );
 
     addRef.afterClosed().subscribe(saved => {

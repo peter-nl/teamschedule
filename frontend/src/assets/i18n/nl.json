@@ -291,6 +291,7 @@
   "teams": {
     "addTeam": "Team toevoegen",
     "searchTeams": "Teams zoeken",
+    "selectOrgFirst": "Selecteer een organisatie om de teams te beheren",
     "id": "ID",
     "name": "Naam",
     "members": "Leden",

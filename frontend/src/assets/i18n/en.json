@@ -291,6 +291,7 @@
   "teams": {
     "addTeam": "Add team",
     "searchTeams": "Search teams",
+    "selectOrgFirst": "Select an organisation to manage its teams",
     "id": "ID",
     "name": "Name",
     "members": "Members",

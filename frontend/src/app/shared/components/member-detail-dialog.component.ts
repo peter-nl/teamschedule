@@ -214,7 +214,7 @@ const UPDATE_AVATAR_MUTATION = gql`
           </div>
 
           <!-- Teams -->
-          <div class="detail-row">
+          <div class="detail-row" *ngIf="!authService.isSysadmin">
             <span class="detail-label">{{ 'memberDetail.teams' | translate }}</span>
             <div class="teams-list" *ngIf="member.teams.length > 0">
               <mat-chip-set>
@@ -225,7 +225,7 @@ const UPDATE_AVATAR_MUTATION = gql`
           </div>
 
           <!-- Work schedule -->
-          <div class="detail-row" *ngIf="memberSchedule">
+          <div class="detail-row" *ngIf="memberSchedule && !authService.isSysadmin">
             <span class="detail-label">{{ 'memberSchedule.title' | translate }}</span>
             <div style="flex:1">
               <div *ngFor="let weekLabel of ['weekA', 'weekB']; let wi = index" class="schedule-week-display">
@@ -254,7 +254,7 @@ const UPDATE_AVATAR_MUTATION = gql`
           </div>
 
           <!-- Holidays -->
-          <div class="detail-row">
+          <div class="detail-row" *ngIf="!authService.isSysadmin">
             <span class="detail-label">{{ 'profile.holidays.title' | translate }}</span>
             <div *ngIf="holidaysLoading" style="display:flex; align-items:center; gap:8px; padding:4px 0;">
               <mat-spinner diameter="16"></mat-spinner>

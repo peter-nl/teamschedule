@@ -11,6 +11,8 @@ export interface SlideInPanelConfig<D = any> {
   width?: string;
   /** Left offset (e.g. '220px'). Panel fills from this offset to the right edge. Backdrop also starts here. */
   leftOffset?: string;
+  /** Bottom offset (e.g. '56px'). Backdrop stops above this height (e.g. to leave the nav rail clickable). */
+  bottomOffset?: string;
   panelClass?: string | string[];
 }
 
@@ -62,12 +64,11 @@ export class SlideInPanelService {
     this.attachComponent(overlayRef, component, config, panelRef);
     this.panelStack.push(panelRef);
 
-    // When leftOffset is set, shift backdrop so navigation stays visible
-    if (config.leftOffset) {
-      const backdropEl = overlayRef.backdropElement;
-      if (backdropEl) {
-        backdropEl.style.left = config.leftOffset;
-      }
+    // Shift backdrop so navigation stays visible
+    const backdropEl = overlayRef.backdropElement;
+    if (backdropEl) {
+      if (config.leftOffset) backdropEl.style.left = config.leftOffset;
+      if (config.bottomOffset) backdropEl.style.bottom = config.bottomOffset;
     }
 
     // Handle backdrop click
@@ -108,7 +109,6 @@ export class SlideInPanelService {
     const positionStrategy = this.overlay.position()
       .global()
       .top('0')
-      .bottom('0')
       .right('0');
 
     if (useFullWidth) {
@@ -122,6 +122,7 @@ export class SlideInPanelService {
       scrollStrategy: this.overlay.scrollStrategies.block(),
       width: useFullWidth ? `calc(100% - ${config.leftOffset})` : (config.width || '480px'),
       maxWidth: '100vw',
+      height: config.bottomOffset ? `calc(100dvh - ${config.bottomOffset})` : undefined,
       panelClass: panelClasses
     });
 

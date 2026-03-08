@@ -782,9 +782,7 @@ export class ManageOrgSettingsComponent implements OnInit, OnChanges {
         this.loading = false;
       },
       error: () => {
-        if (!this.orgId) {
-          this.applySettings(this.appSettingsService.settings);
-        }
+        this.applySettings(this.appSettingsService.settings);
         this.loading = false;
       }
     });

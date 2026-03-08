@@ -86,9 +86,7 @@ body {
 .slide-in-panel-pane {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
-  max-height: 100dvh;
+  height: 100%;
   overflow: hidden;
   animation: slideInFromRight 0.3s ease-out forwards;
 

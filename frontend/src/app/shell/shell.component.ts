@@ -539,7 +539,7 @@ interface ManagementItem {
         padding: 0;
         position: relative;
         top: auto;
-        order: 2;
+        order: 3;
         transition: none;
       }
 
@@ -590,20 +590,20 @@ interface ManagementItem {
       }
 
       .nav-bar {
-        position: fixed;
-        bottom: 56px;
-        left: 0;
-        right: 0;
+        position: relative;
         width: 100%;
         min-width: unset;
-        height: auto;
-        max-height: 60vh;
+        height: 56px;
+        min-height: 56px;
+        flex-direction: row;
+        flex-shrink: 0;
+        align-items: center;
         border-right: none;
         border-top: 1px solid var(--mat-sys-outline-variant);
-        border-radius: 16px 16px 0 0;
-        box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.15);
-        z-index: 150;
-        animation: slideUp 200ms ease;
+        border-radius: 0;
+        box-shadow: none;
+        z-index: auto;
+        order: 2;
       }
 
       .nav-bar .nav-bar-spacer {
@@ -611,16 +611,28 @@ interface ManagementItem {
       }
 
       .nav-bar .nav-bar-items {
-        padding: 16px;
+        flex-direction: row;
+        justify-content: space-around;
+        padding: 0;
+        gap: 0;
+        width: 100%;
       }
 
-      @keyframes slideUp {
-        from { transform: translateY(100%); opacity: 0; }
-        to { transform: translateY(0); opacity: 1; }
+      .nav-bar .nav-bar-item {
+        flex: 1;
+        flex-direction: column;
+        justify-content: center;
+        padding: 6px 4px;
+        gap: 2px;
+      }
+
+      .nav-bar .nav-bar-item span {
+        font-size: 10px;
+        text-align: center;
       }
 
       .nav-bar-backdrop {
-        display: block;
+        display: none;
       }
 
       .main-content {
@@ -787,8 +799,12 @@ export class ShellComponent {
   }
 
   toggleNavBar(type: NavBarType): void {
-    // Already on this nav bar – do nothing (Schedule click handles leaving management)
-    if (this.activeNavBar === type) return;
+    // Toggle: close if already active
+    if (this.activeNavBar === type) {
+      this.activeNavBar = null;
+      this.activePanel = null;
+      return;
+    }
     this.panelService.closeAll();
     this.activeNavBar = type;
     // Auto-select the first sub-item so a view is shown immediately
@@ -869,13 +885,15 @@ export class ShellComponent {
     const userId = this.authService.currentUser?.id;
     if (!userId) return;
     this.activeNavBar = null;
+    this.activePanel = null;
     this.panelService.closeAll();
     const isNarrow = window.innerWidth < this.TABLET_BREAKPOINT;
     const railWidth = isNarrow ? 0 : (this.isExpanded ? 220 : 80);
     const leftOffset = railWidth > 0 ? `${railWidth}px` : undefined;
+    const bottomOffset = this.isMobile ? '56px' : undefined;
     this.panelService.open<MemberDetailDialogComponent, MemberDetailDialogData>(
       MemberDetailDialogComponent,
-      { leftOffset, data: { memberId: userId, leftOffset } }
+      { leftOffset, bottomOffset, data: { memberId: userId, leftOffset } }
     );
   }
 
