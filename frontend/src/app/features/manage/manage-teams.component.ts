@@ -24,7 +24,6 @@ interface Member {
   lastName: string;
   particles: string | null;
   email: string | null;
-  username: string;
   role: string;
   avatarUrl: string | null;
 }
@@ -68,7 +67,7 @@ const GET_TEAMS_QUERY = gql`
       organisationId
       organisationName
       members {
-        id memberNo firstName lastName particles email username role avatarUrl
+        id memberNo firstName lastName particles email role avatarUrl
       }
       teamAdmins {
         id firstName lastName particles

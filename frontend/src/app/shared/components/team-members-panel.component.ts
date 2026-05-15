@@ -30,7 +30,6 @@ interface Member {
   lastName: string;
   particles: string | null;
   email: string | null;
-  username: string;
   role: string;
   avatarUrl: string | null;
 }
@@ -38,7 +37,7 @@ interface Member {
 const GET_MEMBER_PROFILE_QUERY = gql`
   query GetMemberProfile($id: String!) {
     memberProfile(id: $id) {
-      id username firstName lastName particles email role avatarUrl phone dateOfBirth
+      id firstName lastName particles email role avatarUrl phone dateOfBirth
       isOrgAdmin
       adminOfTeams { id name }
       teams { id name }
@@ -99,10 +98,6 @@ const GET_MEMBER_PROFILE_QUERY = gql`
             </mat-cell>
           </ng-container>
 
-          <ng-container matColumnDef="username">
-            <mat-header-cell *matHeaderCellDef mat-sort-header>{{ 'members.username' | translate }}</mat-header-cell>
-            <mat-cell *matCellDef="let m" class="secondary-cell">{{ m.username }}</mat-cell>
-          </ng-container>
 
           <ng-container matColumnDef="email">
             <mat-header-cell *matHeaderCellDef mat-sort-header>{{ 'members.email' | translate }}</mat-header-cell>
@@ -271,7 +266,7 @@ const GET_MEMBER_PROFILE_QUERY = gql`
 export class TeamMembersPanelComponent implements AfterViewInit {
   @ViewChild(MatSort) sort!: MatSort;
 
-  tableColumns = ['avatar', 'no', 'name', 'username', 'email', 'role'];
+  tableColumns = ['avatar', 'no', 'name', 'email', 'role'];
   dataSource = new MatTableDataSource<Member>([]);
 
   constructor(
@@ -315,7 +310,6 @@ export class TeamMembersPanelComponent implements AfterViewInit {
           leftOffset,
           member: {
             id: full.id,
-            username: full.username,
             firstName: full.firstName,
             lastName: full.lastName,
             particles: full.particles,

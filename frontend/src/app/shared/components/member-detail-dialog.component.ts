@@ -28,7 +28,6 @@ import { MemberEditDialogComponent, MemberEditDialogData } from './member-edit-d
 interface MemberFull {
   id: string;
   memberNo: number;
-  username: string;
   firstName: string;
   lastName: string;
   particles: string | null;
@@ -57,7 +56,6 @@ const GET_MEMBER_QUERY = gql`
     memberProfile(id: $id) {
       id
       memberNo
-      username
       firstName
       lastName
       particles
@@ -86,11 +84,6 @@ const DELETE_MEMBER_MUTATION = gql`
   }
 `;
 
-const UPDATE_USERNAME_MUTATION = gql`
-  mutation UpdateUsername($id: String!, $username: String!) {
-    updateUsername(id: $id, username: $username) { id username }
-  }
-`;
 
 const UPDATE_EXTENDED_MUTATION = gql`
   mutation UpdateMemberExtended(
@@ -149,7 +142,6 @@ const UPDATE_AVATAR_MUTATION = gql`
             <span class="member-name">{{ memberDisplayName }}</span>
             <div class="member-meta">
               <span class="member-no-badge" *ngIf="member.memberNo">#{{ member.memberNo }}</span>
-              <span class="member-username">{{ member.username }}</span>
             </div>
           </div>
         </div>
@@ -175,18 +167,6 @@ const UPDATE_AVATAR_MUTATION = gql`
           <div class="detail-row">
             <span class="detail-label">{{ 'memberDetail.email' | translate }}</span>
             <span class="detail-value" [class.muted]="!member.email">{{ member.email || ('memberDetail.notSet' | translate) }}</span>
-          </div>
-
-          <!-- Username – editable for canEdit -->
-          <div class="detail-row" *ngIf="canEdit">
-            <span class="detail-label">{{ 'members.username' | translate }}</span>
-            <mat-form-field appearance="outline" class="inline-field">
-              <input matInput [(ngModel)]="editUsername" (blur)="onUsernameBlur()">
-            </mat-form-field>
-          </div>
-          <div class="detail-row" *ngIf="!canEdit">
-            <span class="detail-label">{{ 'members.username' | translate }}</span>
-            <span class="detail-value">{{ member.username }}</span>
           </div>
 
           <!-- Phone – editable for canEdit -->
@@ -404,7 +384,7 @@ const UPDATE_AVATAR_MUTATION = gql`
       padding: 1px 7px;
     }
 
-    .member-username {
+    .member-no-badge-unused {
       font-size: 13px;
       color: var(--mat-sys-on-surface-variant);
     }
@@ -653,10 +633,8 @@ export class MemberDetailDialogComponent implements OnInit {
   scheduleDisabledLoading = false;
 
   // Editable field models
-  editUsername = '';
   editPhone = '';
   editDateOfBirth = '';
-  private savedUsername = '';
   private savedPhone = '';
   private savedDateOfBirth = '';
 
@@ -723,8 +701,6 @@ export class MemberDetailDialogComponent implements OnInit {
       this.allTeams = teamsResult.data.teams;
       this.member = memberResult.data.memberProfile || null;
       if (this.member) {
-        this.editUsername = this.member.username;
-        this.savedUsername = this.member.username;
         this.editPhone = this.member.phone ?? '';
         this.savedPhone = this.member.phone ?? '';
         this.editDateOfBirth = this.member.dateOfBirth ?? '';
@@ -792,27 +768,6 @@ export class MemberDetailDialogComponent implements OnInit {
     };
     reader.readAsDataURL(file);
     (event.target as HTMLInputElement).value = '';
-  }
-
-  onUsernameBlur(): void {
-    const trimmed = this.editUsername.trim();
-    if (!trimmed || trimmed === this.savedUsername) return;
-    if (!this.member) return;
-    apolloClient.mutate({
-      mutation: UPDATE_USERNAME_MUTATION,
-      variables: { id: this.member.id, username: trimmed }
-    }).then(() => {
-      this.savedUsername = trimmed;
-      this.editUsername = trimmed;
-      this.member!.username = trimmed;
-      this.hasChanges = true;
-      this.notificationService.success(this.translate.instant('profile.messages.updateSaved'));
-    }).catch((err: any) => {
-      this.editUsername = this.savedUsername;
-      const msg = err?.graphQLErrors?.[0]?.message || this.translate.instant('profile.messages.updateFailed');
-      this.notificationService.error(msg);
-      this.cdr.markForCheck();
-    });
   }
 
   onExtendedBlur(): void {

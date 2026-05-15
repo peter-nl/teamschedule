@@ -22,7 +22,6 @@ const GET_MEMBER_PROFILE = gql`
     memberProfile(id: $id) {
       id
       memberNo
-      username
       phone
       dateOfBirth
       avatarUrl
@@ -38,12 +37,6 @@ const UPDATE_PROFILE_EXTENDED = gql`
     updateMemberProfile(id: $id, firstName: $firstName, lastName: $lastName, particles: $particles, email: $email, phone: $phone, dateOfBirth: $dateOfBirth) {
       id firstName lastName particles email phone dateOfBirth
     }
-  }
-`;
-
-const UPDATE_USERNAME_MUTATION = gql`
-  mutation UpdateUsername($id: String!, $username: String!) {
-    updateUsername(id: $id, username: $username) { id username }
   }
 `;
 
@@ -86,7 +79,6 @@ const UPDATE_AVATAR_MUTATION = gql`
             <div class="profile-title">{{ 'profile.title' | translate }}</div>
             <div class="profile-subtitle">
               <span class="member-no-badge" *ngIf="memberNo">#{{ memberNo }}</span>
-              <span *ngIf="username" class="profile-username">{{ username }}</span>
             </div>
           </div>
         </div>
@@ -109,15 +101,6 @@ const UPDATE_AVATAR_MUTATION = gql`
 
         <h3 class="section-title">{{ 'profile.details' | translate }}</h3>
         <div class="profile-form">
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>{{ 'members.username' | translate }}</mat-label>
-            <input matInput
-                   [(ngModel)]="username"
-                   name="username"
-                   (blur)="onUsernameBlur()">
-            <mat-hint>{{ 'members.usernameHint' | translate }}</mat-hint>
-          </mat-form-field>
-
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>{{ 'profile.firstName' | translate }}</mat-label>
             <input matInput
@@ -238,11 +221,6 @@ const UPDATE_AVATAR_MUTATION = gql`
       display: flex;
       align-items: center;
       gap: 6px;
-    }
-
-    .profile-username {
-      font-size: 13px;
-      color: var(--mat-sys-on-surface-variant);
     }
 
     .avatar-wrapper {
@@ -395,8 +373,6 @@ export class AccountProfileComponent implements OnInit {
   private savedExtended = { phone: '', dateOfBirth: '' };
   avatarUrl: string | null = null;
   memberNo = 0;
-  username = '';
-  private savedUsername = '';
 
   get safeAvatarUrl(): SafeUrl | null {
     if (!this.avatarUrl) return null;
@@ -454,34 +430,12 @@ export class AccountProfileComponent implements OnInit {
       if (p) {
         this.avatarUrl = p.avatarUrl ?? null;
         this.memberNo = p.memberNo ?? 0;
-        this.username = p.username ?? '';
-        this.savedUsername = this.username;
         const snap = { phone: p.phone ?? '', dateOfBirth: p.dateOfBirth ?? '' };
         this.extendedForm = { ...snap };
         this.savedExtended = { ...snap };
         this.cdr.markForCheck();
       }
     }).catch(() => {});
-  }
-
-  onUsernameBlur(): void {
-    const trimmed = this.username.trim();
-    if (!trimmed || trimmed === this.savedUsername) return;
-    const user = this.authService.currentUser;
-    if (!user) return;
-    apolloClient.mutate({
-      mutation: UPDATE_USERNAME_MUTATION,
-      variables: { id: user.id, username: trimmed }
-    }).then(() => {
-      this.savedUsername = trimmed;
-      this.username = trimmed;
-      this.notificationService.success(this.translate.instant('profile.messages.updateSaved'));
-    }).catch((err: any) => {
-      this.username = this.savedUsername;
-      const msg = err?.graphQLErrors?.[0]?.message || this.translate.instant('profile.messages.updateFailed');
-      this.notificationService.error(msg);
-      this.cdr.markForCheck();
-    });
   }
 
   triggerAvatarUpload(): void {

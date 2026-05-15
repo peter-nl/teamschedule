@@ -26,7 +26,6 @@ interface Team {
 interface Member {
   id: string;
   memberNo: number;
-  username: string;
   firstName: string;
   lastName: string;
   particles: string | null;
@@ -47,7 +46,6 @@ const GET_MEMBERS_QUERY = gql`
     members(orgId: $orgId) {
       id
       memberNo
-      username
       firstName
       lastName
       particles
@@ -146,10 +144,6 @@ const GET_ORG_LIST = gql`
               <mat-cell *matCellDef="let m">{{ displayName(m) }}</mat-cell>
             </ng-container>
 
-            <ng-container matColumnDef="username">
-              <mat-header-cell *matHeaderCellDef mat-sort-header>{{ 'members.username' | translate }}</mat-header-cell>
-              <mat-cell *matCellDef="let m" class="secondary-cell">{{ m.username }}</mat-cell>
-            </ng-container>
 
             <ng-container matColumnDef="email">
               <mat-header-cell *matHeaderCellDef mat-sort-header>{{ 'members.email' | translate }}</mat-header-cell>
@@ -384,8 +378,8 @@ export class ManageMembersComponent implements OnInit, AfterViewInit {
   allTeams: Team[] = [];
   loading = true;
   dataSource = new MatTableDataSource<Member>([]);
-  tableColumns = ['avatar', 'no', 'name', 'username', 'email', 'role'];
-  sysadminColumns = ['avatar', 'no', 'name', 'username', 'email', 'org', 'role'];
+  tableColumns = ['avatar', 'no', 'name', 'email', 'role'];
+  sysadminColumns = ['avatar', 'no', 'name', 'email', 'org', 'role'];
 
   orgList: { id: string; name: string }[] = [];
   selectedOrgId = '';
@@ -461,8 +455,7 @@ export class ManageMembersComponent implements OnInit, AfterViewInit {
         m.firstName.toLowerCase().includes(term) ||
         m.lastName.toLowerCase().includes(term) ||
         (m.particles || '').toLowerCase().includes(term) ||
-        (m.email || '').toLowerCase().includes(term) ||
-        (m.username || '').toLowerCase().includes(term)
+        (m.email || '').toLowerCase().includes(term)
       );
     }
 
@@ -506,7 +499,6 @@ export class ManageMembersComponent implements OnInit, AfterViewInit {
           leftOffset,
           member: {
             id: member.id,
-            username: member.username,
             firstName: member.firstName,
             lastName: member.lastName,
             particles: member.particles,

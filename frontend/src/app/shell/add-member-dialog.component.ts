@@ -31,7 +31,7 @@ const GET_TEAMS_QUERY = gql`
 const LOOKUP_PERSON_QUERY = gql`
   query LookupPersonByEmail($email: String!) {
     lookupPersonByEmail(email: $email) {
-      id firstName lastName username
+      id firstName lastName email
     }
   }
 `;
@@ -114,8 +114,8 @@ const ADD_MEMBER_TO_TEAM_MUTATION = gql`
             <span>{{ existingPerson!.firstName }}</span>
             <span class="label">{{ 'addMember.lastName' | translate }}</span>
             <span>{{ existingPerson!.lastName }}</span>
-            <span class="label">{{ 'login.username' | translate }}</span>
-            <span>{{ existingPerson!.username }}</span>
+            <span class="label">{{ 'login.email' | translate }}</span>
+            <span>{{ existingPerson!.email }}</span>
           </div>
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>{{ 'addMember.assignTeams' | translate }}</mat-label>
@@ -276,7 +276,7 @@ export class AddMemberDialogComponent implements OnInit {
   step: 'email' | 'add-existing' | 'create' = 'email';
   emailInput = '';
   checking = false;
-  existingPerson: { id: string; firstName: string; lastName: string; username: string } | null = null;
+  existingPerson: { id: string; firstName: string; lastName: string; email: string } | null = null;
 
   memberForm = {
     firstName: '',

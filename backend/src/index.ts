@@ -16,7 +16,7 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 // Auth context type
 interface AuthUser {
   id: string;
-  username: string;
+  email: string;
   role: string;
   organisationId: number | null;
   isOrgAdmin: boolean;
@@ -33,7 +33,7 @@ function generateToken(member: AuthUser): string {
   return jwt.sign(
     {
       id: member.id,
-      username: member.username,
+      email: member.email,
       role: member.role,
       organisationId: member.organisationId,
       isOrgAdmin: member.isOrgAdmin,
@@ -138,6 +138,30 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
+async function deleteExpiredDemos(): Promise<void> {
+  const expired = await pool.query(
+    'SELECT id FROM organisation WHERE is_demo = true AND demo_expires_at < NOW()'
+  );
+  for (const org of expired.rows) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('DELETE FROM member_holiday WHERE member_id IN (SELECT id FROM member WHERE organisation_id = $1)', [org.id]);
+      await client.query(`DELETE FROM person WHERE id IN (SELECT p.id FROM person p JOIN member m ON m.person_id = p.id WHERE m.organisation_id = $1 GROUP BY p.id HAVING COUNT(*) = 1)`, [org.id]);
+      await client.query('DELETE FROM member WHERE organisation_id = $1', [org.id]);
+      await client.query('DELETE FROM holiday_type WHERE organisation_id = $1', [org.id]);
+      await client.query('DELETE FROM team WHERE organisation_id = $1', [org.id]);
+      await client.query('DELETE FROM organisation WHERE id = $1', [org.id]);
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+}
+
 // Populate missing person avatars from randomuser.me thumbnails (fire-and-forget)
 async function populateMissingAvatars(): Promise<void> {
   try {
@@ -168,7 +192,7 @@ pool.connect(async (err, _client, release) => {
     release();
     try {
       await runMigrations(pool);
-      await pool.query('DELETE FROM organisation WHERE is_demo = true AND demo_expires_at < NOW()');
+      await deleteExpiredDemos();
       console.log('Expired demo organisations cleaned up');
       populateMissingAvatars();
     } catch (error) {
@@ -273,7 +297,6 @@ const typeDefs = `#graphql
   type Member {
     id: ID!
     memberNo: Int!
-    username: String!
     firstName: String!
     lastName: String!
     particles: String
@@ -330,7 +353,7 @@ const typeDefs = `#graphql
     id: ID!
     firstName: String!
     lastName: String!
-    username: String!
+    email: String
   }
 
   type AuthPayload {
@@ -507,12 +530,13 @@ const typeDefs = `#graphql
     updateScheduleDisabled(disabled: Boolean!): Member!
     # Demo (public)
     requestDemo(email: String!, lang: String): SimpleResult!
-    claimDemo(orgName: String!, newAdminId: String!, newPassword: String!): AuthPayload!
-    updateUsername(id: String!, username: String!): Member!
+    requestDemoConfirmation(email: String!, lang: String): SimpleResult!
+    setupDemo(token: String!, orgName: String!, password: String!): AuthPayload!
+    claimDemo(orgName: String!): AuthPayload!
     # Auth (public)
-    login(username: String!, password: String!): AuthPayload!
+    login(email: String!, password: String!): AuthPayload!
     selectOrg(personToken: String!, orgId: ID!): AuthPayload!
-    requestPasswordReset(username: String!): SimpleResult!
+    requestPasswordReset(email: String!): SimpleResult!
     resetPasswordWithToken(token: String!, newPassword: String!): AuthPayload!
     # Auth (self or elevated)
     updateMemberProfile(id: String!, firstName: String!, lastName: String!, particles: String, email: String, phone: String, dateOfBirth: String, avatarUrl: String): Member
@@ -530,7 +554,6 @@ function mapMemberRow(row: any) {
   return {
     id: row.id,
     memberNo: row.member_no ?? 0,
-    username: row.username ?? row.id,
     firstName: row.first_name,
     lastName: row.last_name,
     particles: row.particles,
@@ -570,7 +593,7 @@ const HOLIDAY_JOIN_SELECT = `
 // Standard person+member JOIN — column names match mapMemberRow expectations
 const PM_SELECT = `
   SELECT m.id, m.member_no, m.organisation_id, m.schedule_disabled, m.person_id,
-         p.username, p.first_name, p.last_name, p.particles,
+         p.first_name, p.last_name, p.particles,
          p.email, p.phone, p.date_of_birth, p.avatar_url, p.role
   FROM member m JOIN person p ON p.id = m.person_id
 `;
@@ -701,12 +724,12 @@ const resolvers = {
     lookupPersonByEmail: async (_: any, { email }: { email: string }, ctx: AuthContext) => {
       requireOrgAdmin(ctx);
       const result = await pool.query(
-        'SELECT id, first_name, last_name, username FROM person WHERE LOWER(email) = LOWER($1)',
+        'SELECT id, first_name, last_name, email FROM person WHERE LOWER(email) = LOWER($1)',
         [email]
       );
       if (result.rows.length === 0) return null;
       const row = result.rows[0];
-      return { id: row.id, firstName: row.first_name, lastName: row.last_name, username: row.username };
+      return { id: row.id, firstName: row.first_name, lastName: row.last_name, email: row.email };
     },
 
     member: async (_: any, { id }: { id: string }, ctx: AuthContext) => {
@@ -1065,7 +1088,7 @@ const resolvers = {
       // Email-first: check if a person with this email already exists
       if (email) {
         const existingPerson = await pool.query(
-          'SELECT id, first_name, last_name, username FROM person WHERE LOWER(email) = LOWER($1)',
+          'SELECT id, first_name, last_name, email FROM person WHERE LOWER(email) = LOWER($1)',
           [email]
         );
         if (existingPerson.rows.length > 0) {
@@ -1089,25 +1112,16 @@ const resolvers = {
         }
       }
 
-      // New person: derive unique username
-      const baseUsername = (firstName + lastName).toLowerCase().replace(/[^a-z0-9]/g, '');
-      const personId = crypto.randomUUID();
-      let candidateUsername = baseUsername || personId;
-      let counter = 2;
-      while (true) {
-        const uCheck = await pool.query('SELECT id FROM person WHERE LOWER(username) = LOWER($1)', [candidateUsername]);
-        if (uCheck.rows.length === 0) break;
-        candidateUsername = baseUsername + counter++;
-      }
-      // Email globally unique on person
+      // New person
       if (email) {
         const emailCheck = await pool.query('SELECT id FROM person WHERE LOWER(email) = LOWER($1)', [email]);
         if (emailCheck.rows.length > 0) throw new Error(`Email address "${email}" is already registered`);
       }
+      const personId = crypto.randomUUID();
       const hashedPassword = await bcrypt.hash(password, 10);
       await pool.query(
-        'INSERT INTO person (id, username, first_name, last_name, particles, email, password_hash) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-        [personId, candidateUsername, firstName, lastName, particles || null, email || null, hashedPassword]
+        'INSERT INTO person (id, first_name, last_name, particles, email, password_hash) VALUES ($1, $2, $3, $4, $5, $6)',
+        [personId, firstName, lastName, particles || null, email || null, hashedPassword]
       );
       const memberId = crypto.randomUUID();
       await pool.query(
@@ -1502,7 +1516,7 @@ const resolvers = {
         const isNl = lang === 'nl';
 
         // Clean up expired demos
-        await pool.query('DELETE FROM organisation WHERE is_demo = true AND demo_expires_at < NOW()');
+        await deleteExpiredDemos();
 
         // Rate limit: one demo per email per 24h
         const existing = await pool.query(
@@ -1581,17 +1595,11 @@ const resolvers = {
         const memberIds = [adminId, leadId, mem1Id, mem2Id, mem3Id];
         for (let i = 0; i < 5; i++) {
           const d = demoUserData(i);
-          const baseU = (d.firstName + d.lastName).toLowerCase().replace(/[^a-z0-9]/g, '');
-          let candidateU = baseU || memberIds[i];
-          let cnt = 2;
-          while ((await pool.query('SELECT id FROM person WHERE LOWER(username) = LOWER($1)', [candidateU])).rows.length > 0) {
-            candidateU = baseU + cnt++;
-          }
           const personId = crypto.randomUUID();
           await pool.query(
-            `INSERT INTO person (id, username, first_name, last_name, password_hash, phone, date_of_birth, avatar_url)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-            [personId, candidateU, d.firstName, d.lastName, hashes[i], d.phone, d.dateOfBirth, d.avatarUrl]
+            `INSERT INTO person (id, first_name, last_name, password_hash, phone, date_of_birth, avatar_url)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [personId, d.firstName, d.lastName, hashes[i], d.phone, d.dateOfBirth, d.avatarUrl]
           );
           await pool.query(
             'INSERT INTO member (id, person_id, organisation_id) VALUES ($1, $2, $3)',
@@ -1707,35 +1715,135 @@ const resolvers = {
       }
     },
 
-    claimDemo: async (_: any, { orgName, newAdminId, newPassword }: { orgName: string; newAdminId: string; newPassword: string }, ctx: AuthContext) => {
-      const user = requireAuth(ctx);
-      if (!user.isDemo) throw new Error('Current organisation is not a demo');
-      if (!user.isOrgAdmin) throw new Error('Only the org admin can register the demo');
-      if (!newAdminId || newAdminId.length > 10) throw new Error('Login ID must be 1–10 characters');
-      if (!/^[a-zA-Z0-9._-]+$/.test(newAdminId)) throw new Error('Login ID may only contain letters, digits, . - _');
+    requestDemoConfirmation: async (_: any, { email, lang }: { email: string; lang?: string }, ctx: AuthContext) => {
+      try {
+        const appUrl = process.env.APP_URL || 'http://localhost:4200';
+        const isNl = lang === 'nl';
 
-      // Check username not already taken on person table
-      const taken = await pool.query('SELECT id FROM person WHERE LOWER(username) = LOWER($1)', [newAdminId]);
-      if (taken.rows.length > 0) throw new Error('That username is already in use');
+        // Clean up expired confirmations
+        await pool.query(`DELETE FROM demo_confirmation WHERE expires_at < NOW()`);
 
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
-      const orgId = user.organisationId!;
-      const personId = crypto.randomUUID();
+        // Rate limit: one confirmation per email per hour
+        const recent = await pool.query(
+          `SELECT token FROM demo_confirmation WHERE LOWER(email) = LOWER($1) AND created_at > NOW() - INTERVAL '1 hour'`,
+          [email]
+        );
+        if (recent.rows.length > 0) {
+          const msg = isNl
+            ? 'Er is al een bevestigingsmail verstuurd. Controleer je inbox of probeer het over een uur opnieuw.'
+            : 'A confirmation email was already sent. Check your inbox or try again in an hour.';
+          return { success: false, message: msg };
+        }
+
+        // Create confirmation token
+        const tokenResult = await pool.query(
+          `INSERT INTO demo_confirmation (email, lang) VALUES ($1, $2) RETURNING token`,
+          [email.toLowerCase(), lang ?? 'en']
+        );
+        const token = tokenResult.rows[0].token;
+        const confirmUrl = `${appUrl}/demo-setup/${token}`;
+
+        const subject = isNl ? 'Bevestig je TeamSchedule demo' : 'Confirm your TeamSchedule demo';
+        const html = isNl ? `
+          <p>Bedankt voor je interesse in TeamSchedule!</p>
+          <p>Klik op de onderstaande link om je demo-omgeving in te stellen:</p>
+          <p><a href="${confirmUrl}" style="background:#1976d2;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block">Demo instellen</a></p>
+          <p>Of kopieer deze URL: <a href="${confirmUrl}">${confirmUrl}</a></p>
+          <p><small>Deze link is 24 uur geldig.</small></p>
+        ` : `
+          <p>Thank you for your interest in TeamSchedule!</p>
+          <p>Click the link below to set up your demo environment:</p>
+          <p><a href="${confirmUrl}" style="background:#1976d2;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block">Set up demo</a></p>
+          <p>Or copy this URL: <a href="${confirmUrl}">${confirmUrl}</a></p>
+          <p><small>This link is valid for 24 hours.</small></p>
+        `;
+        await sendEmail(email, subject, html);
+        logEvent('demo_confirmation_requested', null, ctx.ip, { email, lang: lang ?? 'en' });
+        return {
+          success: true,
+          message: isNl
+            ? 'Bevestigingsmail verstuurd! Controleer je inbox.'
+            : 'Confirmation email sent! Check your inbox.'
+        };
+      } catch (error) {
+        console.error('requestDemoConfirmation error:', error);
+        return { success: false, message: 'Failed to send confirmation email. Please try again.' };
+      }
+    },
+
+    setupDemo: async (_: any, { token, orgName, password }: { token: string; orgName: string; password: string }, ctx: AuthContext) => {
+      // Validate token
+      const tokenResult = await pool.query(
+        `SELECT email, lang FROM demo_confirmation WHERE token = $1 AND expires_at > NOW() AND used_at IS NULL`,
+        [token]
+      );
+      if (tokenResult.rows.length === 0) throw new Error('Invalid or expired confirmation token');
+      const { email, lang } = tokenResult.rows[0];
+      const isNl = lang === 'nl';
+
+      if (!orgName.trim()) throw new Error('Organisation name is required');
+      if (password.length < 6) throw new Error('Password must be at least 6 characters');
+
+      // Mark token as used
+      await pool.query(`UPDATE demo_confirmation SET used_at = NOW() WHERE token = $1`, [token]);
+
+      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+      // Create demo organisation
+      const orgResult = await pool.query(
+        `INSERT INTO organisation (name, is_demo, demo_expires_at, demo_email) VALUES ($1, true, $2, $3) RETURNING id`,
+        [orgName.trim(), expiresAt, email.toLowerCase()]
+      );
+      const orgId = orgResult.rows[0].id;
+
+      const passwordHash = await bcrypt.hash(password, 10);
       const memberId = crypto.randomUUID();
 
-      // Create new person + member
+      // Reuse existing person if email already registered, otherwise create new person
+      let personId: string;
+      const existingPerson = await pool.query(`SELECT id FROM person WHERE LOWER(email) = LOWER($1)`, [email]);
+      if (existingPerson.rows.length > 0) {
+        personId = existingPerson.rows[0].id;
+        await pool.query(`UPDATE person SET password_hash = $1 WHERE id = $2`, [passwordHash, personId]);
+      } else {
+        personId = crypto.randomUUID();
+        await pool.query(
+          `INSERT INTO person (id, email, password_hash, first_name, last_name) VALUES ($1, $2, $3, '', '')`,
+          [personId, email.toLowerCase(), passwordHash]
+        );
+      }
       await pool.query(
-        'INSERT INTO person (id, username, first_name, last_name, password_hash) VALUES ($1, $2, $3, $4, $5)',
-        [personId, newAdminId, 'Admin', '', hashedPassword]
-      );
-      await pool.query(
-        'INSERT INTO member (id, person_id, organisation_id) VALUES ($1, $2, $3)',
+        `INSERT INTO member (id, person_id, organisation_id, schedule_disabled) VALUES ($1, $2, $3, false)`,
         [memberId, personId, orgId]
       );
       await pool.query(
-        'INSERT INTO member_role (member_id, role, organisation_id, team_id) VALUES ($1, $2, $3, NULL)',
-        [memberId, 'orgadmin', orgId]
+        `INSERT INTO member_role (member_id, role, team_id) VALUES ($1, 'orgadmin', NULL)`,
+        [memberId]
       );
+
+      logEvent('demo_setup', memberId, ctx.ip, { orgName: orgName.trim(), email });
+
+      const authUser: AuthUser = {
+        id: memberId,
+        email,
+        role: 'user',
+        organisationId: orgId,
+        isOrgAdmin: true,
+        teamAdminIds: [],
+        isDemo: true,
+      };
+      const memberResult = await pool.query(PM_SELECT + ` WHERE m.id = $1`, [memberId]);
+      const member = { ...mapMemberRow(memberResult.rows[0]), isOrgAdmin: true, teamAdminIds: [], isDemo: true };
+      return { success: true, message: isNl ? 'Demo aangemaakt!' : 'Demo created!', member, token: generateToken(authUser) };
+    },
+
+    claimDemo: async (_: any, { orgName }: { orgName: string }, ctx: AuthContext) => {
+      const user = requireAuth(ctx);
+      if (!user.isDemo) throw new Error('Current organisation is not a demo');
+      if (!user.isOrgAdmin) throw new Error('Only the org admin can register the demo');
+
+      const orgId = user.organisationId!;
+      const memberId = user.id;
 
       // Convert demo org to real
       await pool.query(
@@ -1743,12 +1851,12 @@ const resolvers = {
         [orgId, orgName]
       );
 
-      // Return fresh JWT for new admin
+      // Return fresh JWT
       const { isOrgAdmin, teamAdminIds } = await fetchMemberRoles(memberId);
       const memberResult = await pool.query(PM_SELECT + 'WHERE m.id = $1', [memberId]);
       const authUser: AuthUser = {
         id: memberId,
-        username: newAdminId,
+        email: memberResult.rows[0]?.email ?? '',
         role: 'user',
         organisationId: orgId,
         isOrgAdmin,
@@ -1756,27 +1864,27 @@ const resolvers = {
         isDemo: false,
       };
       const member = { ...mapMemberRow(memberResult.rows[0]), isOrgAdmin, teamAdminIds, isDemo: false };
-      logEvent('demo_claimed', memberId, ctx.ip, { orgName, newAdminId });
+      logEvent('demo_claimed', memberId, ctx.ip, { orgName });
       return { success: true, message: 'Account created successfully', member, token: generateToken(authUser) };
     },
 
     // Auth mutations
-    login: async (_: any, { username, password }: { username: string; password: string }, ctx: AuthContext) => {
+    login: async (_: any, { email, password }: { email: string; password: string }, ctx: AuthContext) => {
       try {
         // 1. Verify credentials against person table
         const personResult = await pool.query(
-          'SELECT id, password_hash, username, role FROM person WHERE LOWER(username) = LOWER($1)',
-          [username]
+          'SELECT id, password_hash, email, role FROM person WHERE LOWER(email) = LOWER($1)',
+          [email]
         );
         if (personResult.rows.length === 0) {
-          logEvent('login_failed', null, ctx.ip, { username });
-          return { success: false, message: 'Invalid username or password', member: null, token: null };
+          logEvent('login_failed', null, ctx.ip, { email });
+          return { success: false, message: 'Invalid email or password', member: null, token: null };
         }
         const person = personResult.rows[0];
         const passwordValid = await bcrypt.compare(password, person.password_hash);
         if (!passwordValid) {
-          logEvent('login_failed', null, ctx.ip, { username });
-          return { success: false, message: 'Invalid username or password', member: null, token: null };
+          logEvent('login_failed', null, ctx.ip, { email });
+          return { success: false, message: 'Invalid email or password', member: null, token: null };
         }
         // 2. Find memberships
         const memberships = await pool.query(
@@ -1795,7 +1903,7 @@ const resolvers = {
           const isDemo = m.is_demo ?? false;
           const authUser: AuthUser = {
             id: m.id,
-            username: person.username,
+            email: person.email,
             role: person.role,
             organisationId: m.organisation_id,
             isOrgAdmin,
@@ -1822,7 +1930,7 @@ const resolvers = {
     selectOrg: async (_: any, { personToken, orgId }: { personToken: string; orgId: string }, ctx: AuthContext) => {
       try {
         const { personId } = verifyPersonToken(personToken);
-        const personResult = await pool.query('SELECT id, username, role FROM person WHERE id = $1', [personId]);
+        const personResult = await pool.query('SELECT id, email, role FROM person WHERE id = $1', [personId]);
         if (personResult.rows.length === 0) return { success: false, message: 'Invalid session', member: null, token: null };
         const person = personResult.rows[0];
         const memberResult = await pool.query(
@@ -1836,7 +1944,7 @@ const resolvers = {
         const isDemo = orgRow.rows[0]?.is_demo ?? false;
         const authUser: AuthUser = {
           id: m.id,
-          username: person.username,
+          email: person.email,
           role: person.role,
           organisationId: m.organisation_id,
           isOrgAdmin,
@@ -1877,27 +1985,6 @@ const resolvers = {
       await pool.query(`UPDATE person SET ${sets.join(', ')} WHERE id = $1`, params);
       const result = await pool.query(PM_SELECT + 'WHERE m.id = $1', [args.id]);
       return result.rows[0] ? mapMemberRow(result.rows[0]) : null;
-    },
-
-    updateUsername: async (_: any, { id, username }: { id: string; username: string }, ctx: AuthContext) => {
-      const user = requireAuth(ctx);
-      if (user.id !== id && !isElevatedRole(user)) throw new Error('You can only update your own username');
-      const trimmed = username.trim();
-      if (!trimmed) throw new Error('Username cannot be empty');
-      // Get person_id
-      const memberRow = await pool.query('SELECT person_id FROM member WHERE id = $1', [id]);
-      if (memberRow.rows.length === 0) throw new Error('Member not found');
-      const personId = memberRow.rows[0].person_id;
-      const uCheck = await pool.query(
-        'SELECT id FROM person WHERE LOWER(username) = LOWER($1) AND id <> $2',
-        [trimmed, personId]
-      );
-      if (uCheck.rows.length > 0) throw new Error(`Username "${trimmed}" is already taken`);
-      await pool.query('UPDATE person SET username = $1 WHERE id = $2', [trimmed, personId]);
-      const result = await pool.query(PM_SELECT + 'WHERE m.id = $1', [id]);
-      if (!result.rows[0]) throw new Error('Member not found');
-      logEvent('username_changed', ctx.user?.id ?? null, ctx.ip, { memberId: id });
-      return mapMemberRow(result.rows[0]);
     },
 
     changePassword: async (_: any, { memberId, currentPassword, newPassword }: { memberId: string; currentPassword: string; newPassword: string }, ctx: AuthContext) => {
@@ -1970,12 +2057,12 @@ const resolvers = {
       return mapHolidayRow(result.rows[0]);
     },
 
-    requestPasswordReset: async (_: any, { username }: { username: string }, ctx: AuthContext) => {
-      const genericMessage = 'If an account with that username exists, a password reset link has been sent.';
+    requestPasswordReset: async (_: any, { email }: { email: string }, ctx: AuthContext) => {
+      const genericMessage = 'If an account with that email exists, a password reset link has been sent.';
       try {
         const personResult = await pool.query(
-          'SELECT id, first_name, email FROM person WHERE LOWER(username) = LOWER($1)',
-          [username]
+          'SELECT id, first_name, email FROM person WHERE LOWER(email) = LOWER($1)',
+          [email]
         );
         if (personResult.rows.length > 0) {
           const person = personResult.rows[0];
@@ -2019,7 +2106,7 @@ const resolvers = {
       const hashedPassword = await bcrypt.hash(newPassword, 10);
       await pool.query('UPDATE person SET password_hash = $1 WHERE id = $2', [hashedPassword, resetRow.person_id]);
       // Find the person's memberships
-      const personResult = await pool.query('SELECT id, username, role FROM person WHERE id = $1', [resetRow.person_id]);
+      const personResult = await pool.query('SELECT id, email, role FROM person WHERE id = $1', [resetRow.person_id]);
       const person = personResult.rows[0];
       const memberships = await pool.query(
         `SELECT m.id, m.organisation_id FROM member m WHERE m.person_id = $1`,
@@ -2038,7 +2125,7 @@ const resolvers = {
         const isDemo = orgRow?.rows[0]?.is_demo ?? false;
         const authUser: AuthUser = {
           id: m.id,
-          username: person.username,
+          email: person.email,
           role: person.role,
           organisationId: m.organisation_id,
           isOrgAdmin,
@@ -2200,7 +2287,7 @@ const startServer = async () => {
         try {
           const decoded = jwt.verify(auth.slice(7), JWT_SECRET) as {
             id: string;
-            username?: string;
+            email?: string;
             role: string;
             organisationId?: number | null;
             isOrgAdmin?: boolean;
@@ -2211,7 +2298,7 @@ const startServer = async () => {
           return {
             user: {
               id: decoded.id,
-              username: decoded.username ?? decoded.id,
+              email: decoded.email ?? '',
               role: decoded.role,
               organisationId: decoded.organisationId ?? null,
               isOrgAdmin: decoded.isOrgAdmin ?? false,

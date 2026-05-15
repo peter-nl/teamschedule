@@ -27,7 +27,6 @@ export interface MemberEditDialogData {
   leftOffset?: string;
   member: {
     id: string;
-    username: string;
     firstName: string;
     lastName: string;
     particles: string | null;
@@ -89,12 +88,6 @@ const REMOVE_TEAM_ADMIN_MUTATION = gql`
   }
 `;
 
-const UPDATE_USERNAME_MUTATION = gql`
-  mutation UpdateUsername($id: String!, $username: String!) {
-    updateUsername(id: $id, username: $username) { id username }
-  }
-`;
-
 const RESET_PASSWORD_MUTATION = gql`
   mutation ResetPassword($memberId: String!, $newPassword: String!) {
     resetPassword(memberId: $memberId, newPassword: $newPassword) {
@@ -149,11 +142,6 @@ const RESET_PASSWORD_MUTATION = gql`
           </div>
           <input #avatarInput type="file" accept="image/*" style="display:none"
                  (change)="onAvatarFileSelected($event)">
-
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>{{ 'editMember.username' | translate }}</mat-label>
-            <input matInput [(ngModel)]="editForm.username" name="username" maxlength="100">
-          </mat-form-field>
 
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>{{ 'editMember.firstName' | translate }}</mat-label>
@@ -565,7 +553,6 @@ export class MemberEditDialogComponent {
   @ViewChild('avatarInput') avatarInputRef!: ElementRef<HTMLInputElement>;
 
   editForm: {
-    username: string;
     firstName: string;
     lastName: string;
     particles: string;
@@ -620,7 +607,6 @@ export class MemberEditDialogComponent {
   ) {
     this.avatarUrl = data.member.avatarUrl;
     this.editForm = {
-      username: data.member.username,
       firstName: data.member.firstName,
       lastName: data.member.lastName,
       particles: data.member.particles || '',
@@ -638,8 +624,8 @@ export class MemberEditDialogComponent {
     const existing = this.scheduleService.getMemberSchedule(data.member.id);
     if (existing) {
       this.referenceDate = existing.referenceDate;
-      this.scheduleWeek1 = existing.week1.map(d => ({ ...d }));
-      this.scheduleWeek2 = existing.week2.map(d => ({ ...d }));
+      this.scheduleWeek1 = existing.week1.map(d => ({ morning: d.morning, afternoon: d.afternoon }));
+      this.scheduleWeek2 = existing.week2.map(d => ({ morning: d.morning, afternoon: d.afternoon }));
     } else {
       this.initEmptySchedule();
     }
@@ -706,15 +692,6 @@ export class MemberEditDialogComponent {
   async onSave(): Promise<void> {
     this.saving = true;
     try {
-      // Update username if changed
-      const trimmedUsername = this.editForm.username.trim();
-      if (trimmedUsername && trimmedUsername !== this.data.member.username) {
-        await apolloClient.mutate({
-          mutation: UPDATE_USERNAME_MUTATION,
-          variables: { id: this.data.member.id, username: trimmedUsername }
-        });
-      }
-
       // Update profile
       await apolloClient.mutate({
         mutation: UPDATE_MEMBER_MUTATION,

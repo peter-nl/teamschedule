@@ -1,4 +1,4 @@
-import { Component, Input, OnChanges, OnInit, SimpleChanges } from '@angular/core';
+import { Component, Input, OnChanges, OnInit, SimpleChanges, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
@@ -733,6 +733,7 @@ export class ManageOrgSettingsComponent implements OnInit, OnChanges {
     private holidayTypeService: HolidayTypeService,
     private notificationService: NotificationService,
     private translate: TranslateService,
+    private cdr: ChangeDetectorRef,
   ) {}
 
   get isDateRangeValid(): boolean {
@@ -780,10 +781,12 @@ export class ManageOrgSettingsComponent implements OnInit, OnChanges {
       next: (settings) => {
         this.applySettings(settings);
         this.loading = false;
+        this.cdr.markForCheck();
       },
       error: () => {
         this.applySettings(this.appSettingsService.settings);
         this.loading = false;
+        this.cdr.markForCheck();
       }
     });
   }

@@ -6,7 +6,6 @@ import { apolloClient } from '../../app.config';
 export interface AuthMember {
   id: string;
   memberNo: number;
-  username: string;
   firstName: string;
   lastName: string;
   particles: string | null;
@@ -36,7 +35,6 @@ export interface AuthPayload {
 const MEMBER_FIELDS = `
   id
   memberNo
-  username
   firstName
   lastName
   particles
@@ -50,8 +48,8 @@ const MEMBER_FIELDS = `
 `;
 
 const LOGIN_MUTATION = gql`
-  mutation Login($username: String!, $password: String!) {
-    login(username: $username, password: $password) {
+  mutation Login($email: String!, $password: String!) {
+    login(email: $email, password: $password) {
       success
       message
       token
@@ -186,12 +184,12 @@ export class AuthService {
     return this.currentUserSubject.value;
   }
 
-  login(username: string, password: string, remember = false): Observable<AuthPayload> {
+  login(email: string, password: string, remember = false): Observable<AuthPayload> {
     this.remember = remember;
     return from(
       apolloClient.mutate({
         mutation: LOGIN_MUTATION,
-        variables: { username, password }
+        variables: { email, password }
       })
     ).pipe(
       map((result: any) => {
